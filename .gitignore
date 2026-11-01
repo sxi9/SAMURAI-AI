@@ -1,0 +1,16 @@
+# runtime
+logs/
+__pycache__/
+*.pyc
+
+# voice models — large; the setup wizard / dashboard download these automatically
+models/*
+!models/.gitkeep
+
+# build artifacts
+*.zip
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store

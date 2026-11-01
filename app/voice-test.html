@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SAMURAI Voice Test</title>
+<style>
+body{background:#0a0f1a;color:#bfeaff;font-family:Consolas,monospace;padding:30px;max-width:800px;margin:auto}
+h1{color:#19d3ff;font-size:20px}
+.box{border:1px solid #19d3ff44;padding:14px;margin:12px 0;border-radius:4px}
+.box h2{font-size:13px;color:#19d3ff;margin:0 0 8px}
+.status{font-size:14px;font-weight:bold}
+.ok{color:#3dffa0}.bad{color:#ff4d5e}.wait{color:#ffb547}
+#level{height:20px;background:#0d2236;border-radius:3px;overflow:hidden;margin-top:6px}
+#levelbar{height:100%;width:0%;background:linear-gradient(90deg,#19d3ff,#3dffa0);transition:width .05s}
+#partial{color:#ffb547;min-height:20px;font-size:15px}
+#final{color:#3dffa0;font-size:17px;min-height:24px;font-weight:bold}
+#log{font-size:11px;color:#7aa8c0;max-height:200px;overflow-y:auto;white-space:pre-wrap}
+button{background:#0d2236;color:#19d3ff;border:1px solid #19d3ff;padding:10px 24px;font-family:inherit;font-size:15px;cursor:pointer;border-radius:4px}
+button:hover{background:#19d3ff22}
+button.rec{border-color:#ff4d5e;color:#ff4d5e}
+</style>
+</head>
+<body>
+<h1>SAMURAI VOICE PIPELINE TEST</h1>
+
+<div class="box">
+  <h2>1. SPEECH SERVER (ws://localhost:9100)</h2>
+  <div class="status wait" id="wsStatus">Not connected</div>
+</div>
+
+<div class="box">
+  <h2>2. MICROPHONE</h2>
+  <div class="status wait" id="micStatus">Not started</div>
+  <div id="level"><div id="levelbar"></div></div>
+  <div style="font-size:11px;margin-top:4px">Audio level: <span id="levelNum">0</span> (talk — this bar should move)</div>
+</div>
+
+<div class="box">
+  <h2>3. LIVE TRANSCRIPTION (partial)</h2>
+  <div id="partial">—</div>
+</div>
+
+<div class="box">
+  <h2>4. FINAL RESULT</h2>
+  <div id="final">—</div>
+</div>
+
+<div class="box">
+  <h2>ADJUSTERS (tune, then lock these into the main UI)</h2>
+  <div style="font-size:13px;line-height:2.2">
+    Mic Gain: <input type="range" id="gain" min="0.5" max="5" step="0.1" value="1.5" style="width:200px;vertical-align:middle">
+    <span id="gainVal">1.5</span>x <span style="font-size:11px;color:#7aa8c0">(live — raise if level bar barely moves)</span><br>
+    <label><input type="checkbox" id="ns" checked> Noise Suppression</label> &nbsp;
+    <label><input type="checkbox" id="ec" checked> Echo Cancellation</label> &nbsp;
+    <label><input type="checkbox" id="agc" checked> Auto Gain Control</label>
+    <div style="font-size:11px;color:#7aa8c0">Checkboxes need STOP then START to apply.</div>
+  </div>
+</div>
+
+<button id="startBtn">START TEST</button>
+
+<div class="box">
+  <h2>LOG</h2>
+  <div id="log"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function log(msg){
+  $('log').textContent = `[${new Date().toTimeString().slice(0,8)}] ${msg}\n` + $('log').textContent;
+}
+
+let ws = null, stream = null, actx = null, node = null, running = false;
+let micGain = 1.5;
+$('gain').oninput = () => { micGain = parseFloat($('gain').value); $('gainVal').textContent = micGain.toFixed(1); };
+
+function float32ToInt16(f32){
+  const i16 = new Int16Array(f32.length);
+  for (let i = 0; i < f32.length; i++){
+    const s = Math.max(-1, Math.min(1, f32[i]));
+    i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  return i16.buffer;
+}
+
+async function start(){
+  // step 1: websocket
+  log('connecting to ws://localhost:9100 ...');
+  try{
+    ws = await new Promise((res, rej) => {
+      const w = new WebSocket('ws://localhost:9100');
+      w.binaryType = 'arraybuffer';
+      w.onopen = () => res(w);
+      w.onerror = e => rej(new Error('WebSocket error — is the python server running?'));
+    });
+    $('wsStatus').textContent = 'CONNECTED';
+    $('wsStatus').className = 'status ok';
+    log('websocket connected');
+  }catch(e){
+    $('wsStatus').textContent = 'FAILED: ' + e.message;
+    $('wsStatus').className = 'status bad';
+    log('ERROR: ' + e.message);
+    return;
+  }
+
+  ws.onmessage = ev => {
+    try{
+      const msg = JSON.parse(ev.data);
+      log('server says: ' + ev.data.slice(0, 80));
+      if (msg.final){
+        $('final').textContent = msg.text;
+        $('partial').textContent = '—';
+      } else {
+        $('partial').textContent = msg.text;
+      }
+    }catch(e){ log('bad message: ' + ev.data); }
+  };
+  ws.onclose = () => {
+    $('wsStatus').textContent = 'DISCONNECTED';
+    $('wsStatus').className = 'status bad';
+    log('websocket closed');
+  };
+
+  // step 2: mic
+  log('requesting microphone...');
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: $('ec').checked,
+        noiseSuppression: $('ns').checked,
+        autoGainControl: $('agc').checked,
+        channelCount: 1
+      }
+    });
+    const track = stream.getAudioTracks()[0];
+    log('mic granted: ' + track.label);
+    log('mic settings: ' + JSON.stringify(track.getSettings()));
+    $('micStatus').textContent = 'ACTIVE: ' + track.label;
+    $('micStatus').className = 'status ok';
+  }catch(e){
+    $('micStatus').textContent = 'DENIED: ' + e.message;
+    $('micStatus').className = 'status bad';
+    log('ERROR: mic — ' + e.message);
+    return;
+  }
+
+  // step 3: audio processing — resample to 16k
+  actx = new AudioContext();
+  log('AudioContext sample rate: ' + actx.sampleRate + ' Hz (server wants 16000)');
+  const source = actx.createMediaStreamSource(stream);
+  node = actx.createScriptProcessor(4096, 1, 1);
+  const ratio = actx.sampleRate / 16000;
+
+  node.onaudioprocess = ev => {
+    if (!running) return;
+    const raw = ev.inputBuffer.getChannelData(0);
+
+    // apply gain
+    const input = new Float32Array(raw.length);
+    for (let i = 0; i < raw.length; i++){
+      input[i] = Math.max(-1, Math.min(1, raw[i] * micGain));
+    }
+
+    // level meter
+    let max = 0;
+    for (let i = 0; i < input.length; i++) max = Math.max(max, Math.abs(input[i]));
+    const pct = Math.min(100, max * 300);
+    $('levelbar').style.width = pct + '%';
+    $('levelNum').textContent = max.toFixed(3);
+
+    // downsample to 16k with averaging (anti-alias) — more accurate than nearest-sample
+    const outLen = Math.floor(input.length / ratio);
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++){
+      const a = Math.floor(i * ratio), b = Math.min(input.length, Math.floor((i + 1) * ratio));
+      let sum = 0;
+      for (let j = a; j < b; j++) sum += input[j];
+      out[i] = sum / Math.max(1, b - a);
+    }
+
+    if (ws && ws.readyState === WebSocket.OPEN){
+      ws.send(float32ToInt16(out));
+    }
+  };
+  source.connect(node);
+  node.connect(actx.destination);
+  running = true;
+  $('startBtn').textContent = 'STOP TEST';
+  $('startBtn').className = 'rec';
+  log('streaming audio to server — SPEAK NOW');
+}
+
+function stop(){
+  running = false;
+  if (node){ node.disconnect(); node = null; }
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (actx){ actx.close(); actx = null; }
+  if (ws){ try{ ws.send('EOF'); }catch(e){} ws.close(); ws = null; }
+  $('startBtn').textContent = 'START TEST';
+  $('startBtn').className = '';
+  $('micStatus').textContent = 'Stopped';
+  $('micStatus').className = 'status wait';
+  log('stopped');
+}
+
+$('startBtn').onclick = () => running ? stop() : start();
+</script>
+</body>
+</html>
