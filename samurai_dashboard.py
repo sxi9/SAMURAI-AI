@@ -1,6 +1,6 @@
 """SAMURAI Dashboard — start/stop all SAMURAI services and open the interface.
 Run: pythonw samurai_dashboard.py  (created as SAMURAI.lnk on the desktop by setup)"""
-import os, socket, ssl, subprocess, sys, threading, time, zipfile
+import os, socket, subprocess, sys, threading, time
 import urllib.error, urllib.request, webbrowser
 import tkinter as tk
 
@@ -13,109 +13,15 @@ UI_URL = "http://localhost:8080/jarvis-interface.html"
 NOWIN = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
 
 
-def run_hidden(cmd, **kw):
-    """subprocess.run with no flashing console window."""
-    return subprocess.run(cmd, creationflags=NOWIN, **kw)
-SMALL_MODEL_NAME = "vosk-model-small-en-us-0.15"
-# multiple mirrors — tried in order (corporate firewalls sometimes block one host)
-MODEL_MIRRORS = [
-    "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
-    "https://huggingface.co/rhasspy/vosk-models/resolve/main/en/vosk-model-small-en-us-0.15.zip",
-]
+sys.path.insert(0, os.path.join(ROOT, "servers"))
+from samurai_common import (run_hidden, model_valid, any_valid_model, ensure_model,       # noqa: E402
+                            download_with_resume, SMALL_MODEL_NAME, MODEL_MIRRORS, PORTS)
 PIP_NAME = {"vosk": "vosk", "websockets": "websockets", "psutil": "psutil", "edge_tts": "edge-tts"}
-
-
-def model_valid(folder=SMALL_MODEL_NAME):
-    """A Vosk model is usable only if its core files extracted correctly."""
-    base = os.path.join(MODELS, folder)
-    if not os.path.isdir(base):
-        return False
-    markers = [os.path.join(base, "conf", "model.conf"),
-               os.path.join(base, "am", "final.mdl")]
-    return any(os.path.exists(m) for m in markers)
-
-
-def any_valid_model():
-    try:
-        return any(model_valid(d) for d in os.listdir(MODELS) if d.startswith("vosk-model"))
-    except OSError:
-        return False
-
-
-def _opener():
-    """urllib opener that tolerates corporate MITM proxies (unverified TLS) + a browser UA."""
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    op = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
-    op.addheaders = [("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")]
-    return op
-
-
-def download_with_resume(url, dest, status_cb=lambda s: None, attempts=6):
-    """Download url -> dest with byte-range resume and retries. Returns True on success."""
-    op = _opener()
-    for attempt in range(1, attempts + 1):
-        have = os.path.getsize(dest) if os.path.exists(dest) else 0
-        try:
-            req = urllib.request.Request(url)
-            if have:
-                req.add_header("Range", f"bytes={have}-")
-            with op.open(req, timeout=30) as r:
-                total = have + int(r.headers.get("Content-Length", 0) or 0)
-                mode = "ab" if (have and r.status == 206) else "wb"
-                if mode == "wb":
-                    have = 0
-                with open(dest, mode) as f:
-                    while True:
-                        chunk = r.read(262144)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        have += len(chunk)
-                        if total:
-                            status_cb(f"downloading voice model… {have * 100 // total}%")
-                        else:
-                            status_cb(f"downloading voice model… {have // 1048576} MB")
-            if os.path.getsize(dest) > 1_000_000:
-                return True
-        except Exception as e:
-            status_cb(f"download retry {attempt}/{attempts} ({str(e)[:40]})")
-            time.sleep(2)
-    return False
-
-
-def ensure_model(status_cb=lambda s: None):
-    """Guarantee a valid small Vosk model is present. Returns (ok, message)."""
-    if any_valid_model():
-        return True, "voice model present"
-    os.makedirs(MODELS, exist_ok=True)
-    zpath = os.path.join(MODELS, SMALL_MODEL_NAME + ".zip")
-    for url in MODEL_MIRRORS:
-        host = url.split("/")[2]
-        status_cb(f"fetching voice model from {host}…")
-        if download_with_resume(url, zpath, status_cb):
-            try:
-                status_cb("extracting voice model…")
-                with zipfile.ZipFile(zpath) as z:
-                    z.extractall(MODELS)
-                os.remove(zpath)
-            except Exception as e:
-                return False, f"extract failed: {e}"
-            if model_valid():
-                return True, "voice model installed"
-        # this mirror failed — try the next
-        if os.path.exists(zpath):
-            try:
-                os.remove(zpath)
-            except OSError:
-                pass
-    return False, "could not download voice model (network blocked?) — see README"
 
 SERVICES = [
     {"key": "ui",     "name": "UI SERVER",      "port": 8080,
      "check": "http://localhost:8080/jarvis-interface.html",
-     "cmd": [sys.executable, "-m", "http.server", "8080", "--directory", APP]},
+     "cmd": [sys.executable, "-m", "http.server", "8080", "--bind", "127.0.0.1", "--directory", APP]},
     {"key": "speech", "name": "SPEECH (VOSK)",  "port": 9100,
      "check": None,  # websocket server: TCP connect is the health probe
      "cmd": [sys.executable, os.path.join(SRV, "samurai_speech_server.py")]},
@@ -131,6 +37,9 @@ SERVICES = [
     {"key": "agent",  "name": "AGENT (CLI)",    "port": 9400,
      "check": "http://localhost:9400/agent/status",
      "cmd": [sys.executable, os.path.join(SRV, "samurai_agent_server.py")]},
+    {"key": "addons", "name": "ADD-ONS",        "port": 9500,
+     "check": "http://localhost:9500/addons/status",
+     "cmd": [sys.executable, os.path.join(SRV, "samurai_addons.py")]},
 ]
 
 BG, PANEL, FG, ACCENT, RED, DIM = "#060a12", "#0b1322", "#9adfff", "#27e0a6", "#ff5f6d", "#3a5a78"
@@ -181,7 +90,7 @@ class Dash(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("SAMURAI DASHBOARD")
-        self.geometry("520x470")
+        self.geometry("520x500")
         self.configure(bg=BG)
         self.resizable(False, False)
         self.procs = {}

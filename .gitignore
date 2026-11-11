@@ -17,3 +17,9 @@ desktop.ini
 
 # headless agent working folder
 workspace/
+
+# user data and secrets
+config.json
+data/
+gallery/*
+!gallery/.gitkeep

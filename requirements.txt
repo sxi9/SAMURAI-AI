@@ -1,0 +1,5 @@
+# SAMURAI runtime dependencies (installed into .venv by install.py / SETUP.bat)
+vosk>=0.3.45
+websockets>=12
+psutil>=5.9
+edge-tts>=6.1

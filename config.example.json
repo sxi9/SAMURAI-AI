@@ -1,0 +1,17 @@
+{
+  "user": { "name": "Boss", "node": "LOCAL-01" },
+  "location": { "lat": 0.0, "lon": 0.0, "label": "SET ME" },
+  "ui": { "origins": ["http://localhost:8080", "http://127.0.0.1:8080"] },
+  "widgets": {
+    "agenda": { "ics_path": "", "sample": true },
+    "inbox":  { "imap_host": "", "imap_user": "", "imap_password": "", "sample": true },
+    "home":   { "hass_url": "", "hass_token": "", "sample": true },
+    "music":  { "library_dir": "", "sample": true },
+    "gallery": { "dir": "gallery" },
+    "camera": { "url": "" },
+    "position": { "nearby": [ { "name": "OFFICE", "km": 4.2, "bearing": 40 },
+                              { "name": "AIRPORT", "km": 31, "bearing": 225 } ] }
+  },
+  "agent": { "allow_bash": false },
+  "autostart": false
+}

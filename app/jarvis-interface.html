@@ -1182,7 +1182,7 @@ function executeActions(text){
 const LLM_DEFAULTS = {
   provider: 'local',
   keys:   { openai: '', claude: '', gemini: '' },
-  models: { local: 'llama3.1:8b', openai: 'gpt-4o-mini', claude: 'claude-sonnet-5', gemini: 'gemini-2.0-flash', claudecode: '', geminicli: '' }
+  models: { local: 'llama3.1:8b', openai: 'gpt-4o-mini', claude: 'claude-sonnet-5-5', gemini: 'gemini-2.0-flash', claudecode: '', geminicli: '' }
 };
 /* --- headless agents: Claude Code / Gemini CLI via samurai_agent_server.py (port 9400) --- */
 const AGENT_URL = 'http://localhost:9400/agent';
@@ -1237,7 +1237,7 @@ async function agentDelegate(type, arg){
 }
 // retired model ids that must be auto-upgraded to a current one on load
 const RETIRED_MODELS = {
-  claude: [/^claude-sonnet-4/, /^claude-opus-4-[0-7]\b/, /^claude-3/, /^claude-2/, /sonnet-4-6/]
+  claude: [/^claude-sonnet-4-[0-5]\b/, /^claude-opus-4-[0-7]\b/, /^claude-3/, /^claude-2/]
 };
 function migrateModels(models){
   for (const prov in RETIRED_MODELS){
@@ -1373,7 +1373,9 @@ async function askLLM(q){
       });
       const d = await r.json();
       if (d.error) throw new Error(d.error.message);
-      txt = d.content && d.content[0] && d.content[0].text;
+      if (d.stop_reason === 'refusal') throw new Error('Claude declined that request');
+      const tb = (d.content || []).find(b => b.type === 'text');   // first block may be a thinking block
+      txt = tb && tb.text;
     } else if (isHeadless()){
       const mode = detectAgentMode(q);
       $('coretag').textContent = mode === 'search' ? 'CORE · RESEARCHING' : (mode === 'work' ? 'CORE · WORKING' : 'CORE · THINKING');

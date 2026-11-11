@@ -6,14 +6,14 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 ## Stage 1 — Backend fixes, config, widgets sidecar
 
 - [x] Headless agent sidecar (Claude Code / Gemini CLI) on :9400 with chat / search / work modes
-- [ ] Speech server: fix undefined name in error path, validate model folder before loading
-- [ ] Interface: Claude reply parsing (pick the text block), refusal handling
-- [ ] All sidecars: allow only the SAMURAI page origin (no wildcard CORS)
-- [ ] Model download: keep TLS verification, verify checksum, reject unsafe zip paths
-- [ ] UI server bound to 127.0.0.1
-- [ ] `config.json` for name, location, keys and widget sources (no personal data in code)
-- [ ] `servers/samurai_addons.py` on :9500 — weather, ticker, tasks, gallery, position, security, agenda, inbox, music, home
-- [ ] Setup: venv, pinned requirements, fresh setuptools (fixes vosk on Python 3.13)
+- [x] Speech server: fix undefined name in error path, validate model folder before loading
+- [x] Interface: Claude reply parsing (pick the text block), refusal handling
+- [x] All sidecars: allow only the SAMURAI page origin (no wildcard CORS)
+- [x] Model download: keep TLS verification, verify checksum, reject unsafe zip paths
+- [x] UI server bound to 127.0.0.1
+- [x] `config.json` for name, location, keys and widget sources (no personal data in code)
+- [x] `servers/samurai_addons.py` on :9500 — weather, ticker, tasks, gallery, position, security, agenda, inbox, music, home
+- [x] Setup: venv, pinned requirements, fresh setuptools (fixes vosk on Python 3.13)
 
 ## Stage 2 — HUD v3 page (design handoff, pixel-for-pixel at 1920×1080)
 
@@ -34,7 +34,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [ ] Browser control panel served by a supervisor sidecar (replaces the tkinter dashboard on all OSes): service health, logs, restart, auto-fix, settings editor, autostart toggle
 - [ ] Start with boot: Windows Task Scheduler, Linux systemd user service, macOS launchd
 - [ ] Automatic troubleshooting: health watchdog, auto-restart, log diagnosis, "doctor" command, mic/speaker self-test
-- [ ] Full PC control actions (gated by the SYSTEM CONTROL switch, confirmation for destructive ones): volume, mute, media keys, brightness, lock, sleep, shutdown, restart, screenshot, clipboard, open file/folder, type text, hotkeys, kill process, run allow-listed command
+- [x] Full PC control actions (gated by the SYSTEM CONTROL switch, confirmation for destructive ones): volume, mute, media keys, brightness, lock, sleep, shutdown, restart, screenshot, clipboard, open file/folder, type text, hotkeys, kill process, run allow-listed command
 - [ ] Media: local music folder playback in the MUSIC widget, system media keys, YouTube/Spotify via actions
 
 ## Stage 4 — Brains (as many AIs as possible) and memory
@@ -44,14 +44,14 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [ ] Per-provider model lists fetched live where the API offers them; free-tier providers marked
 - [ ] Multi-AI modes: ask one, ask several at once and compare, or route by task (fast model for chat, strong model for work, search-capable model for research)
 - [ ] Provider pool with round-robin and failover (order configurable; multiple keys per provider rotated; rate-limit aware)
-- [ ] Local context: conversation history and "remember …" facts saved to SQLite, recalled into every prompt, "forget" command
+- [~] Local context: conversation history and "remember …" facts saved to SQLite, recalled into every prompt, "forget" command
 - [ ] Streaming replies with sentence-level speech
 
 ## Stage 5 — Audio and speech hardening
 
 - [ ] Wake word model (openWakeWord) instead of full-time transcription
 - [ ] Voice activity detection, barge-in (interrupt SAMURAI by speaking)
-- [ ] Local TTS option (Kokoro) so voice works offline; edge-tts stays as the online voice
+- [~] Local TTS option (Kokoro) so voice works offline; edge-tts stays as the online voice
 - [ ] Mic/speaker self-test page wired into the control panel
 - [ ] End-to-end voice test (TTS clip → Vosk → command) in the test suite
 

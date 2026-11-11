@@ -1,7 +1,7 @@
 """SAMURAI Setup Wizard — installs dependencies, downloads voice models,
 creates a desktop shortcut, and launches the dashboard.
 Run: python samurai_setup.py  (or double-click SETUP.bat)"""
-import os, subprocess, sys, threading, urllib.request, zipfile
+import os, subprocess, sys, threading
 import tkinter as tk
 from tkinter import ttk
 
@@ -139,6 +139,9 @@ class Setup(tk.Tk):
 
             if self.want_deps.get():
                 ui(self.plog, "▸ Installing Python packages…")
+                ui(self.plog, "    pip install --upgrade pip setuptools wheel")
+                dash.run_hidden([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip", "setuptools", "wheel"],
+                                capture_output=True, text=True)
                 for pkg in PIP_PACKAGES:
                     ui(self.plog, f"    pip install {pkg}")
                     r = dash.run_hidden([sys.executable, "-m", "pip", "install", "--quiet", pkg],
@@ -162,16 +165,8 @@ class Setup(tk.Tk):
                         ok, msg = dash.ensure_model(log_status)
                         ui(self.plog, "      " + ("✓ " + msg if ok else "✗ " + msg))
                     else:
-                        zpath = os.path.join(MODELS_DIR, name + ".zip")
-                        ok = dash.download_with_resume(url, zpath, log_status, attempts=30)
-                        if ok:
-                            ui(self.plog, "▸ Extracting…")
-                            with zipfile.ZipFile(zpath) as z:
-                                z.extractall(MODELS_DIR)
-                            os.remove(zpath)
-                            ui(self.plog, "      ✓ model installed")
-                        else:
-                            ui(self.plog, "      ✗ download failed — the dashboard can retry later")
+                        ok, msg = dash.ensure_model(log_status, name=name)
+                        ui(self.plog, "      " + ("✓ " + msg if ok else "✗ " + msg + " — the dashboard can retry later"))
                 done += 1
                 ui(self.bar.configure, {"value": done / max(steps, 1) * 100})
 
@@ -187,6 +182,7 @@ class Setup(tk.Tk):
                                     capture_output=True, text=True)
                 ui(self.plog, "      ✓ shortcut created" if r.returncode == 0 else "      ✗ shortcut failed")
                 done += 1
+                ui(self.bar.configure, {"value": done / max(steps, 1) * 100})
 
             # ---- verification checklist (auto-repairs failed installs once) ----
             ui(self.plog, "\n▸ Verifying installation…")
@@ -204,7 +200,7 @@ class Setup(tk.Tk):
                 ok = r.returncode == 0
                 all_ok &= ok
                 ui(self.plog, f"    {'✓' if ok else '✗'} package {pkg}" +
-                   ("" if ok else f"  ({(r.stderr or '').strip().splitlines()[-1][:70] if r.stderr else 'import failed'})"))
+                   ("" if ok else f"  ({((r.stderr or '').strip().splitlines() or ['import failed'])[-1][:70]})"))
 
             has_model = dash.any_valid_model()
             ui(self.plog, f"    {'✓' if has_model else '✗'} voice model in models\\" +
@@ -213,7 +209,7 @@ class Setup(tk.Tk):
             for rel in ("app\\jarvis-interface.html", "servers\\samurai_speech_server.py",
                         "servers\\samurai_telemetry.py", "servers\\samurai_tts_server.py",
                         "servers\\samurai_action_server.py", "servers\\samurai_agent_server.py",
-                        "samurai_dashboard.py"):
+                        "servers\\samurai_addons.py", "servers\\samurai_common.py", "samurai_dashboard.py"):
                 ok = os.path.exists(os.path.join(ROOT, rel))
                 all_ok &= ok
                 ui(self.plog, f"    {'✓' if ok else '✗'} file {rel}")
