@@ -26,3 +26,7 @@ gallery/*
 
 # virtual environment created by install.py
 .venv/
+
+# PyInstaller output
+build/
+dist/

@@ -2,14 +2,14 @@
 (function (SAM) {
   const core = SAM.core, voice = SAM.voice, brain = SAM.brain, widgets = SAM.widgets, W = widgets.W, NODE = widgets.NODE;
   const $ = id => document.getElementById(id), esc = widgets.esc;
-  const ACTION_URL = 'http://localhost:9300/action', ADDONS = 'http://localhost:9500';
+  const ACTION_URL = SAM.H + ':9300/action', ADDONS = SAM.H + ':9500';
   const MODES = { idle: ['IDLE', 'awaiting command', '#2ee6ff'], listening: ['LISTENING', 'say "samurai" + command', '#d9f8ff'], thinking: ['PROCESSING', 'neural core', '#a07cff'], speaking: ['SPEAKING', 'neural voice', '#2ee6ff'], alert: ['ALERT', 'security watch · high', '#ff3d6e'], boot: ['BOOT', 'initialising', '#6a8ea3'] };
   const BOOT = ['mounting telemetry sidecar :8765', 'voice model vosk ready', 'neural core linked', 'action server :9300 armed', 'add-ons · 12 pinned', 'assembling HUD'];
   const DEMO = new URLSearchParams(location.search).has('demo');
   const SAVE_KEY = 'samurai.hud3';
 
   const S = {
-    mode: 'boot', layout: 'full', pinned: Object.fromEntries(W.map(w => [w.id, 1])), focus: null, drawer: false,
+    mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
     parallax: true, particles: true, idleMorph: true, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'full'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.proactive = !!s.ui.proactive; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, proactive: S.proactive } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -59,11 +59,13 @@
   }
 
   /* ---------- layout: slots, fly, halo, flow ---------- */
+  const FOCUS_SET = { sys: 1, cal: 1, task: 1, wx: 1, mus: 1, home: 1 };     // the calmer default: six widgets, six docked in the ring
   function applyLayout() {
-    const ambient = S.layout === 'ambient';
+    const ambient = S.layout === 'ambient', focusMode = S.layout === 'focus';
+    stage.classList.toggle('calm', focusMode || ambient);
     W.forEach((w, i) => {
       const slot = document.querySelector(`.slot[data-id=${w.id}]`), fly = document.querySelector(`.fly[data-id=${w.id}]`), node = document.querySelector(`.node[data-id=${w.id}]`);
-      const docked = ambient || !S.pinned[w.id], focused = S.focus === w.id;
+      const docked = ambient || !S.pinned[w.id] || (focusMode && !FOCUS_SET[w.id]), focused = S.focus === w.id;
       node.classList.toggle('docked', docked && !focused); node.classList.toggle('focused', focused);
       if (S.flow) {
         slot.style.left = slot.style.top = '';
@@ -150,6 +152,9 @@
     const sp = q.match(/\b(?:spell|write|text|type)\s+(.{1,12}?)\s*$/); if (sp) { const w = sp[1].toUpperCase(); return { shape: 'text:' + w, text: `Spelling ${w}.` }; }
     if (/^(ambient|ambient mode|ambient layout)$/.test(q)) return { text: 'Ambient mode. Widgets stay docked in the ring until you ask for them.', effect: () => { S.layout = 'ambient'; save(); applyLayout(); } };
     if (has('full layout', 'show all', 'full mode', 'show everything', 'dashboard mode')) return { text: 'Full layout restored.', effect: () => { S.layout = 'full'; save(); applyLayout(); } };
+    if (/^(focus layout|focus mode layout|calm (mode|layout)|less widgets|fewer widgets|declutter)$/.test(q)) return { text: 'Focus layout. Six widgets, the rest wait in the ring.', effect: () => { S.layout = 'focus'; save(); applyLayout(); } };
+    const pl = q.match(/^(?:plan|make a plan|do all this|multi ?step)[:,]?\s+(.{4,})$/); if (pl) return { plan: pl[1] };
+    if (/^proactive check$/.test(q)) return { proactive: true };
     const tm = q.match(/\b(?:timer|countdown|alarm)\b.*?(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty|forty|sixty)\s*(?:min|minute|m\b)/) || q.match(/(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty)\s*(?:min|minute)s?\s*(?:timer|countdown)/);
     if (tm) { const n = WORDS[tm[1]] || +tm[1]; return { focus: 'tmr', text: `Timer set, ${n} minute${n > 1 ? 's' : ''}. I'll ping you when it's done.`, effect: () => widgets.timerStart(n * 60) }; }
     if (/\b(stop|cancel|reset)\b.*\btimer\b|\btimer\b.*\b(stop|cancel|reset)\b/.test(q)) return { focus: 'tmr', text: 'Timer cleared.', effect: () => widgets.timerReset() };
@@ -177,7 +182,7 @@
     const rn = q.match(/^run (?:the )?(.{2,30}?) routine$/); if (rn) return { text: null, actions: [{ type: 'routine_run', arg: rn[1] }] };
     if (/^((morning|evening|daily) )?brief(ing)?( me)?$|^brief me$|^what('s| is) (my|the) (day|briefing)\b/.test(q)) return { briefing: true };
     if (/^(what did you do|what have you done|show (the )?audit|activity log)/.test(q)) return { audit: true };
-    const ds = q.match(/^(?:search|find|look)(?: in| through)? (?:my )?(?:docs|documents|files|notes)(?: for)? (.{2,})$/) || q.match(/^what do my (?:docs|documents|notes) say about (.{2,})$/); if (ds) return { docs: ds[1] };
+    const ds = q.match(/^(?:search(?:ed)?|find|look(?:ed)?|check)(?: in| through)? (?:my )?(?:docs|documents|files|notes)(?: for)? (.{2,})$/) || q.match(/^what do my (?:docs|documents|notes) say about (.{2,})$/); if (ds) return { docs: ds[1] };
     if (/^(what('s| is) on my screen|look at (my|the) screen|read (my|the) screen|describe (my|the) screen|what am i looking at)\??$/.test(q)) return { vision: 'screen', question: 'Describe what is on the screen and anything notable.' };
     const vs = q.match(/^(?:look at (?:my|the) screen and |on my screen,? )(.{3,})$/); if (vs) return { vision: 'screen', question: vs[1] };
     if (/^(what do you see|look at me|what('s| is) in front of (the|your) camera|describe the (room|camera))\??$/.test(q)) return { vision: 'camera', question: 'Describe what the camera sees.' };
@@ -226,6 +231,8 @@
       else if (r && r.schedules) { r = await listSchedules(); }
       else if (r && r.docs) { r = await docsAnswer(r.docs); }
       else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
+      else if (r && r.plan) { r = await planRun(r.plan); }
+      else if (r && r.proactive) { r = await proactiveCheck(); if (!r) { setMode(voice.micOn ? 'listening' : 'idle'); return; } }
       else if (!r) {
         if (brain.online) {
           llmSnap = brain.cfg.sysAccess ? widgets.snapshot() : null;
@@ -254,6 +261,28 @@
     res.forEach(x => widgets.pushTty(`${x.id}: ${x.error ? 'error · ' + x.error : x.reply.slice(0, 60)}`, x.error ? '#ff3d6e' : '#a9cfe0'));
     const good = res.filter(x => x.reply);
     return { text: good.map(x => `${brain.PROVIDERS[x.id].label.split(' — ')[0]} says: ${x.reply}`).join(' ') || 'Every provider failed.' };
+  }
+  /* autonomous planner: the brain breaks a goal into spoken steps + commands, SAMURAI runs them one after another */
+  async function planRun(goal) {
+    if (!brain.online) return { text: 'I need a brain online to plan that.' };
+    try {
+      const out = await brain.ask(`Plan this goal for ${brain.user.name} as a short ordered list of SAMURAI commands I can run one by one. Reply ONLY with JSON: {"reply": "<one sentence saying what you will do>", "steps": ["<command 1>", "<command 2>", ...], "focus": null, "actions": [], "shape": null}. Commands are things SAMURAI understands: lights off, timer 5 min, play some music, web search for X, open chrome, remind me at 5 pm to X, search my documents for X, browse_open X, screenshot. Goal: ${goal}`, widgets.snapshot());
+      let steps = [];
+      if (brain.lastRaw) { try { const o = JSON.parse(brain.lastRaw.slice(brain.lastRaw.indexOf('{'), brain.lastRaw.lastIndexOf('}') + 1)); steps = Array.isArray(o.steps) ? o.steps.map(String) : []; } catch (e) { } }
+      if (!steps.length) return { text: out.reply || 'I could not break that into steps.' };
+      steps.slice(0, 8).forEach((s, i) => widgets.pushTty(`plan ${i + 1}: ${s}`, '#a07cff'));
+      S.routineQueue = steps.slice(0, 8); T(runRoutineQueue, 2500);
+      return { text: out.reply || `Plan ready, ${steps.length} steps.`, focus: 'tty' };
+    } catch (e) { return { text: 'Planning failed: ' + String(e.message).slice(0, 60) }; }
+  }
+  /* proactive check-in: the brain looks at the live data and speaks only if something deserves attention */
+  async function proactiveCheck() {
+    if (!brain.online) return null;
+    try {
+      const out = await brain.ask(`Proactive check-in. Look at the LIVE DATA. If something deserves ${brain.user.name}'s attention right now (high load, low battery, disk nearly full, an imminent meeting, a flagged mail, an open security alert), say it in one or two sentences. If nothing stands out reply with exactly the word NOTHING.`, widgets.snapshot());
+      if (!out.reply || /^\s*nothing\b/i.test(out.reply)) { widgets.pushTty('proactive check · nothing to report', '#6a8ea3'); return null; }
+      widgets.pushTty('proactive check · speaking up', '#ffb84d'); return { text: out.reply, focus: out.focus || 'sys' };
+    } catch (e) { return null; }
   }
   async function briefing() {
     const d = widgets.data, parts = [];
@@ -356,7 +385,7 @@
         case 'look_at_camera': { const r2 = await visionAnswer('camera', arg || 'Describe what the camera sees.'); return r2.text; }
         case 'desktop_task': { T(() => desktopTask(arg), 1500); return null; }
         case 'browse_open': case 'browse_read': case 'browse_click': case 'browse_type': case 'browse_find': case 'browse_back': case 'browse_screenshot': {
-          try { const d = await (await fetch('http://localhost:9600/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: type.slice(7), arg }) })).json(); widgets.pushTty(`browser ${type.slice(7)} → ${d.ok ? 'ok' : d.error}`, d.ok ? '#2ee6ff' : '#ff3d6e'); if (d.ok && d.text && brain.online && type === 'browse_read') { const out = await brain.ask(`Summarise this web page for ${brain.user.name} in 2-3 spoken sentences (title: ${d.title}):\n${d.text.slice(0, 6000)}`, null); return out.reply; } return d.ok ? (d.did || d.title || 'Done.') : `Browser: ${d.error}`; }
+          try { const d = await (await fetch(SAM.H + ':9600/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: type.slice(7), arg }) })).json(); widgets.pushTty(`browser ${type.slice(7)} → ${d.ok ? 'ok' : d.error}`, d.ok ? '#2ee6ff' : '#ff3d6e'); if (d.ok && d.text && brain.online && type === 'browse_read') { const out = await brain.ask(`Summarise this web page for ${brain.user.name} in 2-3 spoken sentences (title: ${d.title}):\n${d.text.slice(0, 6000)}`, null); return out.reply; } return d.ok ? (d.did || d.title || 'Done.') : `Browser: ${d.error}`; }
           catch (e) { return 'The browser agent is not running. Start it from the control panel.'; }
         }
         case 'play_music': { if (widgets.data.music.live && widgets.music('find', arg)) return null; widgets.data.music.queryTitle = arg; widgets.data.music.now.playing = true; widgets.render('mus'); break; }
@@ -411,11 +440,19 @@
   /* ---------- voice wiring ---------- */
   voice.onLog = log; brain.onLog = log; widgets.onLog = log;
   voice.onPartial = t => { $('transcript').textContent = t; $('transcript').classList.add('on'); if (S.mode === 'idle') setMode('listening'); clearTimeout(S.partialT); S.partialT = setTimeout(() => voice.flush(), 700); };
+  /* the recogniser sometimes hears "damn ri" or "some rye" for "samurai": accept close matches at the start */
+  function lev(a, b) { const m = a.length, n = b.length, d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]); for (let j = 1; j <= n; j++) d[0][j] = j; for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; }
+  function stripWake(text, ww) {
+    const words = text.trim().split(/\s+/), lead = /^(hey|ok|okay|yo)$/i;
+    let start = words.length && lead.test(words[0]) ? 1 : 0;
+    for (let n = 1; n <= 3 && start + n <= words.length; n++) { const cand = words.slice(start, start + n).join('').toLowerCase().replace(/[^a-z]/g, ''); if (cand === ww || (cand.length >= 5 && lev(cand, ww) <= (n >= 2 ? 5 : Math.max(2, Math.ceil(ww.length * .55)))) || (ww === 'samurai' && /^(s|d|z|th|sh)?[a-z]{2,5}a?w?r(ai|i|y|ye|ie|ee)$/.test(cand) && cand.length <= 10)) return { found: true, rest: words.slice(start + n).join(' ').replace(/^[\s,.:!-]+/, '').trim() }; }
+    return { found: false, rest: text.trim() };
+  }
   voice.onFinal = t => {
     clearTimeout(S.partialT); $('transcript').textContent = t; $('transcript').classList.add('on');
-    let cmd = t.trim(); const low = cmd.toLowerCase(), ww = voice.cfg.wakeWord;
-    if (voice.cfg.wake) { const i = low.indexOf(ww); if (i < 0) { widgets.pushTty(`heard: ${t.slice(0, 40)} (no wake word)`, '#6a8ea3'); if (S.mode === 'listening') setMode('idle'); return; } cmd = cmd.slice(i + ww.length).replace(/^[\s,.:!-]+/, '').trim(); }
-    else cmd = cmd.replace(new RegExp('^(hey |ok )?' + ww + '[\\s,.:!-]*', 'i'), '').trim();
+    const ww = voice.cfg.wakeWord, sw = stripWake(t, ww); let cmd = sw.rest;
+    if (voice.cfg.wake && !sw.found) { widgets.pushTty(`heard: ${t.slice(0, 40)} (no wake word)`, '#6a8ea3'); if (S.mode === 'listening') setMode('idle'); return; }
+    if (sw.found) widgets.pushTty(`wake: "${t.split(/\s+/).slice(0, 2).join(' ')}"`, '#2ee6ff');
     if (!cmd || /^(hello|hi|hey|yo|there|wake up)$/.test(cmd.toLowerCase())) { say(`Welcome back, ${brain.user.name}. All systems at your command.`, null); return; }
     submit(cmd);
   };
@@ -426,7 +463,7 @@
   widgets.onSecurity = sec => showAlert(sec);
   widgets.onAction = (type, arg) => runAction({ type, arg });
   widgets.onTicker = () => renderTicker();
-  core.onShape = (name, locked) => { $('shapeText').textContent = `PARTICLES · ${name.replace('text:', '').toUpperCase()}`; if (locked) widgets.pushTty(`particles → ${name.replace('text:', 'text ')}`, '#a07cff'); };
+  core.onShape = (name, locked) => { $('shapeText').textContent = `PARTICLES · ${name.replace('text:', '').toUpperCase()}`; const box = $('shapeText').parentElement; box.classList.add('show'); clearTimeout(S.shapeHideT); S.shapeHideT = setTimeout(() => box.classList.remove('show'), 6000); if (locked) widgets.pushTty(`particles → ${name.replace('text:', 'text ')}`, '#a07cff'); };
 
   /* ---------- settings drawer ---------- */
   const MOODS = [['professional', 'PROFESSIONAL — CRISP'], ['balanced', 'BALANCED — BUTLER'], ['witty', 'WITTY — PLAYFUL'], ['deadpan', 'DEADPAN — DRY'], ['sarcastic', 'SARCASTIC — SNARKY BUTLER'], ['hype', 'HYPE — HIGH ENERGY']];
@@ -475,7 +512,9 @@
       <h4>THEME</h4>
       <select id="optTheme">${Object.keys(THEMES).map(t => `<option value="${t}"${S.theme === t ? ' selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select>
       <h4>LAYOUT</h4>
-      <div class="lbtns"><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
+      <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
+      <div class="note">Focus shows six widgets; the other six wait in the ring. Full shows all twelve.</div>
+      <div class="row"><span>PROACTIVE CHECK-INS (EVERY 30 MIN)</span>${sw('proactive', !!S.proactive)}</div>
       <div class="row"><span>PARALLAX DEPTH</span>${sw('parallax', S.parallax)}</div>
       <div class="row"><span>PARTICLE FIELD</span>${sw('particles', S.particles)}</div>
       <div class="row"><span>IDLE SHAPE CYCLE</span>${sw('idleMorph', S.idleMorph)}</div>
@@ -513,6 +552,7 @@
       else if (k === 'pool') b.pool.enabled = on; else if (k === 'voiceOn') v.voiceOn = on; else if (k === 'wake') { v.wake = on; if (on && !voice.micOn) voice.start(); }
       else if (k === 'bargeIn') voice.bargeIn = on; else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
       else if (k === 'particles') { S.particles = on; core.particles = on; } else if (k === 'idleMorph') S.idleMorph = on;
+      else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });
   }

@@ -10,7 +10,7 @@ import asyncio, os, sys, threading
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import JSONHandler, PORTS, MODELS, load_config
+from samurai_common import bind_host, JSONHandler, PORTS, MODELS, load_config
 
 PORT = PORTS["tts"]
 DEFAULT_VOICE = "en-US-AriaNeural"
@@ -121,4 +121,4 @@ class Handler(JSONHandler):
 if __name__ == "__main__":
     threading.Thread(target=kokoro_engine, daemon=True).start()
     print(f"[SAMURAI] Neural TTS sidecar on http://localhost:{PORT}/tts")
-    ThreadingHTTPServer(("localhost", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()

@@ -43,7 +43,7 @@ option{background:#0b1022;color:var(--ice)}
              radial-gradient(ellipse 42% 48% at 0% 100%,rgba(160,124,255,.12),transparent 70%),
              radial-gradient(ellipse 42% 48% at 100% 0%,rgba(160,124,255,.09),transparent 70%),var(--bg)}
 .bg-grid{position:absolute;inset:-40px;pointer-events:none;
-  background-image:linear-gradient(rgba(46,230,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(46,230,255,.045) 1px,transparent 1px);
+  background-image:linear-gradient(rgba(46,230,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(46,230,255,.03) 1px,transparent 1px);
   background-size:60px 60px;-webkit-mask-image:radial-gradient(ellipse at center,#000 25%,transparent 72%);mask-image:radial-gradient(ellipse at center,#000 25%,transparent 72%)}
 .brackets div{position:absolute;width:70px;height:70px;pointer-events:none}
 .brackets .tl{left:28px;top:96px;border-left:2px solid rgba(46,230,255,.55);border-top:2px solid rgba(46,230,255,.55)}
@@ -103,7 +103,13 @@ option{background:#0b1022;color:var(--ice)}
 .stage[data-mode=listening] .orb .tint{background:radial-gradient(circle,rgba(46,230,255,.3),rgba(46,230,255,.03) 60%)}
 .eyes{position:absolute;left:50%;top:50%;width:0;height:0}
 .eye{position:absolute;border-radius:10px;background:var(--ice);box-shadow:0 0 14px rgba(46,230,255,.9),0 0 36px rgba(46,230,255,.5);transition:all .3s var(--ease)}
-.shapeText{position:absolute;left:760px;top:104px;width:400px;text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:.3em;color:var(--violet)}
+.shapeText{position:absolute;left:760px;top:104px;width:400px;text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:.3em;color:var(--violet);opacity:0;transition:opacity .4s}
+.shapeText.show{opacity:1}
+.stage.calm .card{border-color:rgba(46,230,255,.14)}
+.stage.calm .ticker{background:rgba(5,6,13,.25);border-color:rgba(46,230,255,.08)}
+.stage.calm .tape{color:rgba(143,185,204,.75)}
+.stage.calm .strip.stripR .mut:first-child{display:none}
+.stage.calm .brackets div{opacity:.6}
 .shapeText span{color:var(--muted)}
 .stateBox{position:absolute;left:760px;top:688px;width:400px;text-align:center}
 .stateLabel{font-family:var(--disp);font-size:12px;letter-spacing:.5em;padding-left:.5em;color:var(--cyan);text-shadow:0 0 16px var(--cyan);transition:color .3s}

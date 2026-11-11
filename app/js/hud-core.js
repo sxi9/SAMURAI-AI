@@ -1,6 +1,15 @@
 /* SAMURAI HUD v3 — core renderer: particle field (morphing shapes), waveform ring, ellipses, eyes.
    Exposes window.SAM.core. Pure canvas + DOM, no framework. */
 window.SAM = window.SAM || {};
+/* host + LAN token: the page may be opened from a phone as http://<pc-ip>:8080/...?token=... */
+(function (SAM) {
+  SAM.H = 'http://' + (location.hostname && location.protocol.startsWith('http') ? location.hostname : 'localhost');
+  const qt = new URLSearchParams(location.search).get('token');
+  if (qt) { try { localStorage.setItem('samurai.token', qt); } catch (e) { } }
+  try { SAM.token = qt || localStorage.getItem('samurai.token') || ''; } catch (e) { SAM.token = qt || ''; }
+  const of = window.fetch.bind(window);
+  window.fetch = (url, opts) => { if (SAM.token && typeof url === 'string' && url.startsWith(SAM.H + ':')) { opts = opts || {}; opts.headers = Object.assign({}, opts.headers || {}, { 'X-Samurai-Token': SAM.token }); } return of(url, opts); };
+})(window.SAM);
 (function (SAM) {
   const PN = 1400;
   const SHAPE_CYCLE = ['sphere', 'galaxy', 'text:SAMURAI', 'heart', 'knot', 'helix', 'cube', 'ring', 'wave'];

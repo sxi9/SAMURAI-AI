@@ -2,7 +2,7 @@
    timers, music, tasks, home, security. Exposes window.SAM.widgets. */
 window.SAM = window.SAM || {};
 (function (SAM) {
-  const ADDONS = 'http://localhost:9500', TEL = 'http://localhost:8765/stats';
+  const ADDONS = SAM.H + ':9500', TEL = SAM.H + ':8765/stats', TQ = SAM.token ? '&token=' + SAM.token : '';
   const W = [
     { id: 'sys', side: 'L', x: 40, y: 100, node: 6, code: 'SYS', name: 'SYSTEM & NETWORK', title: 'SYSTEM' },
     { id: 'cal', side: 'L', x: 328, y: 100, node: 11, code: 'CAL', name: 'AGENDA', title: 'AGENDA' },
@@ -154,7 +154,7 @@ window.SAM = window.SAM || {};
         }
         case 'pix': {
           const g = d.gallery; this.tag(id, `${Math.min(3, g.length)} FRAMES`, 'v');
-          b.innerHTML = `<div class="holo">${[0, 1, 2].map(i => `<div class="frame${i === 0 ? ' tall' : ''}" data-fi="${i}">${g[i] ? `<img src="${ADDONS}${g[i]}" alt="">` : (i === 0 ? 'drop photo' : 'drop')}<div class="fx"></div><div class="bd"></div></div>`).join('')}</div>
+          b.innerHTML = `<div class="holo">${[0, 1, 2].map(i => `<div class="frame${i === 0 ? ' tall' : ''}" data-fi="${i}">${g[i] ? `<img src="${ADDONS}${g[i]}${TQ}" alt="">` : (i === 0 ? 'drop photo' : 'drop')}<div class="fx"></div><div class="bd"></div></div>`).join('')}</div>
             <div class="foot">${g.length ? `${g.length} PHOTOS IN GALLERY FOLDER` : 'DROP PHOTOS INTO THE gallery/ FOLDER'}</div>`;
           break;
         }
@@ -266,7 +266,7 @@ window.SAM = window.SAM || {};
     },
     playTrack(i) {
       const m = this.data.music; if (!this.audio) { this.audio = new Audio(); this.audio.addEventListener('ended', () => this.music('next')); }
-      const src = `${ADDONS}/music/file?i=${i}`; if (!this.audio.src.endsWith(src)) this.audio.src = src;
+      const src = `${ADDONS}/music/file?i=${i}${TQ}`; if (!this.audio.src.endsWith(src)) this.audio.src = src;
       this.audio.play().catch(() => this.log('warn', 'audio playback blocked (click the page once)'));
       const tr = m.tracks[i]; this.pushTty(`music · ${tr ? tr.title : i}`, '#a07cff');
     },

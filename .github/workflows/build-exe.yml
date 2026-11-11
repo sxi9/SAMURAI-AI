@@ -1,0 +1,71 @@
+name: build-exe
+
+# Builds SAMURAI.exe (Windows) and a Linux build with PyInstaller.
+# Every push produces downloadable artifacts under Actions → this run → Artifacts.
+# Pushing a tag like v1.0 also publishes them on a GitHub Release.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build
+        run: pyinstaller samurai.spec
+      - name: Smoke-run the packaged telemetry service
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\SAMURAI\SAMURAI.exe -ArgumentList "--service","tel" -PassThru
+          Start-Sleep -Seconds 8
+          $r = Invoke-WebRequest -UseBasicParsing http://localhost:8765/stats
+          if ($r.StatusCode -ne 200) { throw "telemetry did not answer" }
+          Stop-Process -Id $p.Id -Force
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item README.txt dist\SAMURAI\
+          Compress-Archive -Path dist\SAMURAI\* -DestinationPath SAMURAI-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SAMURAI-windows-x64
+          path: SAMURAI-windows-x64.zip
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SAMURAI-windows-x64.zip
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller
+      - run: pyinstaller samurai.spec
+      - run: |
+          (./dist/SAMURAI/SAMURAI --service tel &) ; sleep 8
+          curl -fsS http://localhost:8765/stats > /dev/null && echo "telemetry ok"
+          cp README.txt dist/SAMURAI/ && tar -C dist -czf SAMURAI-linux-x64.tar.gz SAMURAI
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SAMURAI-linux-x64
+          path: SAMURAI-linux-x64.tar.gz
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SAMURAI-linux-x64.tar.gz

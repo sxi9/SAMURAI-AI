@@ -15,18 +15,21 @@ try:
 except Exception:
     pass
 SERVERS_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(SERVERS_DIR)
-APP = os.path.join(ROOT, "app")
+_FROZEN = getattr(sys, "frozen", False)
+_BUNDLE = getattr(sys, "_MEIPASS", None)
+ROOT = os.path.dirname(sys.executable) if _FROZEN else os.path.dirname(SERVERS_DIR)   # writable folder (config, data, logs, models)
+APP = os.path.join(_BUNDLE, "app") if _FROZEN else os.path.join(ROOT, "app")
 MODELS = os.path.join(ROOT, "models")
 LOGS = os.path.join(ROOT, "logs")
 DATA = os.path.join(ROOT, "data")
 CONFIG_PATH = os.path.join(ROOT, "config.json")
-CONFIG_EXAMPLE = os.path.join(ROOT, "config.example.json")
+CONFIG_EXAMPLE = os.path.join(_BUNDLE if _FROZEN else ROOT, "config.example.json")
 NOWIN = 0x08000000 if os.name == "nt" else 0          # CREATE_NO_WINDOW
 IS_WIN = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
 
 UI_PORT = 8080
+FROZEN = getattr(sys, "frozen", False)                 # running from the PyInstaller build (SAMURAI.exe)
 PORTS = {"ui": 8080, "telemetry": 8765, "speech": 9100, "tts": 9200,
          "actions": 9300, "agent": 9400, "addons": 9500, "panel": 9000, "browser": 9600}
 
@@ -50,6 +53,7 @@ DEFAULT_CONFIG = {
     "voice": {"vad": True, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge"},
     "actions": {"apps": {}, "commands": {}, "deny": [], "no_confirm": []},
     "browser": {"headless": True},
+    "lan": {"enabled": False, "token": ""},            # LAN mode: reachable from your phone / other PCs with a token
     "autostart": False,
 }
 
@@ -122,8 +126,35 @@ def _restore_secrets(cfg):
     return cfg
 
 
+def lan_ips():
+    import socket as _s
+    ips = set()
+    try:
+        ips.add(_s.gethostbyname(_s.gethostname()))
+    except Exception:
+        pass
+    try:
+        s = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); s.connect(("8.8.8.8", 80)); ips.add(s.getsockname()[0]); s.close()
+    except Exception:
+        pass
+    return sorted(ip for ip in ips if not ip.startswith("127."))
+
+
+def lan_mode():
+    return load_config().get("lan", {})
+
+
+def bind_host():
+    """Services listen on localhost only, or on every interface in LAN mode."""
+    return "0.0.0.0" if lan_mode().get("enabled") else "localhost"
+
+
 def allowed_origins():
-    return set(DEFAULT_CONFIG["ui"]["origins"]) | set(load_config().get("ui", {}).get("origins", []))
+    base = set(DEFAULT_CONFIG["ui"]["origins"]) | set(load_config().get("ui", {}).get("origins", []))
+    if lan_mode().get("enabled"):
+        for ip in lan_ips():
+            base |= {f"http://{ip}:{PORTS['ui']}", f"http://{ip}:{PORTS['panel']}"}
+    return base
 
 
 def venv_python():
@@ -141,11 +172,21 @@ def venv_pythonw():
 
 
 def service_defs():
-    """The managed services, in start order. 'check' is an HTTP probe (any status = alive); None = TCP only."""
+    """The managed services, in start order. 'check' is an HTTP probe (any status = alive); None = TCP only.
+    From the frozen build every service is `SAMURAI.exe --service <key>`."""
     py = venv_python()
+    host = bind_host()
+    if FROZEN:
+        exe = sys.executable
+        return [{"key": k, "name": n, "port": PORTS[pk], "check": c, "cmd": [exe, "--service", k]} for k, n, pk, c in (
+            ("ui", "UI SERVER", "ui", f"http://localhost:{PORTS['ui']}/jarvis-interface.html"),
+            ("speech", "SPEECH (VOSK)", "speech", None), ("tel", "TELEMETRY", "telemetry", f"http://localhost:{PORTS['telemetry']}/stats"),
+            ("tts", "NEURAL TTS", "tts", f"http://localhost:{PORTS['tts']}/engines"), ("act", "ACTIONS", "actions", f"http://localhost:{PORTS['actions']}/actions"),
+            ("agent", "AGENT (CLI)", "agent", f"http://localhost:{PORTS['agent']}/agent/status"), ("addons", "ADD-ONS", "addons", f"http://localhost:{PORTS['addons']}/addons/status"),
+            ("web", "BROWSER AGENT", "browser", f"http://localhost:{PORTS['browser']}/browser/status"))]
     return [
         {"key": "ui",      "name": "UI SERVER",     "port": PORTS["ui"],        "check": f"http://localhost:{PORTS['ui']}/jarvis-interface.html",
-         "cmd": [py, "-m", "http.server", str(PORTS["ui"]), "--bind", "127.0.0.1", "--directory", APP]},
+         "cmd": [py, "-m", "http.server", str(PORTS["ui"]), "--bind", "127.0.0.1" if host == "localhost" else "0.0.0.0", "--directory", APP]},
         {"key": "speech",  "name": "SPEECH (VOSK)", "port": PORTS["speech"],    "check": None,
          "cmd": [py, os.path.join(SERVERS_DIR, "samurai_speech_server.py")]},
         {"key": "tel",     "name": "TELEMETRY",     "port": PORTS["telemetry"], "check": f"http://localhost:{PORTS['telemetry']}/stats",
@@ -186,7 +227,15 @@ class JSONHandler(BaseHTTPRequestHandler):
 
     def _origin_ok(self):
         o = self.headers.get("Origin")
-        return o is None or o in self.origins()      # no Origin header = local tool, not a browser
+        if not (o is None or o in self.origins()):
+            return False
+        lan = lan_mode()
+        if lan.get("enabled") and lan.get("token"):
+            client = self.client_address[0] if self.client_address else "127.0.0.1"
+            if client not in ("127.0.0.1", "::1"):
+                tok = self.headers.get("X-Samurai-Token") or urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("token", [""])[0]
+                return tok == lan["token"]
+        return True
 
     def _headers(self, code, ctype="application/json", length=None, extra=None):
         self.send_response(code)
@@ -194,7 +243,7 @@ class JSONHandler(BaseHTTPRequestHandler):
         o = self.headers.get("Origin")
         if o in self.origins():
             self.send_header("Access-Control-Allow-Origin", o)
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Samurai-Token")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Vary", "Origin")
         if length is not None:

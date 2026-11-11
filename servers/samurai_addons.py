@@ -20,7 +20,7 @@ import json, os, re, sys, threading, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import (JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
+from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
                             load_config, save_config, http_json, run_hidden)
 import samurai_automation as auto
 
@@ -68,7 +68,8 @@ def public_config(cfg):
         w[name] = {k: ("***" if k in SECRET_KEYS and v else v) for k, v in sect.items()}
     return {"user": cfg["user"], "location": cfg["location"], "widgets": w,
             "agent": cfg.get("agent", {}), "autostart": cfg.get("autostart", False),
-            "browser": cfg.get("browser", {}), "actions": {k: cfg.get("actions", {}).get(k, []) for k in ("deny", "no_confirm")}, "voice": cfg.get("voice", {})}
+            "browser": cfg.get("browser", {}), "actions": {k: cfg.get("actions", {}).get(k, []) for k in ("deny", "no_confirm")}, "voice": cfg.get("voice", {}),
+            "lan": {"enabled": bool(cfg.get("lan", {}).get("enabled")), "token": cfg.get("lan", {}).get("token", ""), "ips": __import__("samurai_common").lan_ips()}}
 
 
 def get_config(h, q, b):
@@ -77,7 +78,7 @@ def get_config(h, q, b):
 
 def post_config(h, q, b):
     cfg = load_config()
-    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice"):
+    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan"):
         if key in b:
             if isinstance(b[key], dict) and isinstance(cfg.get(key), dict):
                 for k2, v2 in b[key].items():
@@ -501,6 +502,22 @@ def get_memory(h, q, b):
     return {"ok": True, "facts": mem["facts"], "history": mem["history"][-n:], "count": len(mem["history"])}
 
 
+def get_memory_search(h, q, b):
+    """Related past turns for a query: simple term overlap over data/memory.json history."""
+    import re as _re
+    mem = load_json(MEMORY_PATH, {"facts": [], "history": []})
+    terms = set(t for t in _re.findall(r"[a-z0-9]{3,}", (q.get("q") or "").lower()) if t not in ("the", "and", "what", "did", "you", "for", "with", "about", "that", "this", "have", "was", "were"))
+    hits = []
+    for i, h2 in enumerate(mem["history"]):
+        words = set(_re.findall(r"[a-z0-9]{3,}", h2.get("content", "").lower()))
+        score = len(terms & words)
+        if score >= 2:
+            hits.append((score, i, h2))
+    hits.sort(key=lambda x: (-x[0], -x[1]))
+    out = [{"t": h2["t"], "role": h2["role"], "content": h2["content"][:300]} for _, _, h2 in hits[: int(q.get("k", 5))]]
+    return {"ok": True, "hits": out}
+
+
 def post_memory(h, q, b):
     with LOCK:
         mem = load_json(MEMORY_PATH, {"facts": [], "history": []})
@@ -549,7 +566,7 @@ class Handler(JSONHandler):
         ("GET", "/gallery"): get_gallery, ("GET", "/gallery/file"): get_gallery_file,
         ("GET", "/position"): get_position,
         ("GET", "/security"): get_security, ("POST", "/security/block"): post_block,
-        ("GET", "/memory"): get_memory, ("POST", "/memory"): post_memory,
+        ("GET", "/memory"): get_memory, ("POST", "/memory"): post_memory, ("GET", "/memory/search"): get_memory_search,
         ("GET", "/addons/status"): get_status,
         **auto.ROUTES,
     }
@@ -560,4 +577,4 @@ if __name__ == "__main__":
     os.makedirs(gallery_dir(), exist_ok=True)
     auto.start_threads(lambda: get_agenda(None, {}, None).get("events", []))
     print(f"[SAMURAI] Add-ons sidecar on http://localhost:{PORT}/  (config: {os.path.join(ROOT, 'config.json')})")
-    ThreadingHTTPServer(("localhost", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()

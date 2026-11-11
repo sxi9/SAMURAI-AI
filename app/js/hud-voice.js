@@ -2,7 +2,7 @@
    Exposes window.SAM.voice. Events are delivered through callbacks set by hud.js. */
 window.SAM = window.SAM || {};
 (function (SAM) {
-  const SPEECH_WS = 'ws://localhost:9100', TTS_URL = 'http://localhost:9200';
+  const SPEECH_WS = SAM.H.replace('http', 'ws') + ':9100' + (SAM.token ? '?token=' + SAM.token : ''), TTS_URL = SAM.H + ':9200';
   const voice = {
     cfg: { gain: 1.5, ns: true, ec: true, agc: true, sttModel: 'small', neuralVoice: 'en-US-AriaNeural', rate: 1.0, voiceOn: true, wake: false, wakeWord: 'samurai' },
     micOn: false, wantRunning: false, ws: null, stream: null, actx: null, node: null, level: 0,

@@ -95,6 +95,18 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Recorded walkthrough video (docs/walkthrough.mp4, 2 min) + README gif (34 s) + voice walkthrough with sound (docs/walkthrough-voice.mp4, 2 min 43 s)
 - [x] docs/WALKTHROUGH.md with 14 captioned step screenshots
 
+## Stage 10 — Toward Jarvis
+
+- [x] Focus layout (six widgets) as the calmer default; full and ambient remain; shape readout only while it changes; softer grid and borders
+- [x] Plan mode: goal → ordered steps → executed in sequence
+- [x] Proactive check-ins every 30 minutes (brain decides whether to speak)
+- [x] Memory recall of related earlier conversations into every prompt
+- [x] Forgiving wake word (edit-distance match on the first words)
+- [x] Phone / LAN mode with a token (switch in the control panel, phone link)
+- [x] Packaged build: PyInstaller spec + launcher, verified on Linux (8 services from one executable); Windows SAMURAI.exe built by the build-exe workflow
+- [x] Walkthrough v2 with real microphone input and spoken replies
+- [ ] Trained "samurai" wake-word model (needs recorded samples), voice identity, full-duplex speech-to-speech, camera presence — still open
+
 ## Not verified in this build (needs a real desktop)
 
 - Windows-specific paths: Startup-folder autostart, PowerShell volume/brightness/screenshot, `start` app launcher

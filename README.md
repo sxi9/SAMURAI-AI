@@ -4,7 +4,7 @@ A voice-driven assistant that runs on your own PC: an offline speech stack, a ci
 
 ![SAMURAI walkthrough](docs/walkthrough.gif)
 
-Half a minute of the recorded tour. **With sound**: [docs/walkthrough-voice.mp4](docs/walkthrough-voice.mp4) is a spoken walkthrough where ten commands are said into the microphone, recognised offline, and answered in SAMURAI's own voice, with a narrator. The silent captioned version is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step guide is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
+Half a minute of the recorded tour. **With sound**: [docs/walkthrough-voice.mp4](docs/walkthrough-voice.mp4) is a three-minute spoken walkthrough where eleven commands are said into the microphone, recognised offline, and answered in SAMURAI's own voice, with a narrator: weather, shapes, timer, smart home, a reminder, document search, plan mode, a proactive check, layouts, the alert, the ring, settings, LAN mode and the control panel. The silent captioned version is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step guide is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
 
 ![SAMURAI HUD v3, labeled](docs/screenshot-labeled.png)
 
@@ -36,7 +36,11 @@ Settings drawer, security alert, and the flow layout on a phone:
 <p><img src="docs/screenshot-settings.jpg" width="48%"> <img src="docs/screenshot-alert.jpg" width="48%"></p>
 <p><img src="docs/screenshot-phone.jpg" width="24%"> <img src="docs/screenshot-phone-cards.jpg" width="24%"> <img src="docs/screenshot-panel.jpg" width="48%"></p>
 
-## Install
+## Download the packaged build (no Python needed)
+
+Every push builds **SAMURAI.exe** for Windows and a Linux build with PyInstaller (`.github/workflows/build-exe.yml`). Open the repository's **Actions** tab, pick the latest `build-exe` run, and download `SAMURAI-windows-x64.zip` from its Artifacts. Unzip anywhere and run `SAMURAI.exe`: it creates `config.json`, `data/`, `logs/` and `models/` next to itself, downloads the voice model on first run, starts every service and opens the HUD. Tags like `v1.0` also publish the zips on a GitHub Release. The packaged build was verified here on Linux (all eight services supervised from the single executable); the Windows build runs on the Windows runner.
+
+## Install from source
 
 Windows: install Python 3.9+ from python.org (tick "Add Python to PATH"), then double-click `SETUP.bat`.
 
@@ -76,6 +80,15 @@ Pick a provider in CFG → NEURAL CORE. Local and free options are marked. TASK 
 - **Streaming**: replies type in as they arrive and are spoken sentence by sentence. Speak to interrupt (barge-in).
 
 Test without any AI: `python tests/mock_llm.py`, then choose LOCAL — LM STUDIO.
+
+## Jarvis-style extras
+
+- **Focus layout** (default): six widgets on screen, six docked in the ring, less visual noise. "Full layout" shows all twelve, "ambient" hides everything but the core.
+- **Plan mode**: "plan: get me ready for deep work". The brain breaks the goal into SAMURAI commands and runs them one by one.
+- **Proactive check-ins**: a settings switch makes SAMURAI look at the live data every 30 minutes and speak only when something matters.
+- **Memory recall**: related earlier conversations are pulled into the prompt automatically ("what did I ask about the vendor contract").
+- **Forgiving wake word**: "damn ri", "some rye" and similar mishearings of "samurai" still wake it.
+- **Phone / LAN mode**: a switch in the control panel binds the services to your network and prints a link with a token, so the HUD works from your phone on the same Wi-Fi. Without the token, requests from other machines get 403.
 
 ## Automation
 

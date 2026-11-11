@@ -2,12 +2,12 @@
    (failover / round-robin / compare), headless agents (:9400), memory (:9500). Exposes window.SAM.brain. */
 window.SAM = window.SAM || {};
 (function (SAM) {
-  const AGENT_URL = 'http://localhost:9400/agent', ADDONS = 'http://localhost:9500';
+  const AGENT_URL = SAM.H + ':9400/agent', ADDONS = SAM.H + ':9500';
   /* kind: ollama | openai (any OpenAI-compatible chat endpoint) | anthropic | gemini | azure | agent */
   const PROVIDERS = {
-    ollama:      { label: 'LOCAL — OLLAMA',        kind: 'ollama',    url: 'http://localhost:11434',       model: 'llama3.1:8b', nokey: true, free: true, note: 'Run: OLLAMA_ORIGINS="*" ollama serve. Models list loads from the server.' },
-    lmstudio:    { label: 'LOCAL — LM STUDIO',     kind: 'openai',    url: 'http://localhost:1234/v1',     model: '', nokey: true, free: true, note: 'Start the LM Studio server (Developer tab). Model box optional.' },
-    llamacpp:    { label: 'LOCAL — LLAMA.CPP',     kind: 'openai',    url: 'http://localhost:8081/v1',     model: '', nokey: true, free: true, note: 'llama-server --port 8081. Model box optional.' },
+    ollama:      { label: 'LOCAL — OLLAMA',        kind: 'ollama',    url: SAM.H + ':11434',       model: 'llama3.1:8b', nokey: true, free: true, note: 'Run: OLLAMA_ORIGINS="*" ollama serve. Models list loads from the server.' },
+    lmstudio:    { label: 'LOCAL — LM STUDIO',     kind: 'openai',    url: SAM.H + ':1234/v1',     model: '', nokey: true, free: true, note: 'Start the LM Studio server (Developer tab). Model box optional.' },
+    llamacpp:    { label: 'LOCAL — LLAMA.CPP',     kind: 'openai',    url: SAM.H + ':8081/v1',     model: '', nokey: true, free: true, note: 'llama-server --port 8081. Model box optional.' },
     claudecode:  { label: 'CLAUDE CODE — HEADLESS (NO KEY)', kind: 'agent', agent: 'claude', nokey: true, note: 'Uses the Claude Code CLI signed in with your Claude plan: npm i -g @anthropic-ai/claude-code → claude auth login → AGENT service :9400. Searches the web and works on files in workspace/.' },
     geminicli:   { label: 'GEMINI CLI — HEADLESS (NO KEY)',  kind: 'agent', agent: 'gemini', nokey: true, note: 'Uses the Gemini CLI signed in with your Google account: npm i -g @google/gemini-cli → gemini → sign in → AGENT service :9400.' },
     openai:      { label: 'OPENAI — GPT',          kind: 'openai',    url: 'https://api.openai.com/v1',    model: 'gpt-4o-mini', json: true, models: true, note: 'Key from platform.openai.com/api-keys' },
@@ -164,8 +164,12 @@ window.SAM = window.SAM || {};
       return ids;
     },
     /* onDelta(replyText, done) receives the spoken reply as it streams in */
+    async recall(q) {
+      if (!this.cfg.memory) return '';
+      try { const ctl = new AbortController(); setTimeout(() => ctl.abort(), 1500); const d = await (await fetch(`${ADDONS}/memory/search?q=${encodeURIComponent(q)}&k=4`, { signal: ctl.signal })).json(); const hits = (d.hits || []).filter(h => !this.history.some(m => m.content === h.content)); return hits.length ? '\nRelated things from earlier conversations (oldest first):\n' + hits.reverse().map(h => `- [${new Date(h.t * 1000).toLocaleDateString()}] ${h.role}: ${h.content}`).join('\n') + '\n' : ''; } catch (e) { return ''; }
+    },
     async ask(q, snapshot, onDelta) {
-      const sys = this.systemPrompt(snapshot), ids = this.order(q), errors = [];
+      const sys = this.systemPrompt(snapshot) + await this.recall(q), ids = this.order(q), errors = [];
       for (const id of ids) {
         const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), PROVIDERS[id].kind === 'agent' ? 620000 : 60000);
         let streamed = '';
@@ -173,7 +177,7 @@ window.SAM = window.SAM || {};
           const raw = await this.callProvider(id, q, sys, ctl.signal, onDelta ? r => { const s = replySoFar(r); if (s.text.length > streamed.length) { streamed = s.text; onDelta(s.text, s.done); } } : null);
           clearTimeout(to);
           if (!raw || !String(raw).trim()) throw new Error('empty reply');
-          const out = this.parse(raw); out.provider = id;
+          this.lastRaw = String(raw); const out = this.parse(raw); out.provider = id;
           if (!out.reply) throw new Error('no reply text');
           this.remember(q, out.reply);
           return out;

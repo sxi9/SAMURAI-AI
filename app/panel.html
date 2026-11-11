@@ -52,7 +52,9 @@ a{color:var(--cyan)}
     <h2>SERVICES</h2>
     <div class="row"><button class="b big" id="startAll">START ALL</button><button class="b big r" id="stopAll">STOP ALL</button>
       <span class="muted" style="margin-left:auto">WATCHDOG</span><div class="sw on" id="swWatch"><i></i></div>
-      <span class="muted">START WITH BOOT</span><div class="sw" id="swAuto"><i></i></div></div>
+      <span class="muted">START WITH BOOT</span><div class="sw" id="swAuto"><i></i></div>
+      <span class="muted">PHONE / LAN ACCESS</span><div class="sw" id="swLan"><i></i></div></div>
+    <div class="muted" id="lanLinks" style="margin:-2px 0 8px"></div>
     <div class="status" id="status">…</div>
     <table id="svc"></table>
   </div>
@@ -107,6 +109,7 @@ async function loadCfg() {
     $('c_ics').value = (w.agenda || {}).ics_path || ''; $('c_music').value = (w.music || {}).library_dir || ''; $('c_docs').value = (w.documents || {}).dir || ''; $('c_cam').value = (w.camera || {}).url || '';
     $('c_hass').value = (w.home || {}).hass_url || ''; $('c_hasst').value = (w.home || {}).hass_token || ''; $('c_imaph').value = (w.inbox || {}).imap_host || ''; $('c_imapu').value = (w.inbox || {}).imap_user || ''; $('c_imapp').value = (w.inbox || {}).imap_password || '';
     $('swBash').classList.toggle('on', !!(c.agent || {}).allow_bash);
+    const lan = c.lan || {}; $('swLan').classList.toggle('on', !!lan.enabled); $('lanLinks').innerHTML = lan.enabled ? 'Phone link (same Wi-Fi): ' + (lan.ips || []).map(ip => `<a href="http://${ip}:8080/jarvis-interface.html?token=${lan.token}">http://${ip}:8080/…?token=${lan.token}</a>`).join(' · ') : '';
     $('hl').innerHTML = `<label style="display:inline"><input type="checkbox" id="c_headless" ${(c.browser || {}).headless === false ? 'checked' : ''}> show the window</label>`;
     $('cfgMsg').textContent = '';
   } catch (e) { $('cfgMsg').textContent = 'add-ons service offline — start it to edit config'; }
@@ -122,6 +125,7 @@ $('stopAll').onclick = () => POST('/panel/control', { action: 'stop_all' }).then
 $('openHud').onclick = () => { if (last) window.open(last.ui, '_blank'); };
 $('swWatch').onclick = () => POST('/panel/watchdog', { on: !$('swWatch').classList.contains('on') }).then(refresh);
 $('swAuto').onclick = () => POST('/panel/autostart', { on: !$('swAuto').classList.contains('on') }).then(d => { if (!d.ok) alert(d.error); refresh(); });
+$('swLan').onclick = () => POST('/panel/lan', { on: !$('swLan').classList.contains('on') }).then(d => { $('swLan').classList.toggle('on', d.enabled); $('lanLinks').innerHTML = d.enabled ? 'Open on your phone (same Wi-Fi): ' + d.links.map(l => `<a href="${l}">${l}</a>`).join(' · ') + ' — services are restarting' : 'LAN access off: everything listens on this PC only'; setTimeout(loadCfg, 4000); });
 $('swBash').onclick = () => $('swBash').classList.toggle('on');
 $('logKey').onchange = loadLog; $('refreshLog').onclick = loadLog;
 $('doctor').onclick = () => runDoctor(false); $('doctorFix').onclick = () => runDoctor(true);

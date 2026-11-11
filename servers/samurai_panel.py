@@ -13,7 +13,7 @@ import json, os, re, shutil, socket, subprocess, sys, threading, time, urllib.er
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import (JSONHandler, PORTS, ROOT, APP, LOGS, MODELS, NOWIN, IS_WIN, IS_MAC, service_defs, venv_python,
+from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, APP, LOGS, MODELS, NOWIN, IS_WIN, IS_MAC, service_defs, venv_python,
                             load_config, port_up, any_valid_model, ensure_model, CONFIG_PATH, CONFIG_EXAMPLE)
 import samurai_autostart as autostart
 
@@ -90,6 +90,8 @@ def set_status(msg):
 
 
 def pip_install(pkg):
+    if getattr(sys, "frozen", False):
+        return False                      # packaged build: everything it needs is bundled
     r = subprocess.run([venv_python(), "-m", "pip", "install", pkg], capture_output=True, text=True, creationflags=NOWIN)
     return r.returncode == 0
 
@@ -187,8 +189,12 @@ def doctor(fix=False):
     v = sys.version_info
     add("Python", v >= (3, 9), f"{v.major}.{v.minor}.{v.micro}" + ("" if v >= (3, 9) else " — need 3.9+"))
     py = venv_python()
-    add("Virtual environment", ".venv" in py, py if ".venv" in py else "running on the system Python — run install.py to create .venv", fixable=False)
-    for mod, pkg in list(PIP_NAME.items())[:4]:
+    from samurai_common import FROZEN
+    if FROZEN:
+        add("Packaged build", True, sys.executable)
+    else:
+        add("Virtual environment", ".venv" in py, py if ".venv" in py else "running on the system Python — run install.py to create .venv", fixable=False)
+    for mod, pkg in ([] if FROZEN else list(PIP_NAME.items())[:4]):
         r = subprocess.run([py, "-c", f"import {mod}"], capture_output=True, text=True, creationflags=NOWIN)
         ok = r.returncode == 0
         if not ok and fix:
@@ -342,6 +348,32 @@ def post_voice_extras(h, q, b):
     return {"ok": True, "did": f"installing {what}"}
 
 
+def post_lan(h, q, b):
+    """Turn LAN mode on/off. Services restart so they rebind. Returns the phone link with the token."""
+    import secrets
+    from samurai_common import save_config, lan_ips
+    cfg = load_config(); lan = cfg.setdefault("lan", {})
+    lan["enabled"] = bool(b.get("on"))
+    if lan["enabled"] and not lan.get("token"):
+        lan["token"] = secrets.token_urlsafe(12)
+    save_config(cfg)
+    def restart_all():
+        STATE["status"] = "restarting"
+        try:
+            for svc in reversed(SERVICES):
+                stop(svc)
+            time.sleep(1.5)
+            SERVICES[:] = service_defs()             # rebind: LAN mode changes the listen address
+            BY_KEY.clear(); BY_KEY.update({s["key"]: s for s in SERVICES})
+            bring_up_all(False)
+        finally:
+            STATE["status"] = "idle"
+    threading.Thread(target=restart_all, daemon=True).start()
+    ips = lan_ips()
+    return {"ok": True, "enabled": lan["enabled"], "token": lan.get("token", ""), "ips": ips,
+            "links": [f"http://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}" for ip in ips] if lan["enabled"] else []}
+
+
 def post_open(h, q, b):
     webbrowser.open(UI_URL)
     return {"ok": True}
@@ -373,7 +405,7 @@ class Handler(JSONHandler):
               ("GET", "/panel/logs"): get_logs, ("GET", "/panel/doctor"): get_doctor,
               ("POST", "/panel/autostart"): post_autostart, ("POST", "/panel/watchdog"): post_watchdog,
               ("POST", "/panel/model"): post_model, ("POST", "/panel/open"): post_open,
-              ("POST", "/panel/voice"): post_voice_extras}
+              ("POST", "/panel/voice"): post_voice_extras, ("POST", "/panel/lan"): post_lan}
 
     def do_GET(self):
         if self.path.startswith("/fonts/"):
@@ -395,4 +427,4 @@ if __name__ == "__main__":
     if "--autostart" in sys.argv:
         threading.Thread(target=bring_up_all, args=("--no-browser" not in sys.argv,), daemon=True).start()
     print(f"[SAMURAI] Control panel on http://localhost:{PORT}/")
-    ThreadingHTTPServer(("localhost", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()

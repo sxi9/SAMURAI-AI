@@ -22,6 +22,10 @@ def reply_for(user):
         else:
             text = "I found that in your documents: " + user.split("\n", 2)[-1][:200]
         return {"reply": text, "focus": "tty", "actions": [], "shape": None}
+    if "plan this goal" in u:
+        return {"reply": "Three steps: lights off, a twenty five minute timer, and some focus music.", "steps": ["lights off", "timer 25 min", "play some focus music"], "focus": "tty", "actions": [], "shape": None}
+    if "proactive check-in" in u:
+        return {"reply": "Heads up: CPU has stayed high for the last few minutes and memory is climbing. Worth a look.", "focus": "sys", "actions": [], "shape": None}
     if "weather" in u:
         focus, text = "wx", "It is 26 degrees and overcast in Bengaluru right now. The high today is 29. Carry a light jacket for the evening."
     elif "light" in u:

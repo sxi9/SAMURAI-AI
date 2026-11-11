@@ -15,7 +15,7 @@ Run: python samurai_speech_server.py   (ws://localhost:9100)
 import asyncio, json, os, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import MODELS, PORTS, model_valid, SMALL_MODEL_NAME, LARGE_MODEL_NAME, load_config
+from samurai_common import MODELS, PORTS, model_valid, SMALL_MODEL_NAME, LARGE_MODEL_NAME, load_config, bind_host, lan_mode
 
 try:
     from vosk import Model, KaldiRecognizer, SetLogLevel
@@ -136,6 +136,11 @@ class WakeGate:
 
 
 async def recognize(websocket):
+    lan = lan_mode()
+    if lan.get("enabled") and lan.get("token") and websocket.remote_address and websocket.remote_address[0] not in ("127.0.0.1", "::1"):
+        q = websocket.request.path if hasattr(websocket, "request") else getattr(websocket, "path", "")
+        if f"token={lan['token']}" not in q:
+            await websocket.close(code=4403, reason="token required"); return
     current = DEFAULT_MODEL
     rec = new_rec(get_model(current))
     gate, silence = WakeGate(), 0
@@ -190,7 +195,7 @@ async def recognize(websocket):
 
 
 async def main():
-    async with websockets.serve(recognize, "localhost", PORT, max_size=2**20):
+    async with websockets.serve(recognize, bind_host(), PORT, max_size=2**20):
         print(f"[SAMURAI] Listening on ws://localhost:{PORT}")
         await asyncio.Future()
 

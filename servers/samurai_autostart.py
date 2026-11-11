@@ -8,6 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from samurai_common import ROOT, IS_WIN, IS_MAC, NOWIN, venv_pythonw, load_config, save_config
 
 PANEL = os.path.join(ROOT, "servers", "samurai_panel.py")
+if getattr(sys, "frozen", False):
+    PANEL = ""                            # packaged build: the executable itself is the launcher
 NAME = "SAMURAI"
 
 
@@ -35,12 +37,12 @@ def status():
 
 
 def enable():
-    py = venv_pythonw()
+    py = sys.executable if getattr(sys, "frozen", False) else venv_pythonw()
     if IS_WIN:
         startup, lnk = _win_paths()
         os.makedirs(startup, exist_ok=True)
         ps = (f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{lnk}');$s.TargetPath='{py}';"
-              f"$s.Arguments='\"{PANEL}\" --autostart';$s.WorkingDirectory='{ROOT}';$s.WindowStyle=7;$s.Save()")
+              f"$s.Arguments='{('\"' + PANEL + '\" ') if PANEL else ''}--autostart';$s.WorkingDirectory='{ROOT}';$s.WindowStyle=7;$s.Save()")
         r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, creationflags=NOWIN)
         if r.returncode != 0:
             raise RuntimeError((r.stderr or "shortcut failed").strip()[:200])
@@ -48,7 +50,7 @@ def enable():
         p = _mac_path()
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "wb") as f:
-            plistlib.dump({"Label": "com.samurai.panel", "ProgramArguments": [py, PANEL, "--autostart"],
+            plistlib.dump({"Label": "com.samurai.panel", "ProgramArguments": [x for x in (py, PANEL, "--autostart") if x],
                            "WorkingDirectory": ROOT, "RunAtLoad": True, "KeepAlive": False,
                            "StandardOutPath": os.path.join(ROOT, "logs", "panel.log"),
                            "StandardErrorPath": os.path.join(ROOT, "logs", "panel.log")}, f)
@@ -65,7 +67,7 @@ After=network-online.target graphical-session.target
 [Service]
 Type=simple
 WorkingDirectory={ROOT}
-ExecStart={py} {PANEL} --autostart --no-browser
+ExecStart={py} {PANEL + " " if PANEL else ""}--autostart --no-browser
 Restart=on-failure
 RestartSec=5
 Environment=DISPLAY=:0
@@ -80,7 +82,7 @@ WantedBy=default.target
         else:
             os.makedirs(os.path.dirname(desk), exist_ok=True)
             with open(desk, "w") as f:
-                f.write(f"[Desktop Entry]\nType=Application\nName={NAME}\nExec={py} {PANEL} --autostart\nPath={ROOT}\nX-GNOME-Autostart-enabled=true\n")
+                f.write(f"[Desktop Entry]\nType=Application\nName={NAME}\nExec={py} {PANEL + " " if PANEL else ""}--autostart\nPath={ROOT}\nX-GNOME-Autostart-enabled=true\n")
     cfg = load_config(); cfg["autostart"] = True; save_config(cfg)
     return True
 
