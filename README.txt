@@ -28,6 +28,11 @@ SELF-HEALING
   If your network blocks the model download, copy the folder
   "vosk-model-small-en-us-0.15" into models\ manually from any machine.
 
+SCREENSHOTS
+  docs\screenshot-labeled.png    the interface with every area numbered and explained
+  docs\screenshot-settings.png  the settings drawer
+  (README.md shows them on the GitHub page)
+
 WHAT'S INSIDE
   SETUP.bat              one-click installer entry point
   samurai_setup.py       setup wizard window
@@ -38,6 +43,7 @@ WHAT'S INSIDE
   servers\samurai_tts_server.py      human-like neural voice            :9200
   servers\samurai_action_server.py   PC control (open apps/music/web)   :9300
   models\                voice models are downloaded here by setup
+  docs\                  screenshots
 
 USING SAMURAI
   Dashboard -> START ALL -> OPEN SAMURAI (http://localhost:8080/jarvis-interface.html)
