@@ -9,16 +9,20 @@ start-with-boot switch.
 
 --autostart  start every service, then open the HUD (unless --no-browser)
 """
-import json, os, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request, webbrowser
+import io, json, os, re, shutil, socket, subprocess, sys, threading, time, urllib.error, urllib.request, uuid, webbrowser, zipfile
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, APP, LOGS, MODELS, NOWIN, IS_WIN, IS_MAC, service_defs, venv_python,
-                            load_config, port_up, any_valid_model, ensure_model, CONFIG_PATH, CONFIG_EXAMPLE)
+from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, APP, LOGS, MODELS, DATA, NOWIN, IS_WIN, IS_MAC, service_defs, venv_python,
+                            load_config, save_config, port_up, any_valid_model, ensure_model, CONFIG_PATH, CONFIG_EXAMPLE, VERSION,
+                            lan_ips, scheme, tls_enabled, ensure_cert, tls_paths, maybe_wrap_tls, http_json)
 import samurai_autostart as autostart
 
 PORT = PORTS["panel"]
+if "--port" in sys.argv:
+    PORT = int(sys.argv[sys.argv.index("--port") + 1])
 UI_URL = f"http://localhost:{PORTS['ui']}/jarvis-interface.html"
+RELEASES_API = "https://api.github.com/repos/sxi9/SAMURAI-AI/releases/latest"
 PIP_NAME = {"vosk": "vosk", "websockets": "websockets", "psutil": "psutil", "edge_tts": "edge-tts", "playwright": "playwright"}
 SERVICES = service_defs()
 BY_KEY = {s["key"]: s for s in SERVICES}
@@ -312,8 +316,8 @@ KOKORO_FILES = {"kokoro-v1.0.onnx": "https://github.com/thewh1teagle/kokoro-onnx
 def post_voice_extras(h, q, b):
     """Install optional voice engines: {"what": "kokoro"} local TTS (~330 MB) · {"what": "wake"} VAD + openWakeWord."""
     what = b.get("what")
-    if what not in ("kokoro", "wake"):
-        raise ValueError("what must be kokoro|wake")
+    if what not in ("kokoro", "wake", "whisper"):
+        raise ValueError("what must be kokoro|wake|whisper")
 
     def run():
         STATE["status"] = "installing"
@@ -334,6 +338,13 @@ def post_voice_extras(h, q, b):
                 cfg = load_config(); cfg.setdefault("voice", {})["tts_engine"] = "kokoro"; save_config(cfg)
                 set_status("local voice (Kokoro) installed — restarting TTS")
                 restart_and_report(BY_KEY["tts"], "restarted")
+            elif what == "whisper":
+                set_status("pip install faster-whisper … (the model downloads on first use, ~150 MB for 'base')")
+                if not pip_install("faster-whisper"):
+                    set_status("faster-whisper install failed — see the terminal"); return
+                cfg = load_config(); cfg.setdefault("voice", {})["stt_engine"] = "whisper"; save_config(cfg)
+                set_status("whisper installed — restarting speech (first start downloads the model)")
+                restart_and_report(BY_KEY["speech"], "restarted")
             else:
                 set_status("pip install webrtcvad-wheels openwakeword …")
                 ok = pip_install("webrtcvad-wheels") and pip_install("openwakeword")
@@ -351,11 +362,17 @@ def post_voice_extras(h, q, b):
 def post_lan(h, q, b):
     """Turn LAN mode on/off. Services restart so they rebind. Returns the phone link with the token."""
     import secrets
-    from samurai_common import save_config, lan_ips
     cfg = load_config(); lan = cfg.setdefault("lan", {})
     lan["enabled"] = bool(b.get("on"))
+    if "https" in b:
+        lan["https"] = bool(b.get("https"))
     if lan["enabled"] and not lan.get("token"):
         lan["token"] = secrets.token_urlsafe(12)
+    cert_msg = ""
+    if lan["enabled"] and lan.get("https"):
+        ok, cert_msg = ensure_cert()
+        if not ok:
+            lan["https"] = False
     save_config(cfg)
     def restart_all():
         STATE["status"] = "restarting"
@@ -369,9 +386,280 @@ def post_lan(h, q, b):
         finally:
             STATE["status"] = "idle"
     threading.Thread(target=restart_all, daemon=True).start()
-    ips = lan_ips()
-    return {"ok": True, "enabled": lan["enabled"], "token": lan.get("token", ""), "ips": ips,
-            "links": [f"http://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}" for ip in ips] if lan["enabled"] else []}
+    ips = lan_ips(); sch = "https" if lan.get("https") else "http"
+    return {"ok": True, "enabled": lan["enabled"], "https": bool(lan.get("https")), "token": lan.get("token", ""), "ips": ips, "cert": cert_msg,
+            "links": [f"{sch}://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}" for ip in ips] if lan["enabled"] else []}
+
+
+# ----------------------------------------------------------------------------- phone pairing + relay
+def phone_links(cfg=None):
+    cfg = cfg or load_config(); lan = cfg.get("lan", {})
+    if not lan.get("enabled"):
+        return []
+    sch = "https" if lan.get("https") else "http"
+    return [f"{sch}://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}&companion=1" for ip in lan_ips()]
+
+
+def get_phone(h, q, b):
+    """Pairing info: links, ips, https state, a QR (svg) of the first link, the certificate to install on the phone."""
+    cfg = load_config(); lan = cfg.get("lan", {}); links = phone_links(cfg); svg = ""
+    if links:
+        try:
+            import qrcode, qrcode.image.svg
+            img = qrcode.make(links[0], image_factory=qrcode.image.svg.SvgPathImage, box_size=6, border=2)
+            svg = img.to_string(encoding="unicode")
+        except Exception as e:
+            svg = f"<!-- qr unavailable: {e} -->"
+    crt = tls_paths()[0]
+    return {"ok": True, "enabled": bool(lan.get("enabled")), "https": bool(lan.get("https")), "ips": lan_ips(), "links": links, "qr": svg,
+            "cert_url": "/phone/cert" if os.path.exists(crt) else "", "token": lan.get("token", "")}
+
+
+def get_phone_cert(h, q, b):
+    crt = tls_paths()[0]
+    if not os.path.exists(crt):
+        raise ValueError("no certificate yet — switch https on first")
+    with open(crt, "rb") as f:
+        h.send_bytes(f.read(), "application/x-x509-ca-cert", extra={"Content-Disposition": "attachment; filename=samurai.crt"})
+    return None
+
+
+RELAY = {"queue": [], "taken": {}, "replies": {}, "lock": threading.Lock(), "event": threading.Condition()}
+
+
+def post_remote_command(h, q, b):
+    """From the phone: {text, speak_on: phone|pc|both}. Queued for the PC HUD."""
+    text = (b.get("text") or "").strip()[:500]
+    if not text:
+        raise ValueError("text required")
+    item = {"id": uuid.uuid4().hex[:10], "text": text, "speak_on": b.get("speak_on") or "both", "t": time.time(), "from": h.client_address[0] if h.client_address else ""}
+    with RELAY["lock"]:
+        RELAY["queue"].append(item)
+        RELAY["queue"][:] = [x for x in RELAY["queue"] if time.time() - x["t"] < 60]
+    return {"ok": True, "id": item["id"]}
+
+
+def get_remote_next(h, q, b):
+    """Polled by the PC HUD: the oldest pending command, or {command: null}."""
+    with RELAY["lock"]:
+        item = RELAY["queue"].pop(0) if RELAY["queue"] else None
+        if item:
+            RELAY["taken"][item["id"]] = item
+    return {"ok": True, "command": item, "pending": len(RELAY["queue"])}
+
+
+def post_remote_reply(h, q, b):
+    """From the PC HUD: {id, text, focus?}. Wakes the phone's long-poll."""
+    rid = b.get("id")
+    if not rid:
+        raise ValueError("id required")
+    with RELAY["event"]:
+        RELAY["replies"][rid] = {"id": rid, "text": (b.get("text") or "")[:2000], "focus": b.get("focus"), "t": time.time()}
+        for k in [k for k, v in RELAY["replies"].items() if time.time() - v["t"] > 300]:
+            RELAY["replies"].pop(k, None)
+        RELAY["event"].notify_all()
+    return {"ok": True}
+
+
+def get_remote_reply(h, q, b):
+    """Polled by the phone (long-poll up to 20 s): ?id= -> {reply} or {reply: null} on timeout."""
+    rid = q.get("id")
+    if not rid:
+        raise ValueError("id required")
+    deadline = time.time() + min(20, float(q.get("wait", 20)))
+    with RELAY["event"]:
+        while rid not in RELAY["replies"] and time.time() < deadline:
+            RELAY["event"].wait(max(0.05, deadline - time.time()))
+        rep = RELAY["replies"].pop(rid, None)
+    return {"ok": True, "reply": rep}
+
+
+# ----------------------------------------------------------------------------- claude / gemini login
+AUTH = {"proc": None, "tool": "", "log": "", "url": ""}
+
+
+def _run(cmd, timeout=20):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=NOWIN)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except FileNotFoundError:
+        return 127, "not installed"
+    except subprocess.TimeoutExpired:
+        return 124, "timed out"
+
+
+def claude_status():
+    exe = shutil.which("claude")
+    if not exe:
+        return {"installed": False, "logged_in": False, "detail": "Claude Code CLI not installed (npm i -g @anthropic-ai/claude-code)"}
+    code, out = _run([exe, "auth", "status", "--json"])
+    try:
+        d = json.loads(out[out.index("{"):out.rindex("}") + 1])
+        return {"installed": True, "logged_in": bool(d.get("loggedIn")), "method": d.get("authMethod"), "provider": d.get("apiProvider"),
+                "email": d.get("email") or d.get("emailAddress") or "", "subscription": d.get("subscriptionType") or "",
+                "detail": "signed in" if d.get("loggedIn") else "not signed in", "raw": d}
+    except (ValueError, json.JSONDecodeError):
+        return {"installed": True, "logged_in": "logged in" in out.lower() and "not logged" not in out.lower(), "detail": out.strip()[:200]}
+
+
+def gemini_status():
+    exe = shutil.which("gemini")
+    if not exe:
+        return {"installed": False, "logged_in": False, "detail": "Gemini CLI not installed (npm i -g @google/gemini-cli)"}
+    home = os.path.expanduser("~")
+    creds = [os.path.join(home, ".gemini", "oauth_creds.json"), os.path.join(home, ".gemini", "google_accounts.json")]
+    found = [c for c in creds if os.path.exists(c)]
+    key = bool(os.environ.get("GEMINI_API_KEY"))
+    return {"installed": True, "logged_in": bool(found) or key, "method": "api_key" if key else ("oauth" if found else ""),
+            "detail": "signed in (Google account)" if found else ("API key in environment" if key else "not signed in — run `gemini` once in a terminal and pick 'Login with Google'")}
+
+
+def get_auth_status(h, q, b):
+    running = AUTH["proc"] is not None and AUTH["proc"].poll() is None
+    return {"ok": True, "claude": claude_status(), "gemini": gemini_status(),
+            "login": {"running": running, "tool": AUTH["tool"], "url": AUTH["url"], "log": AUTH["log"][-1500:]}}
+
+
+URL_RE = re.compile(r"https://[^\s\"'<>]+")
+
+
+def post_auth_login(h, q, b):
+    """{tool: claude|claude-token|gemini}. Runs the CLI login; its output (with the URL to open) streams into /auth/status."""
+    tool = b.get("tool") or "claude"
+    if AUTH["proc"] is not None and AUTH["proc"].poll() is None:
+        return {"ok": False, "error": f"a {AUTH['tool']} login is already running"}
+    if tool.startswith("claude"):
+        exe = shutil.which("claude")
+        if not exe:
+            raise ValueError("Claude Code CLI not installed")
+        cmd = [exe, "setup-token"] if tool == "claude-token" else [exe, "auth", "login", "--claudeai"]
+    elif tool == "gemini":
+        exe = shutil.which("gemini")
+        if not exe:
+            raise ValueError("Gemini CLI not installed")
+        cmd = [exe]
+    else:
+        raise ValueError("tool must be claude|claude-token|gemini")
+    AUTH.update({"tool": tool, "log": "", "url": ""})
+    os.makedirs(LOGS, exist_ok=True)
+    env = dict(os.environ, BROWSER="echo", NO_COLOR="1", TERM="dumb")
+
+    def pump():
+        try:
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, text=True, bufsize=1, creationflags=NOWIN, env=env, cwd=ROOT)
+            AUTH["proc"] = p
+            with open(os.path.join(LOGS, "auth.log"), "a", encoding="utf-8") as lf:
+                for line in p.stdout:
+                    AUTH["log"] += line; lf.write(line)
+                    m = URL_RE.search(line)
+                    if m and not AUTH["url"]:
+                        AUTH["url"] = m.group(0)
+                        set_status(f"{tool}: open the login link shown in the panel")
+                        try:
+                            webbrowser.open(AUTH["url"])
+                        except Exception:
+                            pass
+            p.wait()
+            AUTH["log"] += f"\n[exit {p.returncode}]\n"
+            set_status(f"{tool} login finished" if p.returncode == 0 else f"{tool} login ended with code {p.returncode}")
+        except Exception as e:
+            AUTH["log"] += f"\nerror: {e}\n"
+    threading.Thread(target=pump, daemon=True).start()
+    return {"ok": True, "did": f"{tool} login started — watch the panel for the link"}
+
+
+def post_auth_logout(h, q, b):
+    tool = b.get("tool") or "claude"
+    if tool == "claude":
+        code, out = _run([shutil.which("claude") or "claude", "auth", "logout"])
+        return {"ok": code == 0, "detail": out.strip()[:200]}
+    if tool == "gemini":
+        n = 0
+        for f in ("oauth_creds.json", "google_accounts.json"):
+            p = os.path.join(os.path.expanduser("~"), ".gemini", f)
+            if os.path.exists(p):
+                os.remove(p); n += 1
+        return {"ok": True, "detail": f"removed {n} credential file(s)"}
+    raise ValueError("tool must be claude|gemini")
+
+
+def post_auth_input(h, q, b):
+    """Send a line to the running login (the code the browser shows, when the CLI asks for it)."""
+    p = AUTH["proc"]
+    if p is None or p.poll() is not None:
+        raise ValueError("no login running")
+    p.stdin.write((b.get("text") or "") + "\n"); p.stdin.flush()
+    return {"ok": True}
+
+
+# ----------------------------------------------------------------------------- backup / restore / update / log bundle
+BACKUP_FILES = ("config.json", "data/tasks.json", "data/memory.json", "data/home_state.json", "data/schedules.json", "data/routines.json",
+                "data/events.json", "data/journal.json", "data/notes.json", "data/memory.sqlite", "data/memory.db")
+
+
+def get_backup(h, q, b):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for rel in BACKUP_FILES:
+            p = os.path.join(ROOT, rel)
+            if os.path.exists(p):
+                z.write(p, rel)
+        for extra in ("plugins", "routines"):
+            d = os.path.join(ROOT, extra)
+            if os.path.isdir(d):
+                for fn in os.listdir(d):
+                    if fn.endswith((".py", ".json")):
+                        z.write(os.path.join(d, fn), f"{extra}/{fn}")
+        z.writestr("VERSION", VERSION)
+    h.send_bytes(buf.getvalue(), "application/zip", extra={"Content-Disposition": f"attachment; filename=samurai-backup-{time.strftime('%Y%m%d-%H%M')}.zip"})
+    return None
+
+
+def restore_zip(raw):
+    n = 0
+    with zipfile.ZipFile(io.BytesIO(raw)) as z:
+        for info in z.infolist():
+            rel = info.filename.replace("\\", "/")
+            if rel == "VERSION" or info.is_dir():
+                continue
+            if rel not in BACKUP_FILES and not (rel.startswith(("plugins/", "routines/")) and rel.count("/") == 1 and rel.endswith((".py", ".json"))):
+                continue
+            target = os.path.abspath(os.path.join(ROOT, rel))
+            if not target.startswith(os.path.abspath(ROOT) + os.sep):
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "wb") as f:
+                f.write(z.read(info))
+            n += 1
+    return n
+
+
+def get_update(h, q, b):
+    try:
+        d = http_json(RELEASES_API, timeout=8)
+        latest = str(d.get("tag_name", "")).lstrip("v")
+        assets = [{"name": a.get("name"), "url": a.get("browser_download_url"), "size": a.get("size")} for a in d.get("assets", [])]
+        newer = tuple(int(x) for x in latest.split(".") if x.isdigit()) > tuple(int(x) for x in VERSION.split(".") if x.isdigit())
+        return {"ok": True, "current": VERSION, "latest": latest, "newer": newer, "url": d.get("html_url"), "assets": assets, "published": d.get("published_at")}
+    except Exception as e:
+        return {"ok": False, "current": VERSION, "error": str(e)[:120]}
+
+
+def get_log_bundle(h, q, b):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.isdir(LOGS):
+            for fn in os.listdir(LOGS):
+                if fn.endswith(".log"):
+                    z.write(os.path.join(LOGS, fn), fn)
+        z.writestr("doctor.json", json.dumps(doctor(), indent=1))
+        z.writestr("system.txt", f"SAMURAI {VERSION}\n{sys.platform} python {sys.version}\n")
+    h.send_bytes(buf.getvalue(), "application/zip", extra={"Content-Disposition": "attachment; filename=samurai-logs.zip"})
+    return None
+
+
+def get_version(h, q, b):
+    return {"ok": True, "version": VERSION}
 
 
 def post_open(h, q, b):
@@ -405,7 +693,13 @@ class Handler(JSONHandler):
               ("GET", "/panel/logs"): get_logs, ("GET", "/panel/doctor"): get_doctor,
               ("POST", "/panel/autostart"): post_autostart, ("POST", "/panel/watchdog"): post_watchdog,
               ("POST", "/panel/model"): post_model, ("POST", "/panel/open"): post_open,
-              ("POST", "/panel/voice"): post_voice_extras, ("POST", "/panel/lan"): post_lan}
+              ("POST", "/panel/voice"): post_voice_extras, ("POST", "/panel/lan"): post_lan,
+              ("GET", "/phone"): get_phone, ("GET", "/phone/cert"): get_phone_cert,
+              ("POST", "/remote/command"): post_remote_command, ("GET", "/remote/next"): get_remote_next,
+              ("POST", "/remote/reply"): post_remote_reply, ("GET", "/remote/reply"): get_remote_reply,
+              ("GET", "/auth/status"): get_auth_status, ("POST", "/auth/login"): post_auth_login, ("POST", "/auth/logout"): post_auth_logout,
+              ("POST", "/auth/input"): post_auth_input,
+              ("GET", "/backup"): get_backup, ("GET", "/update"): get_update, ("GET", "/logs/bundle"): get_log_bundle, ("GET", "/version"): get_version}
 
     def do_GET(self):
         if self.path.startswith("/fonts/"):
@@ -414,6 +708,20 @@ class Handler(JSONHandler):
             get_asset(self, {}, None)
             return
         super().do_GET()
+
+    def do_POST(self):
+        if self.path.split("?")[0] == "/restore":                  # raw zip body, not JSON
+            if not self._origin_ok():
+                return self.send_json({"ok": False, "error": "origin not allowed"}, 403)
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            if n > 50_000_000:
+                return self.send_json({"ok": False, "error": "backup too large"}, 400)
+            try:
+                count = restore_zip(self.rfile.read(n))
+                return self.send_json({"ok": True, "restored": count, "note": "restart the services to apply"})
+            except Exception as e:
+                return self.send_json({"ok": False, "error": f"not a SAMURAI backup: {e}"[:200]}, 400)
+        super().do_POST()
 
 
 if __name__ == "__main__":
@@ -426,5 +734,5 @@ if __name__ == "__main__":
     threading.Thread(target=watchdog, daemon=True).start()
     if "--autostart" in sys.argv:
         threading.Thread(target=bring_up_all, args=("--no-browser" not in sys.argv,), daemon=True).start()
-    print(f"[SAMURAI] Control panel on http://localhost:{PORT}/")
-    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()
+    print(f"[SAMURAI] Control panel on {scheme()}://localhost:{PORT}/  (v{VERSION})")
+    maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

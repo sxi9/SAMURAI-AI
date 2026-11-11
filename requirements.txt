@@ -3,3 +3,5 @@ vosk>=0.3.45
 websockets>=12
 psutil>=5.9
 edge-tts>=6.1
+cryptography>=42        # self-signed certificate for phone mode over https
+qrcode>=7.4             # QR code for pairing the phone

@@ -7,7 +7,7 @@ import asyncio, json, os, subprocess, sys, tempfile, time, urllib.request
 
 PHRASE = "samurai open chrome and play some music"
 TTS = "http://localhost:9200/tts?text=" + urllib.request.quote(PHRASE)
-WS = "ws://localhost:9100"
+WS = "ws://localhost:" + (sys.argv[sys.argv.index("--port") + 1] if "--port" in sys.argv else "9100")   # --port 9101 to test another engine
 
 
 def main():
@@ -25,11 +25,12 @@ def main():
             t0 = time.time()
             for i in range(0, len(data), 8000):
                 await ws.send(data[i:i + 8000])
+            await ws.send(b"\x00" * 32000)                        # a second of silence so a VAD-cut engine closes the utterance
             await ws.send("EOF")
             finals = []
             try:
                 while True:
-                    m = json.loads(await asyncio.wait_for(ws.recv(), 4))
+                    m = json.loads(await asyncio.wait_for(ws.recv(), 25))
                     if m.get("final"):
                         finals.append(m["text"])
             except asyncio.TimeoutError:
