@@ -79,7 +79,7 @@ def get_config(h, q, b):
 
 def post_config(h, q, b):
     cfg = load_config()
-    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan"):
+    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan", "connect", "ui"):
         if key in b:
             if isinstance(b[key], dict) and isinstance(cfg.get(key), dict):
                 for k2, v2 in b[key].items():
@@ -381,6 +381,90 @@ def get_music_file(h, q, b):
     return None
 
 
+# ---------- video: a local folder (config widgets.video.dir) and YouTube search without an API key ----------
+_video = {"files": [], "scanned": 0}
+VIDEO_EXT = {"mp4": "video/mp4", "webm": "video/webm", "mkv": "video/x-matroska", "mov": "video/quicktime", "m4v": "video/mp4"}
+
+
+def scan_video():
+    d = os.path.expanduser(load_config()["widgets"].get("video", {}).get("dir") or "")
+    if not d or not os.path.isdir(d) or time.time() - _video["scanned"] < 30:
+        return
+    files = []
+    for root_, _, names in os.walk(d):
+        for n in sorted(names):
+            ext = n.rsplit(".", 1)[-1].lower()
+            if ext in VIDEO_EXT:
+                p = os.path.join(root_, n)
+                files.append({"i": len(files), "title": os.path.splitext(n)[0].replace("_", " "), "path": p, "size": os.path.getsize(p), "ext": ext})
+        if len(files) > 500:
+            break
+    _video.update(files=files, scanned=time.time())
+
+
+def get_video(h, q, b):
+    scan_video()
+    return {"ok": True, "files": [{k: v for k, v in f.items() if k != "path"} for f in _video["files"]], "live": bool(_video["files"])}
+
+
+def get_video_file(h, q, b):
+    scan_video()
+    i = int(q.get("i", -1))
+    if not (0 <= i < len(_video["files"])):
+        raise ValueError("no such video")
+    f = _video["files"][i]
+    size = f["size"]
+    rng = h.headers.get("Range")
+    start, end = 0, size - 1
+    if rng and rng.startswith("bytes="):
+        a, _, z = rng[6:].partition("-")
+        start = int(a or 0)
+        end = int(z) if z else min(size - 1, start + 4 * 1024 * 1024)
+        end = min(end, size - 1)
+    length = end - start + 1
+    code = 206 if rng else 200
+    h._headers(code, VIDEO_EXT[f["ext"]], length, {"Accept-Ranges": "bytes", "Content-Range": f"bytes {start}-{end}/{size}"} if rng else {"Accept-Ranges": "bytes"})
+    with open(f["path"], "rb") as fh:
+        fh.seek(start)
+        left = length
+        while left > 0:
+            chunk = fh.read(min(256 * 1024, left))
+            if not chunk:
+                break
+            h.wfile.write(chunk)
+            left -= len(chunk)
+    return None
+
+
+_yt_cache = {}
+
+
+def get_yt_search(h, q, b):
+    query = (q.get("q") or "").strip()
+    if not query:
+        raise ValueError("q required")
+    if query in _yt_cache and time.time() - _yt_cache[query][0] < 3600:
+        return {"ok": True, "results": _yt_cache[query][1], "cached": True}
+    req = urllib.request.Request("https://www.youtube.com/results?search_query=" + urllib.parse.quote(query),
+                                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SAMURAI/1.0", "Accept-Language": "en"})
+    html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "ignore")
+    seen, results = set(), []
+    for m in re.finditer(r'"videoId":"([A-Za-z0-9_-]{11})".{0,600}?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"', html):
+        vid = m.group(1)
+        try:
+            title = json.loads('"' + m.group(2) + '"')
+        except Exception:
+            title = m.group(2)
+        if vid in seen:
+            continue
+        seen.add(vid)
+        results.append({"id": vid, "title": title, "url": "https://www.youtube.com/watch?v=" + vid})
+        if len(results) >= 8:
+            break
+    _yt_cache[query] = (time.time(), results)
+    return {"ok": True, "results": results}
+
+
 def post_music(h, q, b):
     cmd = b.get("cmd")
     if cmd in ("play", "pause", "set"):
@@ -560,6 +644,7 @@ class Handler(JSONHandler):
     ROUTES = {
         ("GET", "/config"): get_config, ("POST", "/config"): post_config,
         ("GET", "/weather"): get_weather, ("GET", "/ticker"): get_ticker,
+        ("GET", "/video"): get_video, ("GET", "/video/file"): get_video_file, ("GET", "/yt_search"): get_yt_search,
         ("GET", "/tasks"): get_tasks, ("POST", "/tasks"): post_tasks,
         ("GET", "/agenda"): get_agenda, ("GET", "/inbox"): get_inbox,
         ("GET", "/home"): get_home, ("POST", "/home"): post_home,

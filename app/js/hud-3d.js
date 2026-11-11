@@ -64,7 +64,7 @@ const gl = {
     this.buildNebula(D); this.buildParticles(Q.n); this.buildOrb();
     if (Q.bloom) {
       this.composer = new EffectComposer(r); this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .85, .45, .25); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .6, .4, .4); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
     } else this.composer = null;
     this.on = true; this.ready = true; document.getElementById('stage').classList.add('gl'); SAM.core.particles = false;
     const loop = ts => { if (!this.on) return; this.frame(ts); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop);
@@ -91,7 +91,7 @@ const gl = {
           vec3 col=mix(uB,uA,smoothstep(.3,.9,n2))*n;
           col=mix(col,vec3(1.,.24,.43)*n*1.4,uRed);
           float d=length(p);float ring=smoothstep(.0,.55,d);          // keep the centre clear for the core
-          float a=n*(.14+.42*uEnergy)*ring*(1.-smoothstep(.75,1.05,d));
+          float a=n*(.1+.32*uEnergy)*ring*(1.-smoothstep(.75,1.05,d));
           if(uGlitch>0.){float g=step(.985,hash3(vec3(floor(vUv.y*90.),floor(uTime*24.),1.)).x)*uGlitch;col+=vec3(g);a+=g*.35;}
           gl_FragColor=vec4(col,a);}`
     });
@@ -104,18 +104,18 @@ const gl = {
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(this.ppos, 3)); geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      uniforms: { uTime: { value: 0 }, uSpin: { value: 0 }, uTilt: { value: .3 }, uRadius: { value: 380 }, uCenter: { value: new THREE.Vector3(0, 0, 0) }, uA: { value: rgb(SAM.core.THEME.c) }, uB: { value: rgb(SAM.core.THEME.v) }, uMode: { value: 0 }, uShow: { value: 0 }, uPR: { value: 1 }, uMusic: { value: 0 } },
+      uniforms: { uTime: { value: 0 }, uSpin: { value: 0 }, uTilt: { value: .3 }, uRadius: { value: 380 }, uCenter: { value: new THREE.Vector3(0, 0, 0) }, uA: { value: rgb(SAM.core.THEME.c) }, uB: { value: rgb(SAM.core.THEME.v) }, uMode: { value: 0 }, uShow: { value: 0 }, uPR: { value: 1 }, uMusic: { value: 0 }, uDim: { value: 1 } },
       vertexShader: `attribute float seed;uniform float uTime,uSpin,uTilt,uRadius,uShow,uPR,uMusic;uniform vec3 uCenter;varying float vD;varying float vS;
         void main(){vec3 p=position;p+=.012*vec3(sin(uTime*1.3+seed*40.),cos(uTime*1.1+seed*31.),sin(uTime*.9+seed*17.));
           p*=1.+uMusic*.08*sin(uTime*20.+seed*6.28);
           float cs=cos(uSpin),sn=sin(uSpin);vec3 p1=vec3(p.x*cs-p.z*sn,p.y,p.x*sn+p.z*cs);
           float ct=cos(uTilt),st=sin(uTilt);vec3 p2=vec3(p1.x,p1.y*ct-p1.z*st,p1.y*st+p1.z*ct);
           vec4 mv=modelViewMatrix*vec4(p2*uRadius+uCenter,1.);vD=(p2.z+1.)*.5;vS=seed;
-          gl_PointSize=(2.2+vD*3.2+uShow*2.6)*uPR*(1500./-mv.z);gl_Position=projectionMatrix*mv;}`,
-      fragmentShader: `precision highp float;uniform vec3 uA,uB;uniform float uMode,uShow;varying float vD;varying float vS;
+          gl_PointSize=(1.5+vD*2.3+uShow*2.4)*uPR*(1500./-mv.z);gl_Position=projectionMatrix*mv;}`,
+      fragmentShader: `precision highp float;uniform vec3 uA,uB;uniform float uMode,uShow,uDim;varying float vD;varying float vS;
         void main(){float d=length(gl_PointCoord-.5);if(d>.5)discard;float a=smoothstep(.5,.08,d);
           vec3 c=mix(uB,uA,smoothstep(.35,.75,vD));if(uMode==1.)c=uB;if(uMode==2.)c=vec3(1.,.24,.43);
-          float br=.25+vD*.65+uShow*.25+step(.985,vS)*.8;gl_FragColor=vec4(c*br,a*(.5+.5*vD+uShow*.3));}`
+          float br=(.18+vD*.5+uShow*.3+step(.985,vS)*.7)*uDim;gl_FragColor=vec4(c*br,a*(.35+.45*vD+uShow*.3)*uDim);}`
     });
     this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.scene.add(this.points);
   },
@@ -172,7 +172,7 @@ const gl = {
     if (FACING[base]) this.spin += (Math.sin(t * .6) * .3 - this.spin) * .04; else this.spin += spinSpeed * dt;
     this.tilt += ((SHAPE_TILT[base] ?? .3) - this.tilt) * .04;
     const show = core.show || 0, music = core.musicLevel || 0, mic = core.micLevel || 0;
-    const pu = this.points.material.uniforms; pu.uTime.value = t; pu.uSpin.value = this.spin; pu.uTilt.value = this.tilt; pu.uRadius.value = 380 + 110 * show; pu.uShow.value = show; pu.uMode.value = mode; pu.uA.value = A; pu.uB.value = B; pu.uPR.value = this.renderer.getPixelRatio(); pu.uMusic.value = music;
+    const pu = this.points.material.uniforms; pu.uTime.value = t; pu.uSpin.value = this.spin; pu.uTilt.value = this.tilt; pu.uRadius.value = 300 + 95 * show; pu.uDim.value += (((hud && hud.S.focus) || (hud && hud.S.drawer) ? .3 : 1) - pu.uDim.value) * .08; pu.uShow.value = show; pu.uMode.value = mode; pu.uA.value = A; pu.uB.value = B; pu.uPR.value = this.renderer.getPixelRatio(); pu.uMusic.value = music;
     /* orb follows the avatar anchor (hud exposes the wander offsets) */
     const wd = hud && hud.WD || { ox: 0, oy: 0, os: 1 };
     const talk = this.speech(); this.speechLevel += (talk - this.speechLevel) * (talk > this.speechLevel ? .5 : .15);
@@ -184,7 +184,7 @@ const gl = {
     this.halo.position.copy(this.orb.position); const hs = 330 * sc * (1 + this.speechLevel * .25 + music * .3); this.halo.scale.set(hs, hs, 1); this.halo.material.color = red ? new THREE.Color(1, .24, .43) : (mode === 1 ? B : A); this.halo.material.opacity = .35 + .35 * this.energy;
     const nu = this.nebula.material.uniforms; nu.uTime.value = t; nu.uA.value = A; nu.uB.value = B; nu.uRed.value += (red - nu.uRed.value) * .06; nu.uEnergy.value += (this.energy - nu.uEnergy.value) * .05; nu.uStir.value = m === 'alert' ? .6 : m === 'thinking' ? .35 : .15 + music * .3;
     this.glitch = Math.max(0, this.glitch - dt * 1.5); nu.uGlitch.value = this.glitch;
-    if (this.bloom) this.bloom.strength = .7 + .5 * this.energy + .4 * music;
+    if (this.bloom) this.bloom.strength = .45 + .4 * this.energy + .35 * music;
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   },
   pulse() { this.glitch = 1; },

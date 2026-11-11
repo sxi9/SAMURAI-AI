@@ -44,6 +44,7 @@ DEFAULT_CONFIG = {
         "home": {"hass_url": "", "hass_token": "", "sample": True},
         "music": {"library_dir": "", "sample": True},
         "gallery": {"dir": "gallery"},
+        "video": {"dir": ""},
         "documents": {"dir": ""},
         "camera": {"url": ""},
         "position": {"nearby": [{"name": "OFFICE", "km": 4.2, "bearing": 40},
@@ -249,7 +250,8 @@ class JSONHandler(BaseHTTPRequestHandler):
         o = self.headers.get("Origin")
         if o in self.origins():
             self.send_header("Access-Control-Allow-Origin", o)
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Samurai-Token")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Samurai-Token, Range")
+            self.send_header("Access-Control-Expose-Headers", "X-Title, X-Url, Content-Range, Accept-Ranges")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Vary", "Origin")
         if length is not None:

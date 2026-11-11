@@ -94,7 +94,7 @@
       else if (h >= 17 && h < 20) { tint = [44, 14, 30]; a = Math.sin((h - 17) / 3 * Math.PI); }         // dusk: orange-purple
       else { tint = [3, 4, 10]; a = .6; }                                                                  // night: deep
       if (/rain|storm|snow|fog|overcast/.test(c)) { tint = tint.map(v => v * .8 + 4); }
-      document.documentElement.style.setProperty('--day', `rgba(${tint.join(',')},${(a * .55).toFixed(2)})`);
+      document.documentElement.style.setProperty('--day', `rgba(${tint.join(',')},${(a * .22).toFixed(2)})`);
       document.documentElement.dataset.daypart = h < 5 || h >= 20 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : 'dusk';
     },
 

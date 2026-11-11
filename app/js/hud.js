@@ -9,7 +9,7 @@
   const SAVE_KEY = 'samurai.hud3';
 
   const S = {
-    mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, 1])), focus: null, drawer: false,
+    mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, w.pin === false ? 0 : 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
     parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', fx: true, presence: false, theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
@@ -76,7 +76,7 @@
       slot.classList.remove('docked'); fly.classList.remove('focus', 'dim'); slot.style.left = w.x + 'px'; slot.style.top = w.y + 'px';
       const cx = w.x + 136, cy = w.y + 125, [nx, ny] = NODE(w.node); let st;
       if (!S.assembled) st = `transform:perspective(1400px) translate(${960 - cx}px,${470 - cy}px) rotateY(0deg) scale(.1);opacity:0;visibility:hidden;transition:none`;
-      else if (focused) st = `z-index:60;transform:perspective(1400px) translate(${960 - cx}px,${482 - cy}px) rotateY(0deg) scale(2.2);opacity:1;visibility:visible`;
+      else if (focused) { const cine = w.id === 'vid' && widgets.data.video.cinema, sc = cine ? 3.9 : w.big ? 3.1 : 2.2; st = `z-index:60;transform:perspective(1400px) translate(${960 - cx}px,${(cine ? 540 : 482) - cy}px) rotateY(0deg) scale(${sc});opacity:1;visibility:visible`; }
       else if (docked) st = `transform:perspective(1400px) translate(${nx - cx}px,${ny - cy}px) rotateY(0deg) scale(.08);opacity:0;visibility:hidden`;
       else st = `transform:perspective(1400px) translate(0px,0px) rotateY(${w.side === 'L' ? 9 : -9}deg) scale(1);opacity:${S.focus ? .22 : 1};filter:${S.focus ? 'blur(1px)' : 'none'};visibility:visible;transition-delay:${S.stagger ? i * 70 : 0}ms`;
       fly.style.cssText = st;
@@ -222,6 +222,37 @@
     if (/^(volume down|quieter|turn it down)$/.test(q)) return { text: 'Quieter.', actions: [{ type: 'volume_down', arg: '10' }] };
     if (/^(mute|unmute)$/.test(q)) return { text: q === 'mute' ? 'Muted.' : 'Unmuted.', actions: [{ type: 'mute' }] };
     if (/^(show|open|focus) (the )?(weather|forecast)$/.test(q)) return { focus: 'wx', text: null };
+    /* video: youtube by search, local library, direct streams */
+    if (/^(pause|stop) (the )?(video|youtube|movie)$/.test(q)) return { text: 'Paused.', effect: () => widgets.video('pause') };
+    if (/^(resume|continue|play) (the )?(video|movie)$/.test(q)) return { focus: 'vid', text: 'Playing.', effect: () => widgets.video('play') };
+    if (/^(close|kill|exit) (the )?(video|youtube|movie|player)$|^video off$/.test(q)) return { text: 'Video closed.', effect: () => { widgets.video('close'); if (S.focus === 'vid') setFocus(null); } };
+    if (/^(cinema( mode)?|theat(er|re) mode|big screen|full screen video|exit cinema|cinema off)$/.test(q)) return { focus: 'vid', text: /exit|off/.test(q) ? 'Back to the HUD.' : 'Cinema mode.', effect: () => { const v = widgets.data.video; if (!!v.cinema === !/exit|off/.test(q)) return; widgets.video('cinema'); } };
+    if (/^(show|open|focus) (the )?(video|player|youtube)$/.test(q)) return { focus: 'vid', text: null };
+    const vu = q.match(/^(?:play|open|stream|watch) (https?:\/\/\S+\.(?:mp4|webm|m3u8|mov|m4v)(?:\?\S*)?)$/); if (vu) return { focus: 'vid', text: 'Streaming.', effect: () => widgets.video('url', vu[1]) };
+    const vq = q.match(/^(?:play|watch|show(?: me)?|put on|start)(?: a| the| some)? (?:video|videos|youtube|movie|clip)(?: of| about| for| on|:)? (.+)$/) || q.match(/^(?:watch|youtube) (.+)$/) || q.match(/^(?:play|open|watch|put on) (.+?) on youtube$/);
+    if (vq) { const what = vq[1].replace(/ on youtube$/, '').trim(); return { focus: 'vid', text: `Finding ${what}.`, effect: async () => { const ok = await widgets.video('search', what); say(ok ? `Playing ${widgets.data.video.now.title.slice(0, 60)}.` : `I could not find ${what}.`); } }; }
+    /* browser widget: the agent's real page, live in the HUD */
+    if (/^(show|open|focus) (the )?(browser|web|web view|agent browser)$/.test(q)) return { focus: 'web', text: null, effect: () => widgets.webRefresh(true) };
+    const bu = q.match(/^(?:browse|open|go to|visit|open website|open site|open page|navigate to)(?: the)?(?: website| site| page)? (?:to )?((?:https?:\/\/)?[\w-]+(?:\.[\w-]+)+(?:\/\S*)?)$/) || q.match(/^browse (?:to |for )?(.+)$/) || q.match(/^(?:look (?:that |it |this )?up|search) in the browser(?: for)? (.+)$/);
+    if (bu) { const t = bu[1].trim(), url = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(t) ? (t.startsWith('http') ? t : 'https://' + t) : 'https://duckduckgo.com/?q=' + encodeURIComponent(t); return { focus: 'web', text: `Opening ${t}.`, effect: () => widgets.browse(url) }; }
+    /* radio and podcasts */
+    if (/^(stop|pause|kill)( the)? (radio|podcast|stream)$/.test(q)) return { focus: 'mus', text: 'Stopped.', effect: () => widgets.stopStream() };
+    const rd = q.match(/^(?:play|put on|start|tune (?:in|to))(?: the| some| a)? radio(?: station)?(?: (.+))?$/) || q.match(/^(?:play|put on) (.+) radio$/); if (rd) return { focus: 'mus', text: rd[1] ? `Tuning to ${rd[1]}.` : 'Radio on.', effect: async () => { if (!await widgets.stream('radio', rd[1] || '')) say('No station found. Add stations under connect in the config.'); } };
+    const pc = q.match(/^(?:play|put on|start|resume)(?: the| a| my| latest| the latest)? podcast(?: (.+))?$/); if (pc) return { focus: 'mus', text: 'Podcast.', effect: async () => { if (!await widgets.stream('podcast', pc[1] || '')) say('No podcast episodes yet. Add feeds under connect in the config.'); } };
+    /* journal, focus sessions, files, read aloud, machines, radios, phone push, games, cleanup */
+    const jn = q.match(/^(?:note|journal|log|write down|remember in my journal)(?: that| this)?[:,]? (.{2,})$/); if (jn) return { focus: 'task', text: 'Noted.', effect: () => fetch(ADDONS + '/journal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: jn[1] }) }).catch(() => { }) };
+    if (/^(read|show|what's in|what is in|open) (my |the )?journal( today| for today)?$/.test(q)) return { journal: true };
+    const fs = q.match(/^(?:start(?: a)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?(?: for)?(?: (\d+)(?: minutes?| min)?)?$/); if (fs) { const mins = +(fs[1] || 25); return { focus: 'tmr', text: `Focus session, ${mins} minutes. I will keep quiet.`, effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: mins, break: 5 }) }).catch(() => { }); widgets.timerStart(mins * 60); } }; }
+    if (/^(stop|end|cancel) (the )?(focus|pomodoro)( session)?$/.test(q)) return { text: 'Focus session ended.', effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => { }); widgets.timerReset(); } };
+    const ff = q.match(/^(?:find|search|locate)(?: my| the)? files?(?: for| named| called| about)? (.{2,})$/) || q.match(/^where is (?:my |the )?file (.{2,})$/); if (ff) return { files: ff[1] };
+    const ra = q.match(/^read(?: me)?(?: the)?(?: file| document)? (\S+\.(?:txt|md|pdf|docx|csv|log|rst))(?: aloud| out loud| to me)?$/); if (ra) return { readFile: ra[1] };
+    const wk = q.match(/^(?:wake|wake up|power on|turn on|boot)(?: the| my)? (?:machine |server |pc |computer )?(.{2,30})$/); if (wk && /server|nas|pc|machine|desktop|laptop|box|rig|[0-9a-f]{2}(:[0-9a-f]{2}){5}/i.test(wk[0])) return { text: `Waking ${wk[1]}.`, actions: [{ type: 'wake_machine', arg: wk[1] }] };
+    const rk = q.match(/^(?:turn |switch )?(wifi|wi-fi|wi fi|bluetooth|vpn)(?: on| off)?(?: (on|off))?$/); if (rk && /on|off/.test(q)) { const kind = rk[1].replace(/[^a-z]/g, '') === 'wifi' ? 'wifi' : rk[1]; return { text: `${kind} ${/off/.test(q) ? 'off' : 'on'}.`, actions: [{ type: kind, arg: /off/.test(q) ? 'off' : 'on' }] }; }
+    const pp = q.match(/^(?:push|send)(?: this| a note| a message)? to (?:my )?phone[:,]? (.{2,})$/); if (pp) return { text: 'Sent to your phone.', actions: [{ type: 'push_phone', arg: pp[1] }] };
+    const tg = q.match(/^(?:telegram|message me|text me)[:,]? (.{2,})$/); if (tg) return { text: 'Sent.', actions: [{ type: 'telegram_send', arg: tg[1] }] };
+    const lg = q.match(/^(?:launch|start the game|play the game|run the game) (.{2,})$/); if (lg) return { text: `Launching ${lg[1]}.`, actions: [{ type: 'launch_game', arg: lg[1] }] };
+    if (/^(list |show |what )?(games|my games|steam games)( do i have| library)?$/.test(q)) return { games: true };
+    if (/^(clean ?up|clean the (system|pc|disk)|free (up )?(some )?space|disk cleanup)$/.test(q)) return { cleanup: true };
     if (/^(show|open|focus) (the )?(camera|cam|feed|gate)$/.test(q)) return { focus: 'cam', text: 'Camera feed up.' };
     if (/^(show|open|focus) (the )?(map|position|location)$/.test(q)) return { focus: 'map', text: 'Position locked.' };
     if (/^(show|open|focus) (the )?(gallery|photos|pics|pictures)$/.test(q)) return { focus: 'pix', text: 'Gallery up.' };
@@ -289,6 +320,11 @@
       else if (r && r.docs) { r = await docsAnswer(r.docs); }
       else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
       else if (r && r.plan) { r = await planRun(r.plan); }
+      else if (r && r.journal) { const d = await (await fetch(ADDONS + '/journal/today')).json(); const n = (d.entries || []).length; r = { focus: 'task', text: n ? `${n} entr${n === 1 ? 'y' : 'ies'} today. ${d.entries.slice(0, 3).map(e => e.text).join('. ')}` : 'Nothing in the journal today.' }; }
+      else if (r && r.files) { const d = await (await fetch(ADDONS + '/files?q=' + encodeURIComponent(r.files) + '&n=5')).json(); const L = d.results || []; L.forEach(f => widgets.pushTty(`file · ${f.path}`, '#a07cff')); r = { focus: 'tty', text: L.length ? `${L.length} match${L.length === 1 ? '' : 'es'}. First: ${L[0].name}.` : `No file matching ${r.files}.`, actions: L.length ? [] : [] }; }
+      else if (r && r.readFile) { const d = await (await fetch(ADDONS + '/read?path=' + encodeURIComponent(r.readFile))).json(); r = d.ok ? { focus: 'tty', text: String(d.text || '').replace(/\s+/g, ' ').slice(0, 700) } : { text: `I could not read ${r.readFile}.` }; }
+      else if (r && r.games) { const d = await (await fetch(ADDONS + '/games')).json(); const G = d.games || []; G.slice(0, 12).forEach(g => widgets.pushTty(`game · ${g.name}`, '#a07cff')); r = { focus: 'tty', text: G.length ? `${G.length} games installed. ${G.slice(0, 3).map(g => g.name).join(', ')}${G.length > 3 ? ' and more' : ''}.` : (d.steam ? 'No Steam games found.' : 'Steam is not installed here.') }; }
+      else if (r && r.cleanup) { const d = await (await fetch(ADDONS + '/cleanup')).json(); const mb = Math.round((d.total || 0) / 1048576); (d.items || []).forEach(i => widgets.pushTty(`cleanup · ${i.kind} ${Math.round(i.bytes / 1048576)} MB`, '#a07cff')); r = { focus: 'sys', text: mb ? `About ${mb} megabytes can go. Say "confirm" to delete temp files older than a day.` : 'Nothing worth cleaning.', actions: mb ? [{ type: 'cleanup', arg: 'temp' }] : [] }; }
       else if (r && r.proactive) { r = await proactiveCheck(); if (!r) { setMode(voice.micOn ? 'listening' : 'idle'); return; } }
       else if (!r) {
         if (brain.online) {
@@ -443,7 +479,13 @@
         case 'look_at_screen': { const r2 = await visionAnswer('screen', arg || 'Describe what is on the screen.'); return r2.text; }
         case 'look_at_camera': { const r2 = await visionAnswer('camera', arg || 'Describe what the camera sees.'); return r2.text; }
         case 'desktop_task': { T(() => desktopTask(arg), 1500); return null; }
+        case 'video_play': case 'video_search': case 'youtube': { setFocus('vid'); const ok = await widgets.video('search', arg); if (!ok) log('warn', `video · nothing found for ${arg}`); return null; }
+        case 'video_pause': widgets.video('pause'); return null; case 'video_close': widgets.video('close'); return null; case 'cinema': widgets.video('cinema'); return null;
+        case 'radio_play': await widgets.stream('radio', arg); setFocus('mus'); return null; case 'podcast_play': await widgets.stream('podcast', arg); setFocus('mus'); return null;
+        case 'journal_add': fetch(ADDONS + '/journal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: arg }) }).catch(() => { }); return null;
+        case 'focus_start': fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: parseInt(arg) || 25, break: 5 }) }).catch(() => { }); widgets.timerStart((parseInt(arg) || 25) * 60); return null;
         case 'browse_open': case 'browse_read': case 'browse_click': case 'browse_type': case 'browse_find': case 'browse_back': case 'browse_screenshot': {
+          if (type === 'browse_open') { widgets.data.web.live = true; widgets.render('web'); if (!S.focus) setFocus('web'); }
           try { const d = await (await fetch(SAM.H + ':9600/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: type.slice(7), arg }) })).json(); widgets.pushTty(`browser ${type.slice(7)} → ${d.ok ? 'ok' : d.error}`, d.ok ? '#2ee6ff' : '#ff3d6e'); if (d.ok && d.text && brain.online && type === 'browse_read') { const out = await brain.ask(`Summarise this web page for ${brain.user.name} in 2-3 spoken sentences (title: ${d.title}):\n${d.text.slice(0, 6000)}`, null); return out.reply; } return d.ok ? (d.did || d.title || 'Done.') : `Browser: ${d.error}`; }
           catch (e) { return 'The browser agent is not running. Start it from the control panel.'; }
         }
@@ -518,6 +560,7 @@
   voice.onLevel = l => { core.micLevel = l; };
   voice.onWake = () => { widgets.pushTty('wake word detected', '#2ee6ff'); voice.stopSpeaking('wake'); setMode('listening'); };
   voice.onMicState = on => { if (!on && S.mode === 'listening') setMode('idle'); if (on && S.mode === 'idle') setMode('listening'); $('pillMic').textContent = on ? 'MIC · OPEN' : 'MIC · ARMED'; };
+  widgets.onVideo = now => { if (now) setFocus('vid'); else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };
   widgets.onSecurity = sec => showAlert(sec);
   widgets.onAction = (type, arg) => runAction({ type, arg });
@@ -566,7 +609,7 @@
       <select id="optMood">${MOODS.map(([k, l]) => `<option value="${k}"${k === b.mood ? ' selected' : ''}>${l}</option>`).join('')}</select>
       <div class="row"><span>HUMOR <em id="humorVal">${b.humor}</em></span><input type="range" id="optHumor" class="v" min="0" max="10" step="1" value="${b.humor}"></div>
       <h4>ADD-ONS · PINNED TO HUD</h4>
-      <div class="addons">${W.map(w => `<div class="row"><span><b>${w.code}</b>${w.name}</span>${sw('pin:' + w.id, !!S.pinned[w.id])}</div>`).join('')}</div>
+      <div class="addons">${W.filter(w => w.pin !== false).map(w => `<div class="row"><span><b>${w.code}</b>${w.name}</span>${sw('pin:' + w.id, !!S.pinned[w.id])}</div>`).join('')}</div>
       <div class="note">Unpinned add-ons dock into their ring node. Click the node or ask for them by voice to summon.</div>
       <h4>THEME</h4>
       <div class="themes">${Object.keys(THEMES).map(t => { const [a, b] = themeHex(t); return `<div class="sw${S.theme === t ? ' on' : ''}" data-t="${t}" style="--a:${a};--b:${b}" title="${t}"><span>${t}</span></div>`; }).join('')}</div>

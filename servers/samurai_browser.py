@@ -14,7 +14,7 @@ Needs:  pip install playwright && python -m playwright install chromium
 config.json "browser": {"headless": false}  shows the window on your PC so you can watch it work.
 Run: python samurai_browser.py
 """
-import os, re, sys, threading, time
+import os, urllib.parse, re, sys, threading, time
 from http.server import HTTPServer   # single-threaded on purpose: Playwright's sync API is bound to one thread
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -151,6 +151,22 @@ def do(cmd, arg):
     if cmd == "back":
         pg.go_back()
         return {"ok": True, "did": f"Back to {pg.title()}", "title": pg.title(), "url": pg.url}
+    if cmd == "click_at":
+        x, y = [float(v) for v in arg.split(",")[:2]]
+        pg.mouse.click(x, y)
+        try:
+            pg.wait_for_load_state("domcontentloaded", timeout=3000)
+        except Exception:
+            pass
+        return {"ok": True, "did": f"Clicked {int(x)},{int(y)}", "title": pg.title(), "url": pg.url}
+    if cmd == "key":
+        pg.keyboard.press(arg or "Enter")
+        return {"ok": True, "did": f"Key {arg}", "title": pg.title(), "url": pg.url}
+    if cmd == "scroll":
+        pg.mouse.wheel(0, int(arg or 600))
+        return {"ok": True, "did": "Scrolled"}
+    if cmd == "view":
+        return {"ok": True, "jpeg": pg.screenshot(type="jpeg", quality=55), "title": pg.title(), "url": pg.url}
     if cmd == "screenshot":
         os.makedirs(SHOTS, exist_ok=True)
         path = os.path.join(SHOTS, time.strftime("web-%Y%m%d-%H%M%S.png"))
@@ -164,6 +180,20 @@ def post_browser(h, q, b):
         res = do(b.get("cmd", ""), b.get("arg", ""))
     print(f"[SAMURAI-WEB] {b.get('cmd')} {str(b.get('arg', ''))[:50]} -> {res.get('did') or res.get('title') or 'ok'}")
     return res
+
+
+def get_view(h, q, b):
+    """Live JPEG of the current page for the HUD's browser widget (blank frame when nothing is open)."""
+    with LOCK:
+        if not (_b["page"] and not _b["page"].is_closed()):
+            h.send_bytes(BLANK_JPEG, "image/jpeg", extra={"X-Title": "no page", "Cache-Control": "no-store"})
+            return None
+        res = do("view", "")
+    h.send_bytes(res["jpeg"], "image/jpeg", extra={"X-Title": urllib.parse.quote(res["title"][:80]), "X-Url": urllib.parse.quote(res["url"][:200]), "Cache-Control": "no-store"})
+    return None
+
+
+BLANK_JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffdb004300080606070605080707070909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffc0000b080001000101011100ffc4001f0000010501010101010100000000000000000102030405060708090a0bffc400b5100002010303020403050504040000017d01020300041105122131410613516107227114328191a1082342b1c11552d1f02433627282090a161718191a25262728292a3435363738393a434445464748494a535455565758595a636465666768696a737475767778797a838485868788898a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae1e2e3e4e5e6e7e8e9eaf1f2f3f4f5f6f7f8f9faffda0008010100003f00fbd3ffd9")
 
 
 def get_status(h, q, b):
@@ -186,7 +216,7 @@ def get_file(h, q, b):
 
 class Handler(JSONHandler):
     TAG = "SAMURAI-WEB"
-    ROUTES = {("POST", "/browser"): post_browser, ("GET", "/browser/status"): get_status, ("GET", "/browser/file"): get_file}
+    ROUTES = {("POST", "/browser"): post_browser, ("GET", "/browser/status"): get_status, ("GET", "/browser/file"): get_file, ("GET", "/browser/view"): get_view}
 
 
 if __name__ == "__main__":

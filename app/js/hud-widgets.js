@@ -2,7 +2,7 @@
    timers, music, tasks, home, security. Exposes window.SAM.widgets. */
 window.SAM = window.SAM || {};
 (function (SAM) {
-  const ADDONS = SAM.H + ':9500', TEL = SAM.H + ':8765/stats', TQ = SAM.token ? '&token=' + SAM.token : '';
+  const ADDONS = SAM.H + ':9500', BROWSER = SAM.H + ':9600', TEL = SAM.H + ':8765/stats', TQ = SAM.token ? '&token=' + SAM.token : '';
   const W = [
     { id: 'sys', side: 'L', x: 40, y: 100, node: 6, code: 'SYS', name: 'SYSTEM & NETWORK', title: 'SYSTEM' },
     { id: 'cal', side: 'L', x: 328, y: 100, node: 11, code: 'CAL', name: 'AGENDA', title: 'AGENDA' },
@@ -16,20 +16,25 @@ window.SAM = window.SAM || {};
     { id: 'map', side: 'R', x: 1608, y: 366, node: 3, code: 'MAP', name: 'POSITION', title: 'POSITION' },
     { id: 'cam', side: 'R', x: 1320, y: 632, node: 4, code: 'CAM', name: 'CAMERA FEED', title: 'FEED 01' },
     { id: 'pix', side: 'R', x: 1608, y: 632, node: 5, code: 'PIX', name: 'HOLO GALLERY', title: 'HOLO GALLERY' },
+    { id: 'vid', side: 'R', x: 1320, y: 366, node: 12, code: 'VID', name: 'VIDEO (YOUTUBE · LOCAL · STREAMS)', title: 'VIDEO', big: true, pin: false },
+    { id: 'web', side: 'L', x: 328, y: 366, node: 13, code: 'WEB', name: 'BROWSER (LIVE AGENT VIEW)', title: 'BROWSER', big: true, pin: false },
   ];
-  const NODE = k => { const a = (-90 + k * 30) * Math.PI / 180; return [960 + 300 * Math.cos(a), 470 + 300 * Math.sin(a)]; };
+  const NODE = k => { const a = (-90 + k * (360 / W.length)) * Math.PI / 180; return [960 + 300 * Math.cos(a), 470 + 300 * Math.sin(a)]; };
   const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const $ = id => document.getElementById(id);
   const J = async (url, opts) => { const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 6000); try { const r = await fetch(url, { ...opts, signal: ctl.signal }); return await r.json(); } finally { clearTimeout(to); } };
   const POST = (url, body) => J(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const GET = url => J(url);
 
   const widgets = {
     W, NODE, fmt, esc,
     data: {
       tel: { cpu: 0, mem: 0, gpu: null, up: 0, down: 0, conns: 0, net: Array(40).fill(0), live: false },
       weather: null, agenda: [], agendaLive: false, inbox: [], inboxLive: false, tasks: [], home: { lights: true, ac: true, lock: true, blinds: false, plug: false, fan: true }, homeLive: false,
-      music: { tracks: [{ i: -1, title: 'Night Drive', artist: 'Kessler Array', len: 221, sample: true }], now: { i: -1, playing: false }, pos: 0, live: false, queryTitle: '' },
+      music: { tracks: [{ i: -1, title: 'Night Drive', artist: 'Kessler Array', len: 221, sample: true }], now: { i: -1, playing: false }, pos: 0, live: false, queryTitle: '', stations: [], episodes: [], stream: null },
+      video: { files: [], live: false, now: null, cinema: false },
+      web: { url: '', title: '', live: false },
       gallery: [], position: null, security: null, ticker: null,
       timer: { left: 300, total: 300, running: false }, tty: [{ t: 'samurai boot · ok', c: '#2ee6ff' }], camErr: false,
     },
@@ -47,6 +52,8 @@ window.SAM = window.SAM || {};
       nodesEl.innerHTML = W.map(w => { const [x, y] = NODE(w.node); return `<div class="node" data-id="${w.id}" title="${w.name}" style="left:${x - 23}px;top:${y - 23}px">${w.code}<i></i></div>`; }).join('');
       document.querySelectorAll('.slot').forEach(s => { const w = W.find(x => x.id === s.dataset.id); s.style.left = w.x + 'px'; s.style.top = w.y + 'px'; });
       W.forEach(w => this.render(w.id));
+      GET(ADDONS + '/video').then(r => { this.data.video.files = r.files || []; this.data.video.live = !!r.live; this.render('vid'); }).catch(() => { });
+      setInterval(() => this.webRefresh(false), 700);
     },
     tag(id, text, cls) { const el = $('tag-' + id); if (el) { el.className = 'tag' + (cls ? ' ' + cls : ''); el.innerHTML = text; } },
     render(id) {
@@ -120,6 +127,35 @@ window.SAM = window.SAM || {};
           $('musPrev').addEventListener('click', e => { e.stopPropagation(); this.music('prev'); });
           $('musNext').addEventListener('click', e => { e.stopPropagation(); this.music('next'); });
           $('musToggle').addEventListener('click', e => { e.stopPropagation(); this.music(m.now.playing ? 'pause' : 'play'); });
+          break;
+        }
+        case 'vid': {
+          const v = d.video, n = v.now; this.tag(id, n ? (n.kind === 'yt' ? 'YOUTUBE' : n.kind === 'url' ? 'STREAM' : 'LOCAL') : (v.live ? `${v.files.length} FILES` : 'IDLE'), n ? 'r' : '');
+          if (!n) { b.innerHTML = `<div class="vid"><div class="vframe empty"><div>▶</div><span>SAY "PLAY VIDEO LOFI" · "WATCH ANYTHING ON YOUTUBE"${v.live ? ' · OR PICK A FILE' : ''}</span></div>
+              <div class="vlist">${v.files.slice(0, 6).map(f => `<div class="vit" data-i="${f.i}">${esc(f.title)}</div>`).join('') || '<div class="foot">SET WIDGETS → VIDEO → DIR FOR A LOCAL LIBRARY</div>'}</div></div>`;
+            b.querySelectorAll('.vit').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); this.video('local', +el.dataset.i); })); break; }
+          const src = n.kind === 'yt' ? `<iframe id="vidFrame" src="https://www.youtube-nocookie.com/embed/${esc(n.id)}?autoplay=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`
+            : `<video id="vidEl" src="${esc(n.src)}" autoplay playsinline controls${n.kind === 'url' && /\.m3u8/.test(n.src) ? '' : ''}></video>`;
+          b.innerHTML = `<div class="vid"><div class="vframe">${src}</div><div class="vtitle"><span>${esc(n.title || '')}</span><em>${n.kind === 'yt' ? 'YOUTUBE' : n.kind === 'url' ? 'STREAM' : 'LIBRARY'}</em></div>
+            <div class="vctl"><div id="vidPip" title="picture in picture">PIP</div><div id="vidCine">${v.cinema ? 'EXIT CINEMA' : 'CINEMA'}</div><div id="vidClose">CLOSE</div></div></div>`;
+          $('vidClose').addEventListener('click', e => { e.stopPropagation(); this.video('close'); });
+          $('vidCine').addEventListener('click', e => { e.stopPropagation(); this.video('cinema'); });
+          $('vidPip').addEventListener('click', e => { e.stopPropagation(); const el = $('vidEl'); if (el && el.requestPictureInPicture) el.requestPictureInPicture().catch(() => { }); });
+          const el = $('vidEl'); if (el) { el.addEventListener('ended', () => this.video('close')); el.addEventListener('click', e => e.stopPropagation()); }
+          break;
+        }
+        case 'web': {
+          const w = d.web; this.tag(id, w.live ? '<i></i>LIVE' : 'AGENT IDLE', w.live ? 'r' : '');
+          if (!b.firstChild) {
+            b.innerHTML = `<div class="web"><div class="wbar"><input id="webUrl" type="text" placeholder="address or search · press enter" spellcheck="false"><div id="webGo">GO</div><div id="webBack">◀</div></div>
+              <div class="wview" id="webView"><img id="webImg" alt=""><div class="wempty" id="webEmpty">SAY "BROWSE WIKIPEDIA" OR "SEARCH THE WEB FOR …"<br>THE AGENT'S REAL BROWSER SHOWS HERE · CLICK TO INTERACT</div></div><div class="wtitle" id="webTitle">—</div></div>`;
+            const go = () => { const u = $('webUrl').value.trim(); if (u) this.browse(/^(https?:\/\/|[\w-]+\.[a-z]{2,}(\/|$))/i.test(u) ? (u.startsWith('http') ? u : 'https://' + u) : 'https://duckduckgo.com/?q=' + encodeURIComponent(u)); };
+            $('webGo').addEventListener('click', e => { e.stopPropagation(); go(); }); $('webUrl').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') go(); }); $('webUrl').addEventListener('click', e => e.stopPropagation());
+            $('webBack').addEventListener('click', e => { e.stopPropagation(); POST(BROWSER + '/browser', { cmd: 'back' }).catch(() => { }); });
+            $('webView').addEventListener('click', e => { e.stopPropagation(); const r = $('webImg').getBoundingClientRect(); if (!w.live || !r.width) return; const x = (e.clientX - r.left) / r.width * 1280, y = (e.clientY - r.top) / r.height * 800; POST(BROWSER + '/browser', { cmd: 'click_at', arg: `${x.toFixed(0)},${y.toFixed(0)}` }).then(() => this.webRefresh(true)).catch(() => { }); });
+            $('webView').addEventListener('wheel', e => { e.stopPropagation(); POST(BROWSER + '/browser', { cmd: 'scroll', arg: String(Math.round(e.deltaY * 3)) }).catch(() => { }); }, { passive: true });
+          }
+          $('webTitle').textContent = w.title || (w.live ? w.url : '—'); $('webEmpty').classList.toggle('hidden', !!w.live);
           break;
         }
         case 'home': {
@@ -253,17 +289,55 @@ window.SAM = window.SAM || {};
         if (cmd === 'next') m.now.i = (m.now.i + 1) % m.tracks.length;
         if (cmd === 'prev') m.now.i = (m.now.i - 1 + m.tracks.length) % m.tracks.length;
         if (cmd === 'play' && m.now.i < 0) m.now.i = 0;
+        if (m.stream) this.stopStream();
         if (cmd === 'pause') { m.now.playing = false; this.audio && this.audio.pause(); }
         else { m.now.playing = true; this.playTrack(m.now.i); }
         POST(ADDONS + '/music', { cmd: m.now.playing ? 'play' : 'pause', i: m.now.i }).catch(() => { });
         this.render('mus'); return true;
       }
+      if (m.stream) { if (cmd === 'pause') { this.stopStream(); return true; } this.stopStream(); }
       if (cmd === 'find' || (cmd === 'play' && arg)) { m.queryTitle = arg || m.queryTitle; m.now.playing = true; m.pos = 0; this.render('mus'); this.onAction && this.onAction('play_music', arg); return true; }
       if (cmd === 'pause') { m.now.playing = false; this.onAction && this.onAction('media_play_pause', ''); }
       else if (cmd === 'play') { m.now.playing = true; this.onAction && this.onAction('media_play_pause', ''); }
       else if (cmd === 'next' || cmd === 'prev') { this.onAction && this.onAction(cmd === 'next' ? 'media_next' : 'media_prev', ''); }
       this.render('mus'); return true;
     },
+    /* ---------- video widget ---------- */
+    async video(cmd, arg) {
+      const v = this.data.video;
+      if (cmd === 'close') { v.now = null; v.cinema = false; document.getElementById('stage').classList.remove('cinema'); this.render('vid'); this.onVideo && this.onVideo(null); return true; }
+      if (cmd === 'cinema') { v.cinema = !v.cinema; document.getElementById('stage').classList.toggle('cinema', v.cinema); this.render('vid'); return true; }
+      if (cmd === 'pause' || cmd === 'play') { const el = $('vidEl'); if (el) { cmd === 'pause' ? el.pause() : el.play().catch(() => { }); } const f = $('vidFrame'); if (f) f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd === 'pause' ? 'pauseVideo' : 'playVideo', args: [] }), '*'); return true; }
+      if (cmd === 'local') { const f = v.files[arg]; if (!f) return false; v.now = { kind: 'local', src: `${ADDONS}/video/file?i=${f.i}${SAM.token ? '&token=' + encodeURIComponent(SAM.token) : ''}`, title: f.title }; }
+      else if (cmd === 'url') { v.now = { kind: 'url', src: arg, title: arg.replace(/^https?:\/\//, '').slice(0, 60) }; }
+      else if (cmd === 'yt') { v.now = { kind: 'yt', id: arg.id, title: arg.title }; }
+      else if (cmd === 'search') {
+        const q = String(arg || '').toLowerCase(); const local = v.files.find(f => f.title.toLowerCase().includes(q));
+        if (local) return this.video('local', local.i);
+        try { const r = await GET(ADDONS + '/yt_search?q=' + encodeURIComponent(arg)); if (!r.results || !r.results.length) return false; v.now = { kind: 'yt', id: r.results[0].id, title: r.results[0].title }; } catch (e) { return false; }
+      }
+      this.render('vid'); this.onVideo && this.onVideo(v.now); return true;
+    },
+    /* ---------- browser widget: the agent's real page, streamed as JPEG frames while the widget is open ---------- */
+    async browse(url) { this.data.web.live = true; this.render('web'); this.webRefresh(true); try { const r = await POST(BROWSER + '/browser', { cmd: 'open', arg: url }); this.data.web.title = r.title || ''; this.data.web.url = r.url || url; } catch (e) { this.data.web.live = false; } this.render('web'); this.webRefresh(true); },
+    async webRefresh(force) {
+      const img = $('webImg'); if (!img) return; const open = force || (this.onWebVisible && this.onWebVisible()); if (!open) return;
+      try { const r = await fetch(BROWSER + '/browser/view', { cache: 'no-store' }); if (!r.ok) throw 0; const blob = await r.blob(); const t = decodeURIComponent(r.headers.get('X-Title') || ''), u = decodeURIComponent(r.headers.get('X-Url') || '');
+        if (t === 'no page') { this.data.web.live = false; } else { this.data.web.live = true; this.data.web.title = t; this.data.web.url = u; const old = img.src; img.src = URL.createObjectURL(blob); if (old.startsWith('blob:')) URL.revokeObjectURL(old); }
+        const tt = $('webTitle'); if (tt) tt.textContent = this.data.web.title || this.data.web.url || '—'; $('webEmpty') && $('webEmpty').classList.toggle('hidden', !!this.data.web.live); this.tag('web', this.data.web.live ? '<i></i>LIVE' : 'AGENT IDLE', this.data.web.live ? 'r' : '');
+      } catch (e) { }
+    },
+    /* ---------- radio + podcasts play through a plain audio element (no analyser: streams rarely send CORS) ---------- */
+    async stream(kind, arg) {
+      const m = this.data.music;
+      if (!m.stations.length) { try { const r = await GET(ADDONS + '/radio_stations'); m.stations = r.stations || []; } catch (e) { } }
+      let pick = null, label = '';
+      if (kind === 'radio') { const q = String(arg || '').toLowerCase(); pick = (q && m.stations.find(s => s.name.toLowerCase().includes(q) || (s.genre || '').toLowerCase().includes(q))) || m.stations[0]; if (!pick) return false; label = `${pick.name} · ${pick.genre || 'radio'}`; }
+      else { if (!m.episodes.length) { try { const r = await GET(ADDONS + '/podcasts'); m.episodes = r.episodes || []; } catch (e) { } } const q = String(arg || '').toLowerCase(); pick = (q && m.episodes.find(e => (e.title + e.show).toLowerCase().includes(q))) || m.episodes[0]; if (!pick) return false; label = `${pick.show} · ${pick.title}`; }
+      this.audio && this.audio.pause(); if (!this.radio) this.radio = new Audio(); this.radio.src = pick.url; this.radio.play().catch(() => { });
+      m.stream = { kind, label }; m.queryTitle = label; m.now.playing = true; this.render('mus'); return true;
+    },
+    stopStream() { if (this.radio) { this.radio.pause(); this.radio.src = ''; } const m = this.data.music; if (m.stream) { m.stream = null; m.queryTitle = ''; m.now.playing = false; this.render('mus'); } },
     /* music energy 0..1 for the avatar: real analyser on the library player, a steady 120 BPM pulse for external players */
     musicLevel() {
       const m = this.data.music;
