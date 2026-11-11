@@ -80,7 +80,11 @@ jobs:
       - if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          files: SAMURAI-linux-x64.tar.gz
+          files: |
+            SAMURAI-linux-x64.tar.gz
+            docs/walkthrough-motion.mp4
+            docs/walkthrough-voice.mp4
+            docs/walkthrough.mp4
           body_path: docs/FEATURES.md
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           name: SAMURAI ${{ inputs.release_tag || github.ref_name }}
