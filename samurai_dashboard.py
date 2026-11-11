@@ -15,32 +15,10 @@ NOWIN = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
 
 sys.path.insert(0, os.path.join(ROOT, "servers"))
 from samurai_common import (run_hidden, model_valid, any_valid_model, ensure_model,       # noqa: E402
-                            download_with_resume, SMALL_MODEL_NAME, MODEL_MIRRORS, PORTS)
+                            download_with_resume, SMALL_MODEL_NAME, MODEL_MIRRORS, PORTS, service_defs)
 PIP_NAME = {"vosk": "vosk", "websockets": "websockets", "psutil": "psutil", "edge_tts": "edge-tts"}
 
-SERVICES = [
-    {"key": "ui",     "name": "UI SERVER",      "port": 8080,
-     "check": "http://localhost:8080/jarvis-interface.html",
-     "cmd": [sys.executable, "-m", "http.server", "8080", "--bind", "127.0.0.1", "--directory", APP]},
-    {"key": "speech", "name": "SPEECH (VOSK)",  "port": 9100,
-     "check": None,  # websocket server: TCP connect is the health probe
-     "cmd": [sys.executable, os.path.join(SRV, "samurai_speech_server.py")]},
-    {"key": "tel",    "name": "TELEMETRY",      "port": 8765,
-     "check": "http://localhost:8765/stats",
-     "cmd": [sys.executable, os.path.join(SRV, "samurai_telemetry.py")]},
-    {"key": "tts",    "name": "NEURAL TTS",     "port": 9200,
-     "check": "http://localhost:9200/tts",  # 400 (no text) still proves it's alive
-     "cmd": [sys.executable, os.path.join(SRV, "samurai_tts_server.py")]},
-    {"key": "act",    "name": "ACTIONS",        "port": 9300,
-     "check": "http://localhost:9300/action",  # 404 on GET still proves it's alive
-     "cmd": [sys.executable, os.path.join(SRV, "samurai_action_server.py")]},
-    {"key": "agent",  "name": "AGENT (CLI)",    "port": 9400,
-     "check": "http://localhost:9400/agent/status",
-     "cmd": [sys.executable, os.path.join(SRV, "samurai_agent_server.py")]},
-    {"key": "addons", "name": "ADD-ONS",        "port": 9500,
-     "check": "http://localhost:9500/addons/status",
-     "cmd": [sys.executable, os.path.join(SRV, "samurai_addons.py")]},
-]
+SERVICES = service_defs()
 
 BG, PANEL, FG, ACCENT, RED, DIM = "#060a12", "#0b1322", "#9adfff", "#27e0a6", "#ff5f6d", "#3a5a78"
 AMBER = "#ffc857"

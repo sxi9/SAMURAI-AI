@@ -23,3 +23,6 @@ config.json
 data/
 gallery/*
 !gallery/.gitkeep
+
+# virtual environment created by install.py
+.venv/

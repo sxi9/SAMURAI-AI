@@ -30,7 +30,7 @@ PORTS = {"ui": 8080, "telemetry": 8765, "speech": 9100, "tts": 9200,
 DEFAULT_CONFIG = {
     "user": {"name": "Boss", "node": "LOCAL-01"},
     "location": {"lat": 0.0, "lon": 0.0, "label": "SET ME"},
-    "ui": {"origins": ["http://localhost:8080", "http://127.0.0.1:8080"]},
+    "ui": {"origins": ["http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:9000", "http://127.0.0.1:9000"]},
     "widgets": {
         "agenda": {"ics_path": "", "sample": True},
         "inbox": {"imap_host": "", "imap_user": "", "imap_password": "", "sample": True},
@@ -74,6 +74,41 @@ def save_config(cfg):
 
 def allowed_origins():
     return set(DEFAULT_CONFIG["ui"]["origins"]) | set(load_config().get("ui", {}).get("origins", []))
+
+
+def venv_python():
+    """The project's .venv interpreter when it exists, else the running one."""
+    cand = os.path.join(ROOT, ".venv", "Scripts" if IS_WIN else "bin", "python.exe" if IS_WIN else "python")
+    return cand if os.path.exists(cand) else sys.executable
+
+
+def venv_pythonw():
+    py = venv_python()
+    if IS_WIN:
+        w = py.replace("python.exe", "pythonw.exe")
+        return w if os.path.exists(w) else py
+    return py
+
+
+def service_defs():
+    """The managed services, in start order. 'check' is an HTTP probe (any status = alive); None = TCP only."""
+    py = venv_python()
+    return [
+        {"key": "ui",      "name": "UI SERVER",     "port": PORTS["ui"],        "check": f"http://localhost:{PORTS['ui']}/jarvis-interface.html",
+         "cmd": [py, "-m", "http.server", str(PORTS["ui"]), "--bind", "127.0.0.1", "--directory", APP]},
+        {"key": "speech",  "name": "SPEECH (VOSK)", "port": PORTS["speech"],    "check": None,
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_speech_server.py")]},
+        {"key": "tel",     "name": "TELEMETRY",     "port": PORTS["telemetry"], "check": f"http://localhost:{PORTS['telemetry']}/stats",
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_telemetry.py")]},
+        {"key": "tts",     "name": "NEURAL TTS",    "port": PORTS["tts"],       "check": f"http://localhost:{PORTS['tts']}/engines",
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_tts_server.py")]},
+        {"key": "act",     "name": "ACTIONS",       "port": PORTS["actions"],   "check": f"http://localhost:{PORTS['actions']}/actions",
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_action_server.py")]},
+        {"key": "agent",   "name": "AGENT (CLI)",   "port": PORTS["agent"],     "check": f"http://localhost:{PORTS['agent']}/agent/status",
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_agent_server.py")]},
+        {"key": "addons",  "name": "ADD-ONS",       "port": PORTS["addons"],    "check": f"http://localhost:{PORTS['addons']}/addons/status",
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_addons.py")]},
+    ]
 
 
 def run_hidden(cmd, **kw):

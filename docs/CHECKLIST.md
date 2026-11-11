@@ -30,12 +30,12 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 
 ## Stage 3 — Platform: installer, control panel, autostart
 
-- [ ] One installer for Windows, Linux and macOS (`install.py` + `SETUP.bat` / `install.sh` wrappers): venv, deps, voice model, optional Node + Claude Code / Gemini CLI, shortcuts
-- [ ] Browser control panel served by a supervisor sidecar (replaces the tkinter dashboard on all OSes): service health, logs, restart, auto-fix, settings editor, autostart toggle
-- [ ] Start with boot: Windows Task Scheduler, Linux systemd user service, macOS launchd
-- [ ] Automatic troubleshooting: health watchdog, auto-restart, log diagnosis, "doctor" command, mic/speaker self-test
+- [x] One installer for Windows, Linux and macOS (`install.py` + `SETUP.bat` / `install.sh` wrappers): venv, deps, voice model, optional Node + Claude Code / Gemini CLI, shortcuts
+- [x] Browser control panel served by a supervisor sidecar (replaces the tkinter dashboard on all OSes): service health, logs, restart, auto-fix, settings editor, autostart toggle
+- [x] Start with boot: Windows Startup folder, Linux systemd user service (XDG fallback), macOS launchd
+- [x] Automatic troubleshooting: health watchdog, auto-restart, log diagnosis, "doctor" command, mic/speaker self-test
 - [x] Full PC control actions (gated by the SYSTEM CONTROL switch, confirmation for destructive ones): volume, mute, media keys, brightness, lock, sleep, shutdown, restart, screenshot, clipboard, open file/folder, type text, hotkeys, kill process, run allow-listed command
-- [ ] Media: local music folder playback in the MUSIC widget, system media keys, YouTube/Spotify via actions
+- [x] Media: local music folder playback in the MUSIC widget, system media keys, YouTube/Spotify via actions
 
 ## Stage 4 — Brains (as many AIs as possible) and memory
 

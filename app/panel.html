@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAMURAI Control Panel</title>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+:root{--bg:#05060d;--cyan:#2ee6ff;--ice:#d9f8ff;--violet:#a07cff;--red:#ff3d6e;--amber:#ffb84d;--text:#a9cfe0;--muted:#6a8ea3;--mono:'IBM Plex Mono',monospace;--disp:'Michroma',sans-serif;--body:'Saira',sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(46,230,255,.08),transparent 70%),radial-gradient(ellipse 40% 50% at 100% 100%,rgba(160,124,255,.1),transparent 70%),var(--bg);color:var(--text);font-family:var(--body);min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 16px 60px}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.hex{width:32px;height:32px;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:linear-gradient(135deg,var(--cyan),var(--violet))}
+h1{font-family:var(--disp);font-size:16px;letter-spacing:.42em;color:var(--ice);margin:0;text-shadow:0 0 18px rgba(46,230,255,.5)}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--violet);border:1px solid rgba(160,124,255,.5);padding:3px 7px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.card{background:linear-gradient(160deg,rgba(14,24,44,.72),rgba(12,10,32,.52));border:1px solid rgba(46,230,255,.2);padding:16px 18px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+.card.wide{grid-column:1/-1}
+h2{font-family:var(--disp);font-size:9.5px;letter-spacing:.26em;color:var(--ice);margin:0 0 12px;display:flex;align-items:center;gap:8px;font-weight:400}
+h2::before{content:"";width:12px;height:1px;background:var(--cyan)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+td{padding:7px 4px;border-top:1px solid rgba(46,230,255,.08);vertical-align:middle}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);margin-right:8px}
+.dot.ok{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}.dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.b{display:inline-block;border:1px solid rgba(46,230,255,.45);color:var(--ice);font-family:var(--mono);font-size:10px;letter-spacing:.18em;padding:6px 12px;cursor:pointer;background:transparent;margin:2px}
+.b:hover{background:rgba(46,230,255,.12)}
+.b.r{border-color:rgba(255,61,110,.5);color:var(--red)}.b.v{border-color:rgba(160,124,255,.5);color:var(--violet)}.b.big{padding:10px 18px;font-size:11px}
+.b.sm{padding:3px 8px;font-size:9px}
+.muted{color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.1em}
+.status{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--cyan);min-height:18px;margin:8px 0}
+pre{background:rgba(2,4,10,.72);border:1px solid rgba(46,230,255,.1);padding:10px;height:260px;overflow:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;margin:0}
+select,input{background:rgba(46,230,255,.06);border:1px solid rgba(46,230,255,.25);color:var(--ice);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:7px 10px;outline:none}
+input{width:100%;margin-bottom:8px}
+label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted);margin:6px 0 3px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.sw{position:relative;width:38px;height:18px;cursor:pointer;background:rgba(46,230,255,.08);border:1px solid rgba(46,230,255,.35)}
+.sw i{position:absolute;left:2px;top:2px;width:12px;height:12px;background:var(--muted);transition:all .25s}
+.sw.on{background:rgba(46,230,255,.3);border-color:var(--cyan)}.sw.on i{left:22px;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.chk{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-family:var(--mono);font-size:10.5px}
+.chk .ok{color:var(--cyan)}.chk .bad{color:var(--red)}
+a{color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="hex"></div><h1>SAMURAI</h1><span class="tag">CONTROL PANEL</span><span class="muted" id="osinfo"></span>
+  <span style="margin-left:auto"><button class="b big" id="openHud">OPEN HUD ▸</button></span></header>
+
+<div class="grid">
+  <div class="card wide">
+    <h2>SERVICES</h2>
+    <div class="row"><button class="b big" id="startAll">START ALL</button><button class="b big r" id="stopAll">STOP ALL</button>
+      <span class="muted" style="margin-left:auto">WATCHDOG</span><div class="sw on" id="swWatch"><i></i></div>
+      <span class="muted">START WITH BOOT</span><div class="sw" id="swAuto"><i></i></div></div>
+    <div class="status" id="status">…</div>
+    <table id="svc"></table>
+  </div>
+  <div class="card">
+    <h2>LOGS</h2>
+    <div class="row"><select id="logKey"></select><button class="b sm" id="refreshLog">REFRESH</button></div>
+    <pre id="log">select a service</pre>
+  </div>
+  <div class="card">
+    <h2>DOCTOR</h2>
+    <div class="row"><button class="b" id="doctor">RUN CHECKS</button><button class="b v" id="doctorFix">CHECK + AUTO-FIX</button><button class="b" id="model">DOWNLOAD VOICE MODEL</button></div>
+    <div class="chk" id="checks"><span class="muted">not run yet</span></div>
+  </div>
+  <div class="card wide">
+    <h2>CONFIG · YOU AND YOUR WIDGETS</h2>
+    <div class="grid" style="gap:8px 18px">
+      <div><label>NAME</label><input id="c_name"><label>NODE LABEL</label><input id="c_node"><label>CITY LABEL</label><input id="c_label"><label>LATITUDE</label><input id="c_lat" type="number" step="0.0001"><label>LONGITUDE</label><input id="c_lon" type="number" step="0.0001"></div>
+      <div><label>CALENDAR .ICS FILE PATH</label><input id="c_ics" placeholder="C:\Users\you\calendar.ics"><label>MUSIC LIBRARY FOLDER</label><input id="c_music" placeholder="C:\Users\you\Music"><label>CAMERA URL (MJPEG / MP4 / HLS)</label><input id="c_cam" placeholder="http://192.168.1.20:8080/video"><label>HOME ASSISTANT URL</label><input id="c_hass" placeholder="http://homeassistant.local:8123"><label>HOME ASSISTANT TOKEN</label><input id="c_hasst" type="password"></div>
+      <div><label>IMAP HOST</label><input id="c_imaph" placeholder="imap.gmail.com"><label>IMAP USER</label><input id="c_imapu"><label>IMAP PASSWORD / APP PASSWORD</label><input id="c_imapp" type="password"><label>LET THE HEADLESS AGENT RUN SHELL COMMANDS</label><div class="sw" id="swBash"><i></i></div><br><button class="b big" id="saveCfg">SAVE CONFIG</button> <span class="muted" id="cfgMsg"></span></div>
+    </div>
+    <div class="muted" style="margin-top:10px">Secrets stay in config.json on this machine (never shown back once saved). Leave a field empty to keep sample data for that widget.</div>
+  </div>
+</div>
+</div>
+<script>
+const $ = id => document.getElementById(id), ADDONS = 'http://localhost:9500';
+const J = (url, opts) => fetch(url, opts).then(r => r.json());
+const POST = (url, body) => J(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+let last = null;
+async function refresh() {
+  try {
+    const d = await J('/panel/status'); last = d;
+    $('osinfo').textContent = `${d.os} · ${d.python.split(/[\\/]/).slice(-3).join('/')}`;
+    $('status').textContent = (d.status !== 'idle' ? `[${d.status.toUpperCase()}] ` : '') + (d.message || `${d.services.filter(s => s.state === 'ok').length}/${d.services.length} services online`);
+    $('swWatch').classList.toggle('on', d.watchdog); $('swAuto').classList.toggle('on', d.autostart);
+    $('svc').innerHTML = d.services.map(s => `<tr><td><span class="dot ${s.state}"></span>${s.name}</td><td>:${s.port}</td><td style="color:${s.state === 'ok' ? 'var(--cyan)' : s.state === 'warn' ? 'var(--amber)' : 'var(--muted)'}">${s.detail}${s.managed ? '' : (s.state !== 'down' ? ' · external' : '')}</td>
+      <td style="text-align:right">${s.state === 'down' ? `<button class="b sm" data-a="start" data-k="${s.key}">START</button>` : `<button class="b sm r" data-a="stop" data-k="${s.key}">STOP</button>`}<button class="b sm" data-a="restart" data-k="${s.key}">RESTART</button><button class="b sm v" data-a="fix" data-k="${s.key}">FIX</button></td></tr>`).join('');
+    $('svc').querySelectorAll('button').forEach(b => b.onclick = () => POST('/panel/control', { action: b.dataset.a, key: b.dataset.k }).then(refresh));
+    if (!$('logKey').options.length) { $('logKey').innerHTML = d.services.map(s => `<option value="${s.key}">${s.name}</option>`).join(''); loadLog(); }
+  } catch (e) { $('status').textContent = 'panel service unreachable'; }
+}
+async function loadLog() { try { const d = await J('/panel/logs?key=' + $('logKey').value); $('log').textContent = d.log || '(empty)'; $('log').scrollTop = 1e9; } catch (e) { } }
+async function runDoctor(fix) {
+  $('checks').innerHTML = '<span class="muted">running…</span>';
+  const d = await J('/panel/doctor' + (fix ? '?fix=1' : ''));
+  $('checks').innerHTML = d.checks.map(c => `<span class="${c.ok ? 'ok' : 'bad'}">${c.ok ? '✓' : '✗'} ${c.name}</span><span class="muted">${c.detail}</span>`).join('');
+}
+async function loadCfg() {
+  try {
+    const c = await J(ADDONS + '/config'); const w = c.widgets || {};
+    $('c_name').value = c.user.name; $('c_node').value = c.user.node; $('c_label').value = c.location.label || ''; $('c_lat').value = c.location.lat || ''; $('c_lon').value = c.location.lon || '';
+    $('c_ics').value = (w.agenda || {}).ics_path || ''; $('c_music').value = (w.music || {}).library_dir || ''; $('c_cam').value = (w.camera || {}).url || '';
+    $('c_hass').value = (w.home || {}).hass_url || ''; $('c_hasst').value = (w.home || {}).hass_token || ''; $('c_imaph').value = (w.inbox || {}).imap_host || ''; $('c_imapu').value = (w.inbox || {}).imap_user || ''; $('c_imapp').value = (w.inbox || {}).imap_password || '';
+    $('swBash').classList.toggle('on', !!(c.agent || {}).allow_bash);
+    $('cfgMsg').textContent = '';
+  } catch (e) { $('cfgMsg').textContent = 'add-ons service offline — start it to edit config'; }
+}
+$('saveCfg').onclick = async () => {
+  const body = { user: { name: $('c_name').value.trim() || 'Boss', node: $('c_node').value.trim() || 'LOCAL-01' }, location: { lat: +$('c_lat').value || 0, lon: +$('c_lon').value || 0, label: $('c_label').value.trim() },
+    widgets: { agenda: { ics_path: $('c_ics').value.trim() }, music: { library_dir: $('c_music').value.trim() }, camera: { url: $('c_cam').value.trim() }, home: { hass_url: $('c_hass').value.trim(), hass_token: $('c_hasst').value }, inbox: { imap_host: $('c_imaph').value.trim(), imap_user: $('c_imapu').value.trim(), imap_password: $('c_imapp').value } },
+    agent: { allow_bash: $('swBash').classList.contains('on') } };
+  try { await POST(ADDONS + '/config', body); $('cfgMsg').textContent = 'saved'; loadCfg(); } catch (e) { $('cfgMsg').textContent = 'save failed — add-ons service offline'; }
+};
+$('startAll').onclick = () => POST('/panel/control', { action: 'start_all', open: true }).then(refresh);
+$('stopAll').onclick = () => POST('/panel/control', { action: 'stop_all' }).then(refresh);
+$('openHud').onclick = () => { if (last) window.open(last.ui, '_blank'); };
+$('swWatch').onclick = () => POST('/panel/watchdog', { on: !$('swWatch').classList.contains('on') }).then(refresh);
+$('swAuto').onclick = () => POST('/panel/autostart', { on: !$('swAuto').classList.contains('on') }).then(d => { if (!d.ok) alert(d.error); refresh(); });
+$('swBash').onclick = () => $('swBash').classList.toggle('on');
+$('logKey').onchange = loadLog; $('refreshLog').onclick = loadLog;
+$('doctor').onclick = () => runDoctor(false); $('doctorFix').onclick = () => runDoctor(true);
+$('model').onclick = () => POST('/panel/model', {}).then(refresh);
+refresh(); setInterval(refresh, 3000); setInterval(loadLog, 5000); loadCfg();
+</script>
+</body>
+</html>
