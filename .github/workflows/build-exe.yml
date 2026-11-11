@@ -8,6 +8,11 @@ on:
     branches: ["**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub Release with this tag (e.g. v1.0.0); leave empty for artifacts only"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -44,13 +49,15 @@ jobs:
         with:
           name: SAMURAI-windows-x64
           path: SAMURAI-windows-x64.zip
-      - name: Release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Release (tag push or dispatch with release_tag)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           files: SAMURAI-windows-x64.zip
           body_path: docs/FEATURES.md
-          name: SAMURAI ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: SAMURAI ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
 
   linux:
     runs-on: ubuntu-latest
@@ -70,9 +77,11 @@ jobs:
         with:
           name: SAMURAI-linux-x64
           path: SAMURAI-linux-x64.tar.gz
-      - if: startsWith(github.ref, 'refs/tags/v')
+      - if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           files: SAMURAI-linux-x64.tar.gz
           body_path: docs/FEATURES.md
-          name: SAMURAI ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: SAMURAI ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
