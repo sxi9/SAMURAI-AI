@@ -2,6 +2,10 @@
 
 A voice-driven assistant that runs on your own PC: an offline speech stack, a cinematic HUD with twelve live widgets, PC control, and any AI brain you like, from a local Ollama model to Claude, GPT, Gemini, Groq and a dozen more, or the Claude Code / Gemini CLI signed in with your normal plan and no API key.
 
+![SAMURAI walkthrough](docs/walkthrough.gif)
+
+Half a minute of the recorded tour. The full two-minute recording is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step version with captions is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
+
 ![SAMURAI HUD v3, labeled](docs/screenshot-labeled.png)
 
 | # | Area | What it does |
@@ -55,13 +59,14 @@ The installer creates `.venv`, installs the requirements, downloads the 40 MB of
 | `servers/samurai_tts_server.py` | 9200 | Neural voice: Microsoft Edge voices online, or Kokoro fully local. |
 | `servers/samurai_action_server.py` | 9300 | PC control on Windows, Linux and macOS: apps, URLs, music, volume, media keys, brightness, screenshot, clipboard, typing, hotkeys, lock, and confirmation-gated sleep, shutdown, restart, kill process and allow-listed commands. |
 | `servers/samurai_agent_server.py` | 9400 | Headless Claude Code / Gemini CLI: chat, live web search, file tasks in `workspace/`. |
-| `servers/samurai_addons.py` | 9500 | Widget data: config, weather, ticker, tasks, agenda, inbox, home, music, gallery, position, security watch with firewall block, memory. |
+| `servers/samurai_addons.py` | 9500 | Widget data: config, weather, ticker, tasks, agenda, inbox, home, music, gallery, position, security watch with firewall block, memory, schedules, routines, events, document search, mail. |
+| `servers/samurai_browser.py` | 9600 | Browser agent (Playwright Chromium) the brain can drive. |
 
 Every sidecar answers only the SAMURAI pages' origin; other websites get 403. Nothing listens outside localhost.
 
 ## Brains
 
-Pick a provider in CFG → NEURAL CORE. Local and free options are marked. The reply contract is JSON (`reply`, `focus`, `actions`, `shape`), so every provider can drive the widgets and the PC.
+Pick a provider in CFG → NEURAL CORE. Local and free options are marked. TASK ROUTING can send chat, work, research and vision to different brains. The reply contract is JSON (`reply`, `focus`, `actions`, `shape`), so every provider can drive the widgets and the PC.
 
 - **Local**: Ollama, LM Studio, llama.cpp, or any OpenAI-compatible server.
 - **No API key**: Claude Code and Gemini CLI, run headless and signed in with your own plan. Install one, run `claude auth login` or `gemini` once, and pick the headless provider.
@@ -71,6 +76,23 @@ Pick a provider in CFG → NEURAL CORE. Local and free options are marked. The r
 - **Streaming**: replies type in as they arrive and are spoken sentence by sentence. Speak to interrupt (barge-in).
 
 Test without any AI: `python tests/mock_llm.py`, then choose LOCAL — LM STUDIO.
+
+## Automation
+
+- **Schedules**: "every day at 8 am say good morning", "every weekday at 9 run morning briefing", "every 30 minutes check my system", "remind me at 5 pm to call mom", "in 20 minutes remind me to stretch". Spoken when due.
+- **Routines**: "focus mode", "good night", "good morning" run a list of commands. Edit them in `data/routines.json`.
+- **Briefing**: "morning briefing" narrates weather, agenda, tasks, inbox and system health.
+- **Proactive alerts**: CPU temperature, disk nearly full, battery low, memory full, a meeting in five minutes. SAMURAI speaks first.
+- **Audit**: every action is logged; "what did you do today" reads it back. `actions.deny` and `actions.no_confirm` in `config.json` tune the permissions.
+- **Plugins**: drop a Python file into `plugins/` (see `plugins/example_tools.py`) and its tools become actions the brain can call.
+- **Documents**: set a folder in the control panel, then "search my documents for payment terms". Text, Markdown, PDF, Word and code files are indexed locally.
+
+## Sight and hands
+
+- **Vision**: "what is on my screen", "look at my screen and tell me the error", "what do you see" (webcam). Works with OpenAI, Claude, Gemini or an Ollama vision model; pick one under TASK ROUTING → VISION.
+- **Browser agent**: a real Chromium the brain drives step by step: open, read, click, type, find. `pip install playwright && python -m playwright install chromium`; the control panel installs it on first use. Set "show the window" in the panel to watch it work.
+- **Desktop agent**: "on my desktop, open the settings and turn on dark mode". Screenshot → vision brain → one click, keystroke or scroll at a time, with a CANCEL toast. Needs SYSTEM CONTROL on and a vision brain; on Linux install `xdotool`, on macOS `cliclick`.
+- **Mail**: "send an email to … | subject | body" over SMTP, after confirmation.
 
 ## Voice
 
