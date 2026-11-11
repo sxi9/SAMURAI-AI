@@ -17,12 +17,12 @@ sys.path.insert(0, os.path.join(getattr(sys, "_MEIPASS", HERE), "tests"))
 
 def run_ui():
     import http.server, functools
-    from samurai_common import APP, PORTS, bind_host
+    from samurai_common import APP, PORTS, bind_host, maybe_wrap_tls, tls_enabled
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=APP)
     handler.log_message = lambda *a: None
     host = "0.0.0.0" if bind_host() != "localhost" else "127.0.0.1"
-    print(f"[SAMURAI] UI server on http://localhost:{PORTS['ui']}/jarvis-interface.html")
-    http.server.ThreadingHTTPServer((host, PORTS["ui"]), handler).serve_forever()
+    print(f"[SAMURAI] UI server on {'https' if tls_enabled() else 'http'}://localhost:{PORTS['ui']}/jarvis-interface.html")
+    maybe_wrap_tls(http.server.ThreadingHTTPServer((host, PORTS["ui"]), handler)).serve_forever()
 
 
 def run_service(key):

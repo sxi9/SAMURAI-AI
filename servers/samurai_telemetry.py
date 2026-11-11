@@ -12,7 +12,7 @@ from http.server import ThreadingHTTPServer
 import psutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import bind_host, JSONHandler, NOWIN, IS_WIN, PORTS
+from samurai_common import maybe_wrap_tls, bind_host, JSONHandler, NOWIN, IS_WIN, PORTS
 
 PORT = PORTS["telemetry"]
 STATE = {
@@ -224,4 +224,4 @@ if __name__ == "__main__":
     for fn in (sample_fast, sample_conns, sample_events, sample_system):
         threading.Thread(target=fn, daemon=True).start()
     print(f"[SAMURAI] Telemetry sidecar on http://localhost:{PORT}/stats")
-    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()
+    maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

@@ -20,7 +20,7 @@ import json, os, re, sys, threading, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
+from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
                             load_config, save_config, http_json, run_hidden)
 import samurai_automation as auto
 import samurai_connect as connect
@@ -665,4 +665,4 @@ if __name__ == "__main__":
     auto.start_threads(lambda: get_agenda(None, {}, None).get("events", []))
     connect.start_threads()
     print(f"[SAMURAI] Add-ons sidecar on http://localhost:{PORT}/  (config: {os.path.join(ROOT, 'config.json')})")
-    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()
+    maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

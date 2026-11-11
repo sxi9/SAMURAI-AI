@@ -306,7 +306,7 @@ window.SAM = window.SAM || {};
     async video(cmd, arg) {
       const v = this.data.video;
       if (cmd === 'close') { v.now = null; v.cinema = false; document.getElementById('stage').classList.remove('cinema'); this.render('vid'); this.onVideo && this.onVideo(null); return true; }
-      if (cmd === 'cinema') { v.cinema = !v.cinema; document.getElementById('stage').classList.toggle('cinema', v.cinema); this.render('vid'); return true; }
+      if (cmd === 'cinema') { v.cinema = !v.cinema; document.getElementById('stage').classList.toggle('cinema', v.cinema); this.render('vid'); this.onVideo && this.onVideo(v.now); return true; }
       if (cmd === 'pause' || cmd === 'play') { const el = $('vidEl'); if (el) { cmd === 'pause' ? el.pause() : el.play().catch(() => { }); } const f = $('vidFrame'); if (f) f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd === 'pause' ? 'pauseVideo' : 'playVideo', args: [] }), '*'); return true; }
       if (cmd === 'local') { const f = v.files[arg]; if (!f) return false; v.now = { kind: 'local', src: `${ADDONS}/video/file?i=${f.i}${SAM.token ? '&token=' + encodeURIComponent(SAM.token) : ''}`, title: f.title }; }
       else if (cmd === 'url') { v.now = { kind: 'url', src: arg, title: arg.replace(/^https?:\/\//, '').slice(0, 60) }; }

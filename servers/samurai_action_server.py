@@ -14,7 +14,7 @@ import glob, importlib.util, json, os, re, shutil, subprocess, sys, time, urllib
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import bind_host, JSONHandler, NOWIN, IS_WIN, IS_MAC, PORTS, ROOT, DATA, load_config
+from samurai_common import maybe_wrap_tls, bind_host, JSONHandler, NOWIN, IS_WIN, IS_MAC, PORTS, ROOT, DATA, load_config
 
 PORT = PORTS["actions"]
 SHOTS = os.path.join(ROOT, "data", "screenshots")
@@ -596,4 +596,4 @@ class Handler(JSONHandler):
 if __name__ == "__main__":
     load_plugins()
     print(f"[SAMURAI] Action sidecar on http://localhost:{PORT}/action  ({sys.platform}) · {len(PLUGINS)} plugin tool(s)")
-    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()
+    maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

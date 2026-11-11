@@ -25,7 +25,7 @@ import json, os, shutil, subprocess, sys, time
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import bind_host, JSONHandler, NOWIN, PORTS, ROOT, load_config
+from samurai_common import maybe_wrap_tls, bind_host, JSONHandler, NOWIN, PORTS, ROOT, load_config
 
 PORT = PORTS["agent"]
 WORKSPACE = os.path.join(ROOT, "workspace")
@@ -161,4 +161,4 @@ class Handler(JSONHandler):
 if __name__ == "__main__":
     os.makedirs(WORKSPACE, exist_ok=True)
     print(f"[SAMURAI] Agent sidecar on http://localhost:{PORT}/agent  (workspace: {WORKSPACE})")
-    ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()
+    maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

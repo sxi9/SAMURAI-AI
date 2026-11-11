@@ -18,7 +18,7 @@ import os, urllib.parse, re, sys, threading, time
 from http.server import HTTPServer   # single-threaded on purpose: Playwright's sync API is bound to one thread
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import bind_host, JSONHandler, PORTS, DATA, load_config
+from samurai_common import maybe_wrap_tls, bind_host, JSONHandler, PORTS, DATA, load_config
 
 PORT = PORTS.get("browser", 9600)
 SHOTS = os.path.join(DATA, "browser")
@@ -221,4 +221,4 @@ class Handler(JSONHandler):
 
 if __name__ == "__main__":
     print(f"[SAMURAI] Browser agent on http://localhost:{PORT}/browser")
-    HTTPServer((bind_host(), PORT), Handler).serve_forever()
+    maybe_wrap_tls(HTTPServer((bind_host(), PORT), Handler)).serve_forever()

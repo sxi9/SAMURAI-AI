@@ -277,7 +277,7 @@ def service_defs():
             ("web", "BROWSER AGENT", "browser", f"http://localhost:{PORTS['browser']}/browser/status"))]
     return [
         {"key": "ui",      "name": "UI SERVER",     "port": PORTS["ui"],        "check": f"http://localhost:{PORTS['ui']}/jarvis-interface.html",
-         "cmd": [py, "-m", "http.server", str(PORTS["ui"]), "--bind", "127.0.0.1" if host == "localhost" else "0.0.0.0", "--directory", APP]},
+         "cmd": [py, os.path.join(ROOT, "samurai_launcher.py"), "--service", "ui"] if tls_enabled() else [py, "-m", "http.server", str(PORTS["ui"]), "--bind", "127.0.0.1" if host == "localhost" else "0.0.0.0", "--directory", APP]},
         {"key": "speech",  "name": "SPEECH (VOSK)", "port": PORTS["speech"],    "check": None,
          "cmd": [py, os.path.join(SERVERS_DIR, "samurai_speech_server.py")]},
         {"key": "tel",     "name": "TELEMETRY",     "port": PORTS["telemetry"], "check": f"http://localhost:{PORTS['telemetry']}/stats",

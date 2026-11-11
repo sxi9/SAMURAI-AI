@@ -182,7 +182,7 @@
 
   /* ---------- commands ---------- */
   const SHAPES = [[/\b(heart|love)\b/, 'heart', 'Heart, as requested.'], [/\b(cube|box)\b/, 'cube', 'Cube.'], [/\b(galaxy|spiral|stars|milky way)\b/, 'galaxy', 'One galaxy, three arms.'], [/\b(helix|dna)\b/, 'helix', 'Double helix.'], [/\b(knot|not|naught)\b/, 'knot', 'Torus knot.'], [/\b(ring|halo|torus|donut)\b/, 'ring', 'Ring.'], [/\b(wave|waves|ocean|ripple|sea)\b/, 'wave', 'Wave field.'], [/\b(sphere|cloud|particles|ball|normal)\b/, 'sphere', 'Back to the cloud.']];
-  const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, ten: 10, fifteen: 15, twenty: 20, thirty: 30, forty: 40, sixty: 60 };
+  const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, ninety: 90 };
   function quickRoute(q) {
     const has = (...k) => k.some(x => q.includes(x));
     if (/^(alert demo|alert|threat|intrusion|breach)$/.test(q)) return { alert: true };
@@ -242,7 +242,7 @@
     /* journal, focus sessions, files, read aloud, machines, radios, phone push, games, cleanup */
     const jn = q.match(/^(?:note|journal|log|write down|remember in my journal)(?: that| this)?[:,]? (.{2,})$/); if (jn) return { focus: 'task', text: 'Noted.', effect: () => fetch(ADDONS + '/journal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: jn[1] }) }).catch(() => { }) };
     if (/^(read|show|what's in|what is in|open) (my |the )?journal( today| for today)?$/.test(q)) return { journal: true };
-    const fs = q.match(/^(?:start(?: a)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?(?: for)?(?: (\d+)(?: minutes?| min)?)?$/); if (fs) { const mins = +(fs[1] || 25); return { focus: 'tmr', text: `Focus session, ${mins} minutes. I will keep quiet.`, effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: mins, break: 5 }) }).catch(() => { }); widgets.timerStart(mins * 60); } }; }
+    const fs = q.match(/^(?:start(?: a)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?(?: for)?(?: (\d+|[a-z]+(?: [a-z]+)?)(?: minutes?| min))?$/) || q.match(/^(?:start(?: a)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?$/); if (fs) { const w = (fs[1] || '').split(' '), mins = +(fs[1] || 0) || (WORDS[w[0]] || 0) + (WORDS[w[1]] || 0) || 25; return { focus: 'tmr', text: `Focus session, ${mins} minutes. I will keep quiet.`, effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: mins, break: 5 }) }).catch(() => { }); widgets.timerStart(mins * 60); } }; }
     if (/^(stop|end|cancel) (the )?(focus|pomodoro)( session)?$/.test(q)) return { text: 'Focus session ended.', effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => { }); widgets.timerReset(); } };
     const ff = q.match(/^(?:find|search|locate)(?: my| the)? files?(?: for| named| called| about)? (.{2,})$/) || q.match(/^where is (?:my |the )?file (.{2,})$/); if (ff) return { files: ff[1] };
     const ra = q.match(/^read(?: me)?(?: the)?(?: file| document)? (\S+\.(?:txt|md|pdf|docx|csv|log|rst))(?: aloud| out loud| to me)?$/); if (ra) return { readFile: ra[1] };
@@ -305,8 +305,20 @@
     return { text: 'The neural core is offline, so I can only handle widget commands right now. Pick a provider in settings or start Ollama.' };
   }
 
+  /* phone companion page: recognise here, run on the PC, speak wherever the setting says */
+  const COMPANION = new URLSearchParams(location.search).get('companion') === '1';
+  async function relaySubmit(q) {
+    $('cmd').value = ''; widgets.pushTty(`> ${q}`, '#6a8ea3'); setMode('thinking'); setReply('');
+    const r = await voice.relay.send(q, voice.cfg.companion);
+    if (!r) { say('The PC did not answer. Is SAMURAI open there?', null, { quick: true }); return; }
+    setReply(r.text || ''); if (r.focus) setFocus(r.focus);
+    if (/phone|both/.test(voice.cfg.companion) && r.text) { setMode('speaking'); voice.speakLocal(r.text).then(() => setMode(voice.micOn ? 'listening' : 'idle')); } else setMode(voice.micOn ? 'listening' : 'idle');
+    return r.text;
+  }
   async function submit(input) {
     const q = (input || '').trim(); if (!q) return;
+    if (COMPANION && voice.cfg.companion !== 'off') return relaySubmit(q);
+    S.lastReply = '';
     $('cmd').value = ''; voice.stopSpeaking();
     clearInterval(S.typing); S.focus = null; applyLayout(); setReply(''); $('transcript').textContent = ''; $('transcript').classList.remove('on');
     widgets.pushTty(`> ${q}`, '#6a8ea3'); setMode('thinking');
@@ -343,8 +355,9 @@
     for (const a of acts) { const res = await runAction(a); if (res) results.push(res); }
     let text = r.text == null ? (results[0] || 'Done.') : r.text;
     if (r.text && results.length && acts.some(a => a.type === 'clipboard_get')) text += ' ' + results.join(' ');
-    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text); return; }
+    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text); return S.lastReply = text; }
     say(text, r.focus === undefined ? null : r.focus);
+    return S.lastReply = text;
   }
   async function compareAll(q) {
     const ids = Object.keys(brain.PROVIDERS).filter(id => brain.configured(id) && brain.PROVIDERS[id].kind !== 'agent').slice(0, 5);
@@ -560,7 +573,7 @@
   voice.onLevel = l => { core.micLevel = l; };
   voice.onWake = () => { widgets.pushTty('wake word detected', '#2ee6ff'); voice.stopSpeaking('wake'); setMode('listening'); };
   voice.onMicState = on => { if (!on && S.mode === 'listening') setMode('idle'); if (on && S.mode === 'idle') setMode('listening'); $('pillMic').textContent = on ? 'MIC · OPEN' : 'MIC · ARMED'; };
-  widgets.onVideo = now => { if (now) setFocus('vid'); else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
+  widgets.onVideo = now => { if (now) { if (S.focus !== 'vid') setFocus('vid'); else applyLayout(); } else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };
   widgets.onSecurity = sec => showAlert(sec);
   widgets.onAction = (type, arg) => runAction({ type, arg });
@@ -569,10 +582,11 @@
 
   /* ---------- settings drawer ---------- */
   const MOODS = [['professional', 'PROFESSIONAL — CRISP'], ['balanced', 'BALANCED — BUTLER'], ['witty', 'WITTY — PLAYFUL'], ['deadpan', 'DEADPAN — DRY'], ['sarcastic', 'SARCASTIC — SNARKY BUTLER'], ['hype', 'HYPE — HIGH ENERGY']];
-  let voiceList = null;
+  let voiceList = null, ttsEngines = null;
   async function renderDrawer() {
     const d = $('drawer'), b = brain.cfg, v = voice.cfg, p = brain.P(b.provider), cfgU = widgets.config || {};
     if (!voiceList) voiceList = await voice.voices();
+    if (!ttsEngines) ttsEngines = await voice.engines();
     const sw = (id, on) => `<div class="sw${on ? ' on' : ''}" data-sw="${id}"><i></i></div>`;
     const provOpts = Object.entries(brain.PROVIDERS).map(([id, x]) => `<option value="${id}"${id === b.provider ? ' selected' : ''}>${x.label}${x.free ? ' · FREE' : ''}${brain.configured(id) ? '' : (x.nokey ? '' : ' (NO KEY)')}</option>`).join('');
     const localModels = (brain.localModels || []).slice(0, 40);
@@ -598,6 +612,10 @@
       <div class="note">Chat = quick questions · work = writing and code · research = live information · vision = "what is on my screen".</div>
       <h4>VOICE</h4>
       <select id="optVoice">${(voiceList.length ? voiceList : [{ id: v.neuralVoice, label: v.neuralVoice }]).map(x => `<option value="${esc(x.id)}"${x.id === v.neuralVoice ? ' selected' : ''}>NEURAL: ${esc(x.label)}</option>`).join('')}</select>
+      <select id="optTtsEngine"><option value="">VOICE ENGINE: AUTO (BY VOICE)</option>${['edge', 'kokoro', 'elevenlabs', 'openai', 'cartesia', 'azure'].map(e => `<option value="${e}"${v.tts === e ? ' selected' : ''}${ttsEngines[e] === false ? ' disabled' : ''}>VOICE ENGINE: ${e.toUpperCase()}${ttsEngines[e] === false ? ' (NO KEY · SET IN PANEL)' : ''}</option>`).join('')}</select>
+      <select id="optStt2"><option value="server"${v.sttEngine !== 'phone' ? ' selected' : ''}>MIC ENGINE: SAMURAI SERVER (VOSK / WHISPER, OFFLINE)</option><option value="phone"${v.sttEngine === 'phone' ? ' selected' : ''}${voice.phoneCapable ? '' : ' disabled'}>MIC ENGINE: THIS DEVICE (GOOGLE / SIRI RECOGNITION)</option></select>
+      <select id="optCompanion"><option value="off"${v.companion === 'off' ? ' selected' : ''}>COMPANION: OFF (THIS IS THE PC)</option><option value="phone"${v.companion === 'phone' ? ' selected' : ''}>COMPANION: PHONE SPEAKS THE REPLY</option><option value="pc"${v.companion === 'pc' ? ' selected' : ''}>COMPANION: PC SPEAKS THE REPLY</option><option value="both"${v.companion === 'both' ? ' selected' : ''}>COMPANION: BOTH SPEAK</option></select>
+      <div class="note">Phone mode: open the QR link from the control panel on your phone. The phone recognises, the PC runs the command.${COMPANION ? ' This page is a companion.' : ''}</div>
       <div class="row"><span>SPEED <em id="rateVal">${v.rate.toFixed(1)}</em></span><input type="range" id="optRate" min="0.5" max="2" step="0.1" value="${v.rate}"></div>
       <div class="row"><span>VOICE REPLIES</span>${sw('voiceOn', v.voiceOn)}</div>
       <div class="row"><span>WAKE WORD "SAMURAI"</span>${sw('wake', v.wake)}</div>
@@ -649,7 +667,10 @@
     const colPick = () => { S.custom = { a: $('optColA').value, b: $('optColB').value }; applyTheme('custom'); save(); };
     $('optColA').oninput = colPick; $('optColB').oninput = colPick;
     $('optPool').onchange = e => { b.pool.order = e.target.value.split(/[,\s]+/).map(x => x.trim().toLowerCase()).filter(x => brain.PROVIDERS[x]); e.target.value = b.pool.order.join(', '); save(); };
-    $('optVoice').onchange = e => { v.neuralVoice = e.target.value; save(); };
+    $('optVoice').onchange = e => { v.neuralVoice = e.target.value; const ent = (voiceList || []).find(x => x.id === v.neuralVoice); if (ent && ent.engine) v.tts = ent.engine; save(); };
+    $('optTtsEngine').onchange = e => { v.tts = e.target.value; save(); };
+    $('optStt2').onchange = e => { v.sttEngine = e.target.value; save(); if (voice.micOn) { voice.stop(); setTimeout(() => voice.start(), 300); } };
+    $('optCompanion').onchange = e => { v.companion = e.target.value; save(); };
     $('optRate').oninput = e => { v.rate = +e.target.value; $('rateVal').textContent = v.rate.toFixed(1); save(); };
     $('optGain').oninput = e => { v.gain = +e.target.value; $('gainVal').textContent = v.gain.toFixed(1); save(); };
     $('optStt').onchange = e => { voice.setModel(e.target.value); save(); };
@@ -711,6 +732,8 @@
 
   /* ---------- wiring ---------- */
   function init() {
+    if (COMPANION) { voice.cfg.sttEngine = voice.phoneCapable ? 'phone' : voice.cfg.sttEngine; if (!voice.cfg.companion || voice.cfg.companion === 'off') voice.cfg.companion = 'phone'; document.documentElement.dataset.companion = '1'; }
+    else voice.relay.pollLoop(async c => { const quiet = c.speak_on === 'phone', was = voice.cfg.voiceOn; if (quiet) voice.cfg.voiceOn = false; widgets.pushTty(`phone · ${c.text}`, '#ffb84d'); let text = ''; try { text = await submit(c.text); } finally { if (quiet) voice.cfg.voiceOn = was; } return text || S.lastReply || ''; });
     load(); core.particles = S.particles;
     if (S.reduced) stage.classList.add('rm');
     widgets.mount($('layerL'), $('layerR'), $('nodes')); core.init($('core'));

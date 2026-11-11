@@ -30,3 +30,5 @@ gallery/*
 # PyInstaller output
 build/
 dist/
+
+.claude/worktrees/

@@ -31,6 +31,8 @@ window.SAM = window.SAM || {};
 - sleep, shutdown, restart, kill_process {arg: name}, run_command {arg: name} (these ask the user to confirm)
 - home_set {arg: "device on|off"} devices: lights, ac, lock, blinds, plug, fan
 - timer_start {arg: minutes}, timer_stop, task_add {arg: text}, task_done {arg: text}
+- video_play {arg: search words or title} (YouTube or the local library, shown in the HUD), video_pause, video_close, cinema, radio_play {arg: station or genre}, podcast_play {arg: show}, journal_add {arg: text}, focus_start {arg: minutes}
+- push_phone {arg: text}, telegram_send {arg: text}, wake_machine {arg: name}, wifi {arg: on|off}, bluetooth {arg: on|off}, vpn {arg: on|off}, launch_game {arg: name}, cleanup (asks first), ssh_run {arg: 'machine: command'} (asks first)
 - remember {arg: fact to store}, forget {arg: fact}
 - research {arg: question needing live web data; a headless agent searches and reports back}, agent_task {arg: a file/code task for the headless agent in the workspace folder}
 - shape {arg: sphere|galaxy|heart|knot|helix|cube|ring|wave|text:<WORD>}, layout {arg: full|ambient}, reboot, alert_demo
