@@ -11,7 +11,7 @@
   const S = {
     mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
-    parallax: true, particles: true, idleMorph: true, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    parallax: true, particles: true, idleMorph: true, wander: true, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
   };
   const stage = $('stage'), root = $('root');
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.proactive = !!s.ui.proactive; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, proactive: S.proactive } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -106,6 +106,26 @@
     $('layerC').style.transform = `translate(${-nx * 14}px,${-ny * 10}px)`; $('bg').style.transform = `translate(${nx * 18}px,${ny * 12}px)`;
   }
 
+  /* ---------- orb wander: in idle the avatar drifts on every axis (x, y, depth, tilt) and its eyes glance around;
+     it eases back to the centre whenever it listens, thinks, speaks or a widget is focused ---------- */
+  const WD = { x: 0, y: 0, s: 1, rx: 0, ry: 0, gx: 0, gy: 0 };
+  function wanderFrame(ts) {
+    const t = ts / 1000, idle = S.wander && !S.reduced && S.mode === 'idle' && !S.focus && !S.drawer;
+    const tx = idle ? 70 * Math.sin(t * .21) + 25 * Math.sin(t * .53 + 1.3) : 0;
+    const ty = idle ? 42 * Math.sin(t * .17 + 1) + 14 * Math.sin(t * .41 + .4) : 0;
+    const tsc = idle ? 1 + .08 * Math.sin(t * .13 + 2) : 1;
+    const trx = idle ? 9 * Math.sin(t * .19 + .7) : 0, tryy = idle ? 12 * Math.sin(t * .23 + 1.9) : 0;
+    const k = idle ? .03 : .06;                       // slow drift out, quicker return to centre
+    WD.x += (tx - WD.x) * k; WD.y += (ty - WD.y) * k; WD.s += (tsc - WD.s) * k; WD.rx += (trx - WD.rx) * k; WD.ry += (tryy - WD.ry) * k;
+    const gx = idle ? WD.x * .14 + 6 * Math.sin(t * .9) : 0, gy = idle ? WD.y * .12 + 3 * Math.sin(t * .7 + 2) : 0;
+    WD.gx += (gx - WD.gx) * .08; WD.gy += (gy - WD.gy) * .08;
+    const anchor = document.querySelector('.orbAnchor'), eyes = document.querySelector('.eyes');
+    if (anchor) anchor.style.transform = `perspective(900px) translate3d(${WD.x.toFixed(1)}px,${WD.y.toFixed(1)}px,0) rotateX(${WD.rx.toFixed(1)}deg) rotateY(${WD.ry.toFixed(1)}deg) scale(${WD.s.toFixed(3)})`;
+    if (eyes) eyes.style.transform = `translate(${WD.gx.toFixed(1)}px,${WD.gy.toFixed(1)}px)`;
+    requestAnimationFrame(wanderFrame);
+  }
+  requestAnimationFrame(wanderFrame);
+
   /* ---------- reply / speech ---------- */
   function setReply(t) { $('reply').textContent = t; }
   function say(text, focus, opts = {}) {
@@ -142,13 +162,14 @@
   }
 
   /* ---------- commands ---------- */
-  const SHAPES = [[/\b(heart|love)\b/, 'heart', 'Heart, as requested.'], [/\b(cube|box)\b/, 'cube', 'Cube.'], [/\b(galaxy|spiral|stars)\b/, 'galaxy', 'One galaxy, three arms.'], [/\b(helix|dna)\b/, 'helix', 'Double helix.'], [/\bknot\b/, 'knot', 'Torus knot.'], [/\b(ring|halo|torus)\b/, 'ring', 'Ring.'], [/\b(wave|waves|ocean|ripple)\b/, 'wave', 'Wave field.'], [/\b(sphere|cloud|particles)\b/, 'sphere', 'Back to the cloud.']];
+  const SHAPES = [[/\b(heart|love)\b/, 'heart', 'Heart, as requested.'], [/\b(cube|box)\b/, 'cube', 'Cube.'], [/\b(galaxy|spiral|stars|milky way)\b/, 'galaxy', 'One galaxy, three arms.'], [/\b(helix|dna)\b/, 'helix', 'Double helix.'], [/\b(knot|not|naught)\b/, 'knot', 'Torus knot.'], [/\b(ring|halo|torus|donut)\b/, 'ring', 'Ring.'], [/\b(wave|waves|ocean|ripple|sea)\b/, 'wave', 'Wave field.'], [/\b(sphere|cloud|particles|ball|normal)\b/, 'sphere', 'Back to the cloud.']];
   const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, ten: 10, fifteen: 15, twenty: 20, thirty: 30, forty: 40, sixty: 60 };
   function quickRoute(q) {
     const has = (...k) => k.some(x => q.includes(x));
     if (/^(alert demo|alert|threat|intrusion|breach)$/.test(q)) return { alert: true };
     if (/^(reboot|restart hud|restart samurai|reboot samurai)$/.test(q)) return { reboot: true };
-    if (/\b(make|show|draw|form|become|turn into|shape)\b/.test(q) || /^(heart|cube|galaxy|helix|knot|ring|wave|sphere)$/.test(q)) for (const [re, name, text] of SHAPES) if (re.test(q)) return { shape: name, text };
+    if (/\b(make|show|draw|form|become|turn into|shape|give me|build|morph|back to|go back|reset|switch to|change to)\b/.test(q) || /^(a |an |the )?(double |big |nice )?(heart|cube|galaxy|helix|dna|knot|ring|wave|sphere|ball|box|torus)( please| now)?$/.test(q)) for (const [re, name, text] of SHAPES) if (re.test(q)) return { shape: name, text };
+    if (/^(next shape|another shape|something else|surprise me)$/.test(q)) return { text: 'How about this.', effect: () => core.nextShape(true) };
     const sp = q.match(/\b(?:spell|write|text|type)\s+(.{1,12}?)\s*$/); if (sp) { const w = sp[1].toUpperCase(); return { shape: 'text:' + w, text: `Spelling ${w}.` }; }
     if (/^(ambient|ambient mode|ambient layout)$/.test(q)) return { text: 'Ambient mode. Widgets stay docked in the ring until you ask for them.', effect: () => { S.layout = 'ambient'; save(); applyLayout(); } };
     if (has('full layout', 'show all', 'full mode', 'show everything', 'dashboard mode')) return { text: 'Full layout restored.', effect: () => { S.layout = 'full'; save(); applyLayout(); } };
@@ -158,6 +179,7 @@
     const tm = q.match(/\b(?:timer|countdown|alarm)\b.*?(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty|forty|sixty)\s*(?:min|minute|m\b)/) || q.match(/(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty)\s*(?:min|minute)s?\s*(?:timer|countdown)/);
     if (tm) { const n = WORDS[tm[1]] || +tm[1]; return { focus: 'tmr', text: `Timer set, ${n} minute${n > 1 ? 's' : ''}. I'll ping you when it's done.`, effect: () => widgets.timerStart(n * 60) }; }
     if (/\b(stop|cancel|reset)\b.*\btimer\b|\btimer\b.*\b(stop|cancel|reset)\b/.test(q)) return { focus: 'tmr', text: 'Timer cleared.', effect: () => widgets.timerReset() };
+    const tm2 = q.match(/\b(?:timer|countdown|alarm)\b(?: for)? (\d+|one|two|three|four|five|ten|fifteen|twenty|thirty)$/); if (tm2) { const n = WORDS[tm2[1]] || +tm2[1]; return { focus: 'tmr', text: `Timer set, ${n} minute${n > 1 ? 's' : ''}.`, effect: () => widgets.timerStart(n * 60) }; }
     if (/^(pause|pause music|stop music|stop the music)$/.test(q)) return { focus: 'mus', text: 'Paused.', effect: () => widgets.music('pause') };
     if (/^(next|next track|next song|skip)$/.test(q)) return { focus: 'mus', text: 'Next track.', effect: () => widgets.music('next') };
     const vl = q.match(/^(?:set )?volume (?:to )?(\d{1,3})%?$/); if (vl) return { text: `Volume ${vl[1]} percent.`, actions: [{ type: 'volume_set', arg: vl[1] }] };
@@ -445,7 +467,7 @@
   function stripWake(text, ww) {
     const words = text.trim().split(/\s+/), lead = /^(hey|ok|okay|yo)$/i;
     let start = words.length && lead.test(words[0]) ? 1 : 0;
-    for (let n = 1; n <= 3 && start + n <= words.length; n++) { const cand = words.slice(start, start + n).join('').toLowerCase().replace(/[^a-z]/g, ''); if (cand === ww || (cand.length >= 5 && lev(cand, ww) <= (n >= 2 ? 5 : Math.max(2, Math.ceil(ww.length * .55)))) || (ww === 'samurai' && /^(s|d|z|th|sh)?[a-z]{2,5}a?w?r(ai|i|y|ye|ie|ee)$/.test(cand) && cand.length <= 10)) return { found: true, rest: words.slice(start + n).join(' ').replace(/^[\s,.:!-]+/, '').trim() }; }
+    for (let n = 1; n <= 3 && start + n <= words.length; n++) { const cand = words.slice(start, start + n).join('').toLowerCase().replace(/[^a-z]/g, ''); if (cand === ww || (cand.length >= 5 && lev(cand, ww) <= (n >= 2 ? 5 : Math.max(2, Math.ceil(ww.length * .55)))) || (ww === 'samurai' && /^(s|d|z|th|sh)?[a-z]{2,5}a?w?r(ai|i|y|ye|ie|ee|ight|ite|eye)$/.test(cand) && cand.length <= 10)) return { found: true, rest: words.slice(start + n).join(' ').replace(/^[\s,.:!-]+/, '').trim() }; }
     return { found: false, rest: text.trim() };
   }
   voice.onFinal = t => {
@@ -518,6 +540,7 @@
       <div class="row"><span>PARALLAX DEPTH</span>${sw('parallax', S.parallax)}</div>
       <div class="row"><span>PARTICLE FIELD</span>${sw('particles', S.particles)}</div>
       <div class="row"><span>IDLE SHAPE CYCLE</span>${sw('idleMorph', S.idleMorph)}</div>
+      <div class="row"><span>ORB WANDERS WHEN IDLE</span>${sw('wander', S.wander)}</div>
       <h4>YOU</h4>
       <div class="half"><input type="text" id="optName" value="${esc((cfgU.user || {}).name || 'Boss')}" placeholder="YOUR NAME"><input type="text" id="optNode" value="${esc((cfgU.user || {}).node || 'LOCAL-01')}" placeholder="NODE"></div>
       <div class="half"><input type="number" id="optLat" step="0.0001" value="${(cfgU.location || {}).lat || ''}" placeholder="LAT"><input type="number" id="optLon" step="0.0001" value="${(cfgU.location || {}).lon || ''}" placeholder="LON"></div>
@@ -551,7 +574,7 @@
       else if (k === 'sysAccess') b.sysAccess = on; else if (k === 'actions') b.actions = on; else if (k === 'memory') b.memory = on; else if (k === 'stream') b.stream = on;
       else if (k === 'pool') b.pool.enabled = on; else if (k === 'voiceOn') v.voiceOn = on; else if (k === 'wake') { v.wake = on; if (on && !voice.micOn) voice.start(); }
       else if (k === 'bargeIn') voice.bargeIn = on; else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
-      else if (k === 'particles') { S.particles = on; core.particles = on; } else if (k === 'idleMorph') S.idleMorph = on;
+      else if (k === 'particles') { S.particles = on; core.particles = on; } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
       else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });

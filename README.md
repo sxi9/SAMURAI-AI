@@ -4,7 +4,7 @@ A voice-driven assistant that runs on your own PC: an offline speech stack, a ci
 
 ![SAMURAI walkthrough](docs/walkthrough.gif)
 
-Half a minute of the recorded tour. **With sound**: [docs/walkthrough-voice.mp4](docs/walkthrough-voice.mp4) is a three-minute spoken walkthrough where eleven commands are said into the microphone, recognised offline, and answered in SAMURAI's own voice, with a narrator: weather, shapes, timer, smart home, a reminder, document search, plan mode, a proactive check, layouts, the alert, the ring, settings, LAN mode and the control panel. The silent captioned version is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step guide is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
+Half a minute of the recorded tour. **With sound**: [docs/walkthrough-voice.mp4](docs/walkthrough-voice.mp4) is a three-minute spoken walkthrough where eleven commands are said into the microphone, recognised offline, and answered in SAMURAI's own voice, with a narrator: weather, shapes, timer, smart home, a reminder, document search, plan mode, a proactive check, layouts, the alert, the ring, settings, LAN mode and the control panel. [docs/walkthrough-shapes.mp4](docs/walkthrough-shapes.mp4) is a second spoken video about the avatar: its idle wandering, every particle shape asked for by voice, spelled words, and a few other commands. The silent captioned version is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step guide is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
 
 ![SAMURAI HUD v3, labeled](docs/screenshot-labeled.png)
 
@@ -83,6 +83,7 @@ Test without any AI: `python tests/mock_llm.py`, then choose LOCAL — LM STUDIO
 
 ## Jarvis-style extras
 
+- **A living avatar**: when idle the orb drifts on every axis, tilts, breathes and glances around, and snaps back to the centre the moment you speak. Switch it off under ORB WANDERS WHEN IDLE.
 - **Focus layout** (default): six widgets on screen, six docked in the ring, less visual noise. "Full layout" shows all twelve, "ambient" hides everything but the core.
 - **Plan mode**: "plan: get me ready for deep work". The brain breaks the goal into SAMURAI commands and runs them one by one.
 - **Proactive check-ins**: a settings switch makes SAMURAI look at the live data every 30 minutes and speak only when something matters.

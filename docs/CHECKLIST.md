@@ -105,6 +105,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Phone / LAN mode with a token (switch in the control panel, phone link)
 - [x] Packaged build: PyInstaller spec + launcher, verified on Linux (8 services from one executable); Windows SAMURAI.exe built by the build-exe workflow
 - [x] Walkthrough v2 with real microphone input and spoken replies
+- [x] Idle orb wander on every axis with glancing eyes; shapes-and-motion video (docs/walkthrough-shapes.mp4)
 - [ ] Trained "samurai" wake-word model (needs recorded samples), voice identity, full-duplex speech-to-speech, camera presence — still open
 
 ## Not verified in this build (needs a real desktop)
