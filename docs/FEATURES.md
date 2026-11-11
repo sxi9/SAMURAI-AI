@@ -30,7 +30,7 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Orbital ring of twelve nodes: click to summon, unpin to dock
 - Focus layout (six widgets, calmer default), full layout (twelve), ambient (core only)
 - Boot sequence with assembling widgets, welcome flash, security alert card
-- Sixteen colour themes (arc, ember, gold, matrix, ice, crimson, rose, nebula, aurora, ocean, sunset, solar, mono, stealth, lime, royal) plus a custom theme from two colour pickers; by voice: "theme ocean", "blue theme", "random theme"
+- Sixteen colour themes (arc, ember, gold, matrix, ice, crimson, rose, nebula, aurora, ocean, sunset, solar, mono, stealth, lime, royal) plus a custom theme from two colour pickers; by voice: "theme ocean", "blue theme", "random theme" (see docs/screenshot-themes.png)
 - Live ticker (markets, headlines), clock, parallax, reduced-motion support
 - Cockpit mode on big screens, flow layout on laptops, tablets and phones
 - Settings drawer: brains, pool, routing, voice, mic, personality, pinned add-ons, layout, theme, your name and location
