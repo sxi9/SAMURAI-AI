@@ -55,6 +55,12 @@ DEFAULT_CONFIG = {
     "browser": {"headless": True},
     "lan": {"enabled": False, "token": ""},            # LAN mode: reachable from your phone / other PCs with a token
     "autostart": False,
+    "connect": {                                        # the outside world (servers/samurai_connect.py); credentials stay empty here
+        "ntfy_topic": "", "ntfy_server": "https://ntfy.sh", "pushover_user": "", "pushover_token": "",
+        "machines": [],                                 # [{"name": "nas", "host": "192.168.1.20", "mac": "AA:BB:CC:DD:EE:FF", "ssh_user": "me"}]
+        "vpn_name": "", "search_dirs": [], "stations": [], "podcasts": [],
+        "telegram_token": "", "telegram_chats": [], "discord_webhook": "", "slack_webhook": "", "steam_dir": "",
+    },
 }
 
 

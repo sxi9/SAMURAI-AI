@@ -49,7 +49,47 @@ APPS_MAC = {
     "notepad": "TextEdit", "music": "Music", "vlc": "VLC", "discord": "Discord", "youtube": "https://www.youtube.com",
 }
 APPS = APPS_WIN if IS_WIN else (APPS_MAC if IS_MAC else APPS_LINUX)
-POWER_ACTIONS = {"sleep", "shutdown", "restart", "kill_process", "run_command", "desktop_step"}
+POWER_ACTIONS = {"sleep", "shutdown", "restart", "kill_process", "run_command", "desktop_step", "ssh_run", "cleanup"}
+CONNECT_ACTIONS = {"push_phone", "wake_machine", "ssh_run", "wifi", "bluetooth", "vpn", "telegram_send", "post_webhook", "launch_game", "cleanup"}
+
+
+def connect_call(path, body):
+    """Forward to the connect routes on the add-ons sidecar (servers/samurai_connect.py)."""
+    req = urllib.request.Request(f"http://127.0.0.1:{PORTS['addons']}{path}", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=45) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise ValueError(json.loads(e.read() or b"{}").get("error", f"add-ons sidecar answered {e.code}"))
+    except OSError:
+        raise ValueError("add-ons sidecar is not running")
+
+
+def do_connect_action(atype, arg):
+    if atype == "push_phone":
+        connect_call("/push", {"title": "SAMURAI", "body": arg}); return f"Sent to your phone: {arg[:60]}"
+    if atype == "wake_machine":
+        r = connect_call("/wol", {"mac": arg} if ":" in arg or "-" in arg else {"name": arg}); return f"Wake packet sent to {r.get('mac')}"
+    if atype == "ssh_run":
+        m = re.match(r"^\s*([\w.-]+)\s*[:,]?\s+(.+)$", arg)
+        if not m:
+            raise ValueError("say 'machine: command', e.g. 'nas: df -h'")
+        r = connect_call("/ssh", {"name": m.group(1), "command": m.group(2)})
+        return f"{m.group(1)} said: {(r.get('out') or r.get('err') or 'nothing')[:300]}"
+    if atype in ("wifi", "bluetooth", "vpn"):
+        on = not re.search(r"\b(off|disable|disconnect|down)\b", arg.lower())
+        connect_call("/radio", {"kind": atype, "on": on}); return f"{atype} {'on' if on else 'off'}"
+    if atype == "telegram_send":
+        connect_call("/telegram", {"text": arg}); return "Sent on Telegram"
+    if atype == "post_webhook":
+        m = re.match(r"^(discord|slack)\s*[:,]\s*(.+)$", arg, re.I)
+        r = connect_call("/webhook", {"target": m.group(1).lower(), "text": m.group(2)} if m else {"text": arg}); return f"Posted to {r.get('target')}"
+    if atype == "launch_game":
+        r = connect_call("/games", {"appid": int(arg)} if arg.isdigit() else {"name": arg}); return f"Launching {r.get('name')}"
+    if atype == "cleanup":
+        r = connect_call("/cleanup", {"confirm": True}); return f"Cleaned {r.get('removed', 0)} temp files, {r.get('freed', 0) // 1048576} MB freed"
+    raise ValueError(f"unknown action '{atype}'")
 AUDIT_PATH = os.path.join(DATA, "audit.jsonl")
 PLUGINS = {}          # tool type -> {"run": fn, "description": str, "plugin": name}
 
@@ -406,6 +446,8 @@ def do_action(atype, arg, confirm=False):
                 "error": f"'{atype}' needs confirmation — say it again with 'confirm' or press CONFIRM"}
     if atype in PLUGINS:
         return {"ok": True, "did": str(PLUGINS[atype]["run"](arg))[:1000], "plugin": PLUGINS[atype]["plugin"]}
+    if atype in CONNECT_ACTIONS:
+        return do_connect_action(atype, arg)
     if atype == "open_url":
         if not arg.startswith(("http://", "https://")):
             arg = "https://" + arg
@@ -541,7 +583,7 @@ def get_actions(h, q, body):
             "actions": ["open_url", "web_search", "play_music", "open_app", "open_path", "volume_up", "volume_down",
                         "volume_set", "mute", "media_play_pause", "media_next", "media_prev", "media_stop",
                         "brightness", "screenshot", "camera_frame", "clipboard_get", "clipboard_set", "type_text", "hotkey", "lock",
-                        "mouse_click", "mouse_move", "mouse_double", "mouse_right", "scroll"],
+                        "mouse_click", "mouse_move", "mouse_double", "mouse_right", "scroll", *sorted(CONNECT_ACTIONS)],
             "needs_confirm": sorted(POWER_ACTIONS), "deny": load_config().get("actions", {}).get("deny", []),
             "plugins": [{"type": t, "description": v["description"], "plugin": v["plugin"]} for t, v in PLUGINS.items()]}
 

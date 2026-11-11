@@ -17,5 +17,10 @@
   "actions": { "apps": {}, "commands": {}, "deny": [], "no_confirm": [] },
   "browser": { "headless": true },
   "voice": { "vad": true, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge" },
-  "autostart": false
+  "autostart": false,
+  "connect": {
+    "ntfy_topic": "", "ntfy_server": "https://ntfy.sh", "pushover_user": "", "pushover_token": "",
+    "machines": [], "vpn_name": "", "search_dirs": [], "stations": [], "podcasts": [],
+    "telegram_token": "", "telegram_chats": [], "discord_webhook": "", "slack_webhook": "", "steam_dir": ""
+  }
 }
