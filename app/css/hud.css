@@ -8,6 +8,10 @@
   --field-bg:linear-gradient(180deg,rgba(12,26,46,.75),rgba(6,10,26,.65));
   --ease:cubic-bezier(.2,.8,.2,1);
 }
+:root[data-theme=ember]{--cyan:#ff6a3d;--ice:#ffe3d6;--violet:#ffb547;--amber:#ffd166;--text:#e0bfae;--tick:#c99b8a;--muted:#8a6a5e}
+:root[data-theme=gold]{--cyan:#ffc24d;--ice:#ffe9c2;--violet:#2ee6ff;--amber:#ff6a3d;--text:#e8c98f;--tick:#c9ab76;--muted:#8a7a52}
+:root[data-theme=matrix]{--cyan:#3dffa0;--ice:#d6ffe9;--violet:#a0ff7c;--amber:#ffe36a;--text:#a9e0c0;--tick:#8fc9a6;--muted:#5f8a70}
+:root[data-theme=ice]{--cyan:#8ec5ff;--ice:#f0f7ff;--violet:#c3a6ff;--amber:#ffd27a;--text:#b9cfe6;--tick:#9fb6cc;--muted:#6f839a}
 html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
 body{font-family:var(--body);color:var(--text);user-select:none;-webkit-font-smoothing:antialiased}
 a{color:var(--cyan)}a:hover{color:var(--ice)}

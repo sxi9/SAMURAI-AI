@@ -10,6 +10,10 @@ import hashlib, json, os, shutil, ssl, subprocess, sys, time, zipfile
 import urllib.error, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler
 
+try:
+    sys.stdout.reconfigure(line_buffering=True)      # service logs show up immediately in logs/*.log
+except Exception:
+    pass
 SERVERS_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SERVERS_DIR)
 APP = os.path.join(ROOT, "app")
@@ -24,25 +28,28 @@ IS_MAC = sys.platform == "darwin"
 
 UI_PORT = 8080
 PORTS = {"ui": 8080, "telemetry": 8765, "speech": 9100, "tts": 9200,
-         "actions": 9300, "agent": 9400, "addons": 9500, "panel": 9000}
+         "actions": 9300, "agent": 9400, "addons": 9500, "panel": 9000, "browser": 9600}
 
 # --------------------------------------------------------------------------- config
 DEFAULT_CONFIG = {
     "user": {"name": "Boss", "node": "LOCAL-01"},
     "location": {"lat": 0.0, "lon": 0.0, "label": "SET ME"},
-    "ui": {"origins": ["http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:9000", "http://127.0.0.1:9000"]},
+    "ui": {"origins": ["http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:9000", "http://127.0.0.1:9000"], "theme": "arc"},
     "widgets": {
         "agenda": {"ics_path": "", "sample": True},
-        "inbox": {"imap_host": "", "imap_user": "", "imap_password": "", "sample": True},
+        "inbox": {"imap_host": "", "imap_user": "", "imap_password": "", "smtp_host": "", "sample": True},
         "home": {"hass_url": "", "hass_token": "", "sample": True},
         "music": {"library_dir": "", "sample": True},
         "gallery": {"dir": "gallery"},
+        "documents": {"dir": ""},
         "camera": {"url": ""},
         "position": {"nearby": [{"name": "OFFICE", "km": 4.2, "bearing": 40},
                                 {"name": "AIRPORT", "km": 31, "bearing": 225}]},
     },
     "agent": {"allow_bash": False},
     "voice": {"vad": True, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge"},
+    "actions": {"apps": {}, "commands": {}, "deny": [], "no_confirm": []},
+    "browser": {"headless": True},
     "autostart": False,
 }
 
@@ -63,14 +70,56 @@ def load_config():
             pass
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
-            return _merge(DEFAULT_CONFIG, json.load(f))
+            return _restore_secrets(_merge(DEFAULT_CONFIG, json.load(f)))
     except (OSError, ValueError):
         return dict(DEFAULT_CONFIG)
 
 
+SECRET_FIELDS = (("widgets", "inbox", "imap_password"), ("widgets", "home", "hass_token"))
+
+
+def _keyring():
+    try:
+        import keyring
+        keyring.get_password("samurai", "probe")
+        return keyring
+    except Exception:
+        return None
+
+
 def save_config(cfg):
+    """Secrets go to the OS keychain when the optional keyring package works; the file keeps a marker."""
+    kr = _keyring()
+    out = json.loads(json.dumps(cfg))
+    if kr:
+        for path in SECRET_FIELDS:
+            d = out
+            for k in path[:-1]:
+                d = d.get(k, {})
+            v = d.get(path[-1])
+            if v and v != "keyring":
+                try:
+                    kr.set_password("samurai", ".".join(path), v)
+                    d[path[-1]] = "keyring"
+                except Exception:
+                    pass
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+        json.dump(out, f, indent=2)
+
+
+def _restore_secrets(cfg):
+    kr = None
+    for path in SECRET_FIELDS:
+        d = cfg
+        for k in path[:-1]:
+            d = d.get(k, {})
+        if d.get(path[-1]) == "keyring":
+            kr = kr or _keyring()
+            try:
+                d[path[-1]] = (kr and kr.get_password("samurai", ".".join(path))) or ""
+            except Exception:
+                d[path[-1]] = ""
+    return cfg
 
 
 def allowed_origins():
@@ -109,6 +158,8 @@ def service_defs():
          "cmd": [py, os.path.join(SERVERS_DIR, "samurai_agent_server.py")]},
         {"key": "addons",  "name": "ADD-ONS",       "port": PORTS["addons"],    "check": f"http://localhost:{PORTS['addons']}/addons/status",
          "cmd": [py, os.path.join(SERVERS_DIR, "samurai_addons.py")]},
+        {"key": "web",     "name": "BROWSER AGENT", "port": PORTS["browser"],   "check": f"http://localhost:{PORTS['browser']}/browser/status",
+         "cmd": [py, os.path.join(SERVERS_DIR, "samurai_browser.py")]},
     ]
 
 

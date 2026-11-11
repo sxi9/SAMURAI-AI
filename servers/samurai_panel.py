@@ -19,7 +19,7 @@ import samurai_autostart as autostart
 
 PORT = PORTS["panel"]
 UI_URL = f"http://localhost:{PORTS['ui']}/jarvis-interface.html"
-PIP_NAME = {"vosk": "vosk", "websockets": "websockets", "psutil": "psutil", "edge_tts": "edge-tts"}
+PIP_NAME = {"vosk": "vosk", "websockets": "websockets", "psutil": "psutil", "edge_tts": "edge-tts", "playwright": "playwright"}
 SERVICES = service_defs()
 BY_KEY = {s["key"]: s for s in SERVICES}
 procs, starts, LOCK = {}, {}, threading.Lock()
@@ -103,6 +103,9 @@ def auto_fix(svc):
         set_status(f"{svc['name']}: installing missing package {pkg}…")
         if not pip_install(pkg):
             return f"pip install {pkg} failed — see logs/{svc['key']}.log"
+        if pkg == "playwright":
+            set_status("installing Chromium for the browser agent…")
+            subprocess.run([venv_python(), "-m", "playwright", "install", "chromium"], capture_output=True, text=True, creationflags=NOWIN)
         return restart_and_report(svc, f"installed {pkg}")
     if svc["key"] == "speech" and ("no valid vosk model" in log.lower() or "no vosk model" in log.lower() or not any_valid_model()):
         ok, msg = ensure_model(set_status)
@@ -185,7 +188,7 @@ def doctor(fix=False):
     add("Python", v >= (3, 9), f"{v.major}.{v.minor}.{v.micro}" + ("" if v >= (3, 9) else " — need 3.9+"))
     py = venv_python()
     add("Virtual environment", ".venv" in py, py if ".venv" in py else "running on the system Python — run install.py to create .venv", fixable=False)
-    for mod, pkg in PIP_NAME.items():
+    for mod, pkg in list(PIP_NAME.items())[:4]:
         r = subprocess.run([py, "-c", f"import {mod}"], capture_output=True, text=True, creationflags=NOWIN)
         ok = r.returncode == 0
         if not ok and fix:

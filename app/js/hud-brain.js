@@ -33,7 +33,12 @@ window.SAM = window.SAM || {};
 - timer_start {arg: minutes}, timer_stop, task_add {arg: text}, task_done {arg: text}
 - remember {arg: fact to store}, forget {arg: fact}
 - research {arg: question needing live web data; a headless agent searches and reports back}, agent_task {arg: a file/code task for the headless agent in the workspace folder}
-- shape {arg: sphere|galaxy|heart|knot|helix|cube|ring|wave|text:<WORD>}, layout {arg: full|ambient}, reboot, alert_demo`;
+- shape {arg: sphere|galaxy|heart|knot|helix|cube|ring|wave|text:<WORD>}, layout {arg: full|ambient}, reboot, alert_demo
+- schedule_add {arg: natural language like "every day at 8 am say good morning" or "in 20 minutes remind me to stretch"}, routine_run {arg: routine name}
+- search_docs {arg: query over the user's documents folder}, send_email {arg: "to | subject | body"} (asks to confirm)
+- look_at_screen {arg: question about what is on screen}, look_at_camera {arg: question about what the webcam sees}
+- browse_open {arg: url}, browse_read, browse_click {arg: link or button text}, browse_type {arg: "field label | text"}, browse_find {arg: text}
+- desktop_task {arg: a goal to accomplish with mouse and keyboard, step by step}`;
 
   /* Pulls the "reply" string out of a JSON object that is still streaming in. */
   function replySoFar(raw) {
@@ -58,7 +63,8 @@ window.SAM = window.SAM || {};
 
   const brain = {
     PROVIDERS, WIDGET_IDS, replySoFar,
-    cfg: { provider: 'ollama', keys: {}, models: {}, urls: {}, pool: { enabled: false, strategy: 'failover', order: [] }, sysAccess: true, actions: true, mood: 'balanced', humor: 5, memory: true, stream: true },
+    cfg: { provider: 'ollama', keys: {}, models: {}, urls: {}, pool: { enabled: false, strategy: 'failover', order: [] }, roles: { chat: '', work: '', research: '', vision: '' }, sysAccess: true, actions: true, mood: 'balanced', humor: 5, memory: true, stream: true },
+    extraActions: [],
     online: false, agentStatus: null, sessions: {}, history: [], facts: [], user: { name: 'Boss', node: 'LOCAL-01', label: '' },
     rr: 0, onLog: null, localModels: [], modelLists: {},
     log(c, m) { this.onLog && this.onLog(c, m); },
@@ -80,7 +86,7 @@ window.SAM = window.SAM || {};
       p += (this.MOODS[c.mood] || this.MOODS.balanced) + ` Humor level ${c.humor}/10. Replies are spoken aloud: plain text, no markdown, no emojis, 1-3 short sentences unless asked for detail.\n\n`;
       p += `Respond with ONLY a JSON object, no prose around it, with "reply" as the FIRST key:\n{"reply": "<what to say>", "focus": <one of ${JSON.stringify(WIDGET_IDS)} or null>, "actions": [{"type": "<type>", "arg": "<arg>"}], "shape": <shape name or null>}\n`;
       p += `"focus" brings a HUD widget to the front: sys=system stats, cal=agenda, task=tasks, msg=inbox, tty=terminal, tmr=timers, wx=weather, mus=music, home=smart home, map=position, cam=camera, pix=gallery. Use it when the answer relates to one.\n`;
-      p += c.actions ? ACTION_SPEC + '\n' : 'Actions are disabled by the user: always return "actions": [].\n';
+      p += c.actions ? ACTION_SPEC + (this.extraActions.length ? '\n- plugin tools: ' + this.extraActions.map(x => `${x.type} (${x.description})`).join('; ') : '') + '\n' : 'Actions are disabled by the user: always return "actions": [].\n';
       if (this.facts.length) p += `\nThings to remember about the user:\n- ${this.facts.join('\n- ')}\n`;
       if (snapshot) p += `\nLIVE DATA from the machine and widgets (use these exact numbers, never invent values):\n${snapshot}\n`;
       return p;
@@ -147,9 +153,11 @@ window.SAM = window.SAM || {};
     },
 
     /* ---------- pool: failover / round-robin / compare ---------- */
-    order() {
-      const pool = this.cfg.pool;
+    taskType(q) { if (/\b(search|look ?up|latest|news|current|today'?s?|right now|price of|who won|what happened|find out|research|headlines)\b/i.test(q)) return 'research'; if (/\b(write|code|script|refactor|fix|build|create a file|analy[sz]e|summari[sz]e|translate|draft|essay|plan)\b/i.test(q)) return 'work'; return 'chat'; },
+    order(q) {
+      const pool = this.cfg.pool, roles = this.cfg.roles || {};
       let ids = pool.enabled && pool.order.length ? pool.order.filter(id => PROVIDERS[id]) : [this.cfg.provider];
+      const role = q ? roles[this.taskType(q)] : ''; if (role && PROVIDERS[role] && this.configured(role)) ids = [role, ...ids.filter(x => x !== role)];
       ids = ids.filter(id => this.configured(id));
       if (!ids.length) ids = [this.cfg.provider];
       if (pool.enabled && pool.strategy === 'roundrobin' && ids.length > 1) { const k = this.rr++ % ids.length; ids = [...ids.slice(k), ...ids.slice(0, k)]; }
@@ -157,7 +165,7 @@ window.SAM = window.SAM || {};
     },
     /* onDelta(replyText, done) receives the spoken reply as it streams in */
     async ask(q, snapshot, onDelta) {
-      const sys = this.systemPrompt(snapshot), ids = this.order(), errors = [];
+      const sys = this.systemPrompt(snapshot), ids = this.order(q), errors = [];
       for (const id of ids) {
         const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), PROVIDERS[id].kind === 'agent' ? 620000 : 60000);
         let streamed = '';
@@ -177,6 +185,37 @@ window.SAM = window.SAM || {};
         }
       }
       throw new Error(errors.join(' | ') || 'no provider');
+    },
+    /* ---------- vision: one image + a question, plain-text answer ---------- */
+    visionProviders() { return Object.keys(PROVIDERS).filter(id => ['openai', 'anthropic', 'gemini', 'ollama'].includes(PROVIDERS[id].kind) && this.configured(id)); },
+    async askVision(question, b64, mime) {
+      const roles = this.cfg.roles || {}, ids = [roles.vision, this.cfg.provider, ...this.visionProviders()].filter((x, i, a) => x && PROVIDERS[x] && this.configured(x) && ['openai', 'anthropic', 'gemini', 'ollama'].includes(PROVIDERS[x].kind) && a.indexOf(x) === i);
+      if (!ids.length) throw new Error('no vision-capable provider configured (OpenAI, Claude, Gemini or an Ollama vision model)');
+      const sys = `You are SAMURAI, a voice assistant. Describe or answer about the image in 1-3 spoken sentences, plain text, no markdown.`;
+      let lastErr;
+      for (const id of ids) {
+        const p = this.P(id), hdr = { 'Content-Type': 'application/json' }, ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
+        try {
+          if (p.kind === 'openai') {
+            if (p.key) hdr['Authorization'] = 'Bearer ' + p.key;
+            const r = await fetch(p.url + '/chat/completions', { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ model: p.model, max_tokens: 300, messages: [{ role: 'system', content: sys }, { role: 'user', content: [{ type: 'text', text: question }, { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }] }] }) });
+            const d = await r.json(); if (d.error) throw new Error(d.error.message || 'vision failed'); return d.choices[0].message.content.trim();
+          }
+          if (p.kind === 'anthropic') {
+            const r = await fetch(p.url + '/messages', { method: 'POST', signal: ctl.signal, headers: { ...hdr, 'x-api-key': p.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: p.model, max_tokens: 400, system: sys, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } }, { type: 'text', text: question }] }] }) });
+            const d = await r.json(); if (d.error) throw new Error(d.error.message); const tb = (d.content || []).find(b => b.type === 'text'); return (tb && tb.text || '').trim();
+          }
+          if (p.kind === 'gemini') {
+            const r = await fetch(`${p.url}/models/${encodeURIComponent(p.model)}:generateContent?key=${encodeURIComponent(p.key)}`, { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: question }] }] }) });
+            const d = await r.json(); if (d.error) throw new Error(d.error.message); return ((d.candidates || [])[0]?.content?.parts || []).map(x => x.text || '').join('').trim();
+          }
+          if (p.kind === 'ollama') {
+            const r = await fetch(p.url + '/api/chat', { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ model: p.model, stream: false, messages: [{ role: 'system', content: sys }, { role: 'user', content: question, images: [b64] }] }) });
+            const d = await r.json(); if (d.error) throw new Error(d.error); return (d.message && d.message.content || '').trim();
+          }
+        } catch (e) { lastErr = e; this.log('warn', `vision ${id} · ${String(e.message).slice(0, 60)}`); } finally { clearTimeout(to); }
+      }
+      throw lastErr || new Error('vision failed');
     },
     async askMany(q, ids, snapshot) {
       const sys = this.systemPrompt(snapshot);

@@ -22,6 +22,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from samurai_common import (JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
                             load_config, save_config, http_json, run_hidden)
+import samurai_automation as auto
 
 PORT = PORTS["addons"]
 TASKS_PATH = os.path.join(DATA, "tasks.json")
@@ -66,7 +67,8 @@ def public_config(cfg):
     for name, sect in cfg.get("widgets", {}).items():
         w[name] = {k: ("***" if k in SECRET_KEYS and v else v) for k, v in sect.items()}
     return {"user": cfg["user"], "location": cfg["location"], "widgets": w,
-            "agent": cfg.get("agent", {}), "autostart": cfg.get("autostart", False)}
+            "agent": cfg.get("agent", {}), "autostart": cfg.get("autostart", False),
+            "browser": cfg.get("browser", {}), "actions": {k: cfg.get("actions", {}).get(k, []) for k in ("deny", "no_confirm")}, "voice": cfg.get("voice", {})}
 
 
 def get_config(h, q, b):
@@ -75,7 +77,7 @@ def get_config(h, q, b):
 
 def post_config(h, q, b):
     cfg = load_config()
-    for key in ("user", "location", "widgets", "agent", "autostart"):
+    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice"):
         if key in b:
             if isinstance(b[key], dict) and isinstance(cfg.get(key), dict):
                 for k2, v2 in b[key].items():
@@ -549,11 +551,13 @@ class Handler(JSONHandler):
         ("GET", "/security"): get_security, ("POST", "/security/block"): post_block,
         ("GET", "/memory"): get_memory, ("POST", "/memory"): post_memory,
         ("GET", "/addons/status"): get_status,
+        **auto.ROUTES,
     }
 
 
 if __name__ == "__main__":
     os.makedirs(DATA, exist_ok=True)
     os.makedirs(gallery_dir(), exist_ok=True)
+    auto.start_threads(lambda: get_agenda(None, {}, None).get("events", []))
     print(f"[SAMURAI] Add-ons sidecar on http://localhost:{PORT}/  (config: {os.path.join(ROOT, 'config.json')})")
     ThreadingHTTPServer(("localhost", PORT), Handler).serve_forever()

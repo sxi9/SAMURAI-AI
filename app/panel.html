@@ -70,10 +70,10 @@ a{color:var(--cyan)}
     <h2>CONFIG · YOU AND YOUR WIDGETS</h2>
     <div class="grid" style="gap:8px 18px">
       <div><label>NAME</label><input id="c_name"><label>NODE LABEL</label><input id="c_node"><label>CITY LABEL</label><input id="c_label"><label>LATITUDE</label><input id="c_lat" type="number" step="0.0001"><label>LONGITUDE</label><input id="c_lon" type="number" step="0.0001"></div>
-      <div><label>CALENDAR .ICS FILE PATH</label><input id="c_ics" placeholder="C:\Users\you\calendar.ics"><label>MUSIC LIBRARY FOLDER</label><input id="c_music" placeholder="C:\Users\you\Music"><label>CAMERA URL (MJPEG / MP4 / HLS)</label><input id="c_cam" placeholder="http://192.168.1.20:8080/video"><label>HOME ASSISTANT URL</label><input id="c_hass" placeholder="http://homeassistant.local:8123"><label>HOME ASSISTANT TOKEN</label><input id="c_hasst" type="password"></div>
+      <div><label>CALENDAR .ICS FILE PATH</label><input id="c_ics" placeholder="C:\Users\you\calendar.ics"><label>MUSIC LIBRARY FOLDER</label><input id="c_music" placeholder="C:\Users\you\Music"><label>DOCUMENTS FOLDER (FOR "SEARCH MY DOCUMENTS")</label><input id="c_docs" placeholder="C:\Users\you\Documents"><label>CAMERA URL (MJPEG / MP4 / HLS)</label><input id="c_cam" placeholder="http://192.168.1.20:8080/video"><label>HOME ASSISTANT URL</label><input id="c_hass" placeholder="http://homeassistant.local:8123"><label>HOME ASSISTANT TOKEN</label><input id="c_hasst" type="password"></div>
       <div><label>IMAP HOST</label><input id="c_imaph" placeholder="imap.gmail.com"><label>IMAP USER</label><input id="c_imapu"><label>IMAP PASSWORD / APP PASSWORD</label><input id="c_imapp" type="password"><label>LET THE HEADLESS AGENT RUN SHELL COMMANDS</label><div class="sw" id="swBash"><i></i></div><br><button class="b big" id="saveCfg">SAVE CONFIG</button> <span class="muted" id="cfgMsg"></span></div>
     </div>
-    <div class="muted" style="margin-top:10px">Secrets stay in config.json on this machine (never shown back once saved). Leave a field empty to keep sample data for that widget.</div>
+    <div class="muted" style="margin-top:10px">Browser agent window: <span id="hl"></span> · Secrets stay in config.json on this machine (never shown back once saved). Leave a field empty to keep sample data for that widget.</div>
   </div>
 </div>
 </div>
@@ -104,16 +104,17 @@ async function loadCfg() {
   try {
     const c = await J(ADDONS + '/config'); const w = c.widgets || {};
     $('c_name').value = c.user.name; $('c_node').value = c.user.node; $('c_label').value = c.location.label || ''; $('c_lat').value = c.location.lat || ''; $('c_lon').value = c.location.lon || '';
-    $('c_ics').value = (w.agenda || {}).ics_path || ''; $('c_music').value = (w.music || {}).library_dir || ''; $('c_cam').value = (w.camera || {}).url || '';
+    $('c_ics').value = (w.agenda || {}).ics_path || ''; $('c_music').value = (w.music || {}).library_dir || ''; $('c_docs').value = (w.documents || {}).dir || ''; $('c_cam').value = (w.camera || {}).url || '';
     $('c_hass').value = (w.home || {}).hass_url || ''; $('c_hasst').value = (w.home || {}).hass_token || ''; $('c_imaph').value = (w.inbox || {}).imap_host || ''; $('c_imapu').value = (w.inbox || {}).imap_user || ''; $('c_imapp').value = (w.inbox || {}).imap_password || '';
     $('swBash').classList.toggle('on', !!(c.agent || {}).allow_bash);
+    $('hl').innerHTML = `<label style="display:inline"><input type="checkbox" id="c_headless" ${(c.browser || {}).headless === false ? 'checked' : ''}> show the window</label>`;
     $('cfgMsg').textContent = '';
   } catch (e) { $('cfgMsg').textContent = 'add-ons service offline — start it to edit config'; }
 }
 $('saveCfg').onclick = async () => {
   const body = { user: { name: $('c_name').value.trim() || 'Boss', node: $('c_node').value.trim() || 'LOCAL-01' }, location: { lat: +$('c_lat').value || 0, lon: +$('c_lon').value || 0, label: $('c_label').value.trim() },
-    widgets: { agenda: { ics_path: $('c_ics').value.trim() }, music: { library_dir: $('c_music').value.trim() }, camera: { url: $('c_cam').value.trim() }, home: { hass_url: $('c_hass').value.trim(), hass_token: $('c_hasst').value }, inbox: { imap_host: $('c_imaph').value.trim(), imap_user: $('c_imapu').value.trim(), imap_password: $('c_imapp').value } },
-    agent: { allow_bash: $('swBash').classList.contains('on') } };
+    widgets: { agenda: { ics_path: $('c_ics').value.trim() }, music: { library_dir: $('c_music').value.trim() }, documents: { dir: $('c_docs').value.trim() }, camera: { url: $('c_cam').value.trim() }, home: { hass_url: $('c_hass').value.trim(), hass_token: $('c_hasst').value }, inbox: { imap_host: $('c_imaph').value.trim(), imap_user: $('c_imapu').value.trim(), imap_password: $('c_imapp').value } },
+    agent: { allow_bash: $('swBash').classList.contains('on') }, browser: { headless: !($('c_headless') && $('c_headless').checked) } };
   try { await POST(ADDONS + '/config', body); $('cfgMsg').textContent = 'saved'; loadCfg(); } catch (e) { $('cfgMsg').textContent = 'save failed — add-ons service offline'; }
 };
 $('startAll').onclick = () => POST('/panel/control', { action: 'start_all', open: true }).then(refresh);

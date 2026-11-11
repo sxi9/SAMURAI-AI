@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'full'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'full'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -171,6 +171,17 @@
     const fg = q.match(/^forget (?:about |that )?(.{2,200})$/); if (fg) return { text: 'Forgotten.', effect: () => brain.fact('forget', fg[1]) };
     if (/^(what do you remember|what do you know about me)\??$/.test(q)) return { text: brain.facts.length ? 'I remember: ' + brain.facts.join('. ') : 'Nothing stored yet. Say "remember" followed by a fact.' };
     const am = q.match(/^(?:ask (?:all|everyone|every ai)|compare)[:,]?\s+(.{3,})$/); if (am) return { compare: am[1] };
+    if (/^(every (day|morning|evening|weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+|\w+ ?(minutes?|mins?|hours?))|remind me (at|on|in)\b|in \d+ (minutes?|mins?|hours?)|at [\w:. ]+ (say|remind|run))/.test(q)) return { text: null, actions: [{ type: 'schedule_add', arg: q }] };
+    if (/^(what('s| is) scheduled|list (my )?(schedules|reminders)|show (my )?(schedules|reminders))\??$/.test(q)) return { schedules: true };
+    const rr = q.match(/^(?:run |start |activate )?(focus mode|good night|good morning|bedtime|movie mode|work mode)(?: routine)?$/); if (rr) return { text: null, actions: [{ type: 'routine_run', arg: rr[1] }] };
+    const rn = q.match(/^run (?:the )?(.{2,30}?) routine$/); if (rn) return { text: null, actions: [{ type: 'routine_run', arg: rn[1] }] };
+    if (/^((morning|evening|daily) )?brief(ing)?( me)?$|^brief me$|^what('s| is) (my|the) (day|briefing)\b/.test(q)) return { briefing: true };
+    if (/^(what did you do|what have you done|show (the )?audit|activity log)/.test(q)) return { audit: true };
+    const ds = q.match(/^(?:search|find|look)(?: in| through)? (?:my )?(?:docs|documents|files|notes)(?: for)? (.{2,})$/) || q.match(/^what do my (?:docs|documents|notes) say about (.{2,})$/); if (ds) return { docs: ds[1] };
+    if (/^(what('s| is) on my screen|look at (my|the) screen|read (my|the) screen|describe (my|the) screen|what am i looking at)\??$/.test(q)) return { vision: 'screen', question: 'Describe what is on the screen and anything notable.' };
+    const vs = q.match(/^(?:look at (?:my|the) screen and |on my screen,? )(.{3,})$/); if (vs) return { vision: 'screen', question: vs[1] };
+    if (/^(what do you see|look at me|what('s| is) in front of (the|your) camera|describe the (room|camera))\??$/.test(q)) return { vision: 'camera', question: 'Describe what the camera sees.' };
+    const dt = q.match(/^(?:on my desktop,? |desktop task:? |do this on (?:my|the) (?:desktop|screen):? )(.{4,})$/); if (dt) return { text: null, actions: [{ type: 'desktop_task', arg: dt[1] }] };
     return null;
   }
   /* offline fallback: answers from live widget data without an LLM */
@@ -210,6 +221,11 @@
     let r = quickRoute(low), llmSnap = null;
     try {
       if (r && r.compare) { r = await compareAll(r.compare); }
+      else if (r && r.briefing) { r = await briefing(); }
+      else if (r && r.audit) { r = await auditSummary(); }
+      else if (r && r.schedules) { r = await listSchedules(); }
+      else if (r && r.docs) { r = await docsAnswer(r.docs); }
+      else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
       else if (!r) {
         if (brain.online) {
           llmSnap = brain.cfg.sysAccess ? widgets.snapshot() : null;
@@ -239,6 +255,82 @@
     const good = res.filter(x => x.reply);
     return { text: good.map(x => `${brain.PROVIDERS[x.id].label.split(' — ')[0]} says: ${x.reply}`).join(' ') || 'Every provider failed.' };
   }
+  async function briefing() {
+    const d = widgets.data, parts = [];
+    if (d.weather && d.weather.temp !== '--') parts.push(`${d.weather.temp} degrees and ${String(d.weather.cond).toLowerCase()}, high of ${d.weather.hi}.`);
+    const nxt = d.agenda.find(e => e.next); parts.push(d.agenda.length ? `${d.agenda.length} events today${nxt ? ', next is ' + nxt.title + ' at ' + nxt.time : ''}.` : 'Nothing on the calendar.');
+    const open = d.tasks.filter(t => !t.done); parts.push(open.length ? `${open.length} open task${open.length > 1 ? 's' : ''}, starting with ${open[0].label}.` : 'No open tasks.');
+    const unread = d.inbox.filter(m => m.unread); if (unread.length) parts.push(`${unread.length} unread mail${unread[0].flagged ? ', one flagged from ' + unread[0].from : ''}.`);
+    parts.push(`System: CPU ${Math.round(d.tel.cpu)} percent, memory ${Math.round(d.tel.mem)} percent${d.security && d.security.level === 'HIGH' ? ', and a security alert is open' : ''}.`);
+    const raw = parts.join(' ');
+    if (brain.online) { try { const out = await brain.ask(`Give ${brain.user.name} a spoken briefing from these facts, in 3-4 sentences, warm and concise:\n${raw}`, widgets.snapshot()); return { text: out.reply, focus: 'cal' }; } catch (e) { } }
+    return { text: `Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${brain.user.name}. ${raw}`, focus: 'cal' };
+  }
+  async function auditSummary() {
+    try {
+      const since = new Date(); since.setHours(0, 0, 0, 0);
+      const d = await (await fetch(`${ACTION_URL.replace('/action', '')}/audit?n=40&since=${since.getTime() / 1000}`)).json();
+      const e = d.entries || [];
+      e.slice(-8).forEach(x => widgets.pushTty(`${new Date(x.t * 1000).toTimeString().slice(0, 5)} ${x.type} ${x.arg || ''} ${x.ok ? '✓' : '✗'}`, x.ok ? '#a9cfe0' : '#ff3d6e'));
+      if (!e.length) return { text: 'No actions on the PC today yet.', focus: 'tty' };
+      const counts = {}; e.forEach(x => counts[x.type] = (counts[x.type] || 0) + 1);
+      return { text: `${e.length} action${e.length > 1 ? 's' : ''} today: ${Object.entries(counts).map(([k, v]) => `${k.replace(/_/g, ' ')}${v > 1 ? ' ×' + v : ''}`).join(', ')}.`, focus: 'tty' };
+    } catch (e) { return { text: 'The action service is offline, so there is no audit log to read.' }; }
+  }
+  async function listSchedules() {
+    try {
+      const d = await (await fetch(ADDONS + '/schedules')).json(); const sc = d.schedules || [];
+      sc.forEach(x => widgets.pushTty(`⏰ ${x.name}${x.enabled === false ? ' (off)' : ''}`, '#a07cff'));
+      return { text: sc.length ? `${sc.length} schedule${sc.length > 1 ? 's' : ''}: ${sc.map(x => x.name).join('; ')}.` : 'Nothing scheduled. Try "every day at 8 am say good morning".', focus: 'tty' };
+    } catch (e) { return { text: 'Add-ons service offline, no schedules available.' }; }
+  }
+  async function docsAnswer(query) {
+    try {
+      const d = await (await fetch(`${ADDONS}/docs/search?q=${encodeURIComponent(query)}&k=4`)).json();
+      if (!d.dir) return { text: 'Set a documents folder in the control panel first.' };
+      if (!d.hits.length) return { text: `Nothing in your documents matches ${query}.` };
+      d.hits.forEach(h => widgets.pushTty(`📄 ${h.name}`, '#a9cfe0'));
+      if (brain.online) { try { const ctx = d.hits.map(h => `[${h.name}] ${h.snippet}`).join('\n'); const out = await brain.ask(`Using only these excerpts from ${brain.user.name}'s documents, answer: ${query}\n\n${ctx}`, null); return { text: out.reply, focus: 'tty' }; } catch (e) { } }
+      return { text: `Found ${d.hits.length} match${d.hits.length > 1 ? 'es' : ''}: ${d.hits.map(h => h.name).join(', ')}. Top excerpt: ${d.hits[0].snippet.slice(0, 160)}`, focus: 'tty' };
+    } catch (e) { return { text: 'Add-ons service offline, document search unavailable.' }; }
+  }
+  async function grabImage(kind) {
+    /* returns {b64, mime}; screen via the action server, else via the browser's screen share prompt */
+    try {
+      const r = await fetch(ACTION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: kind === 'camera' ? 'camera_frame' : 'screenshot', arg: '' }) });
+      const d = await r.json();
+      if (d.ok && d.path) { const img = await (await fetch(`${ACTION_URL.replace('/action', '')}/file?path=${encodeURIComponent(d.path)}`)).blob(); return { b64: await blobB64(img), mime: img.type || 'image/png' }; }
+      if (kind === 'camera') throw new Error(d.error || 'no camera');
+    } catch (e) { if (kind === 'camera') { const v = document.getElementById('camVid'); if (v && v.videoWidth) return canvasB64(v); throw e; } }
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    const v = document.createElement('video'); v.srcObject = stream; await v.play(); await new Promise(r => setTimeout(r, 300));
+    const out = canvasB64(v); stream.getTracks().forEach(t => t.stop()); return out;
+  }
+  function canvasB64(v) { const c = document.createElement('canvas'); c.width = Math.min(1600, v.videoWidth); c.height = Math.round(v.videoHeight * c.width / v.videoWidth); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); return { b64: c.toDataURL('image/jpeg', .8).split(',')[1], mime: 'image/jpeg' }; }
+  function blobB64(blob) { return new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); }); }
+  async function visionAnswer(kind, question) {
+    try { setMode('thinking'); const img = await grabImage(kind); widgets.pushTty(`vision · ${kind} · ${Math.round(img.b64.length * 3 / 4 / 1024)} KB`, '#a07cff'); const text = await brain.askVision(question, img.b64, img.mime); brain.remember(question, text); return { text, focus: kind === 'camera' ? 'cam' : null }; }
+    catch (e) { log('warn', `vision · ${String(e.message).slice(0, 70)}`); return { text: /no vision/.test(e.message) ? 'No vision-capable brain is configured. Add OpenAI, Claude, Gemini or an Ollama vision model.' : 'I could not get an image to look at.' }; }
+  }
+  /* desktop agent: screenshot -> vision model -> one mouse/keyboard step, repeat */
+  async function desktopTask(goal) {
+    if (!brain.cfg.actions) { say('System control is off, so I cannot drive the desktop.', null); return; }
+    const steps = []; let n = 0; S.desktopCancel = false;
+    toast(`DESKTOP TASK: ${goal.slice(0, 40)} — press CANCEL to stop`, () => { });
+    while (n++ < 12 && !S.desktopCancel) {
+      let img; try { img = await grabImage('screen'); } catch (e) { say('I cannot see the screen, so I will stop.', null); return; }
+      const prompt = `Goal: ${goal}\nSteps so far: ${steps.join('; ') || 'none'}\nLook at the screenshot (${1600}px wide, coordinates scale to the real screen). Reply with ONLY JSON: {"action": "click|double|right|type|key|scroll|done", "x": 0, "y": 0, "text": "", "key": "", "amount": -3, "say": "one short sentence"}. Use "done" when the goal is reached or impossible.`;
+      let st; try { const raw = await brain.askVision(prompt, img.b64, img.mime); const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); st = JSON.parse(raw.slice(a, b + 1)); } catch (e) { log('warn', 'desktop agent: bad step from the model'); break; }
+      widgets.pushTty(`desktop ${n}: ${st.action} ${st.text || st.key || (st.x != null ? st.x + ',' + st.y : '')}`, '#a07cff');
+      if (st.say) voice.speak(st.say);
+      if (st.action === 'done') { steps.push('done'); break; }
+      const r = await fetch(ACTION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'desktop_step', arg: JSON.stringify(st), confirm: true }) });
+      const d = await r.json(); if (!d.ok) { log('warn', `desktop step failed · ${d.error}`); break; }
+      steps.push(`${st.action} ${st.text || st.key || ''}`.trim()); await new Promise(r => setTimeout(r, 1200));
+    }
+    $('toast').classList.add('hidden');
+    say(S.desktopCancel ? 'Desktop task cancelled.' : `Desktop task finished after ${steps.length} step${steps.length === 1 ? '' : 's'}.`, 'tty');
+  }
   async function runAction(a) {
     const type = String(a.type || '').toLowerCase(), arg = String(a.arg ?? '').trim();
     if (!brain.cfg.actions && !['remember', 'forget', 'shape', 'layout', 'timer_start', 'timer_stop', 'task_add', 'task_done', 'home_set'].includes(type)) { log('warn', `action ${type} blocked · SYSTEM CONTROL is off`); return null; }
@@ -256,6 +348,17 @@
         case 'reboot': T(boot, 1500); return null;
         case 'alert_demo': T(() => showAlert({ level: 'HIGH', title: 'Demo alert', source: '203.0.113.9 · unknown host', vector: 'SSH · 3 failed attempts', asset: 'login service', demo: true }), 1200); return null;
         case 'research': case 'agent_task': { agentDelegate(type === 'research' ? 'search' : 'work', arg); return null; }
+        case 'schedule_add': { const d = await (await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', text: arg }) })).json(); if (!d.ok) { log('warn', d.error); return 'I could not understand that schedule. Try "every day at 8 am say good morning".'; } widgets.pushTty(`⏰ scheduled: ${d.added.name}`, '#a07cff'); return `Scheduled: ${d.added.name}.`; }
+        case 'routine_run': { const d = await (await fetch(ADDONS + '/routines')).json(); const cmds = (d.routines || {})[arg.toLowerCase().trim()]; if (!cmds) return `No routine called ${arg}.`; widgets.pushTty(`routine ${arg}: ${cmds.length} steps`, '#a07cff'); S.routineQueue = cmds.slice(); T(runRoutineQueue, 300); return `Running ${arg}.`; }
+        case 'search_docs': { const r2 = await docsAnswer(arg); return r2.text; }
+        case 'send_email': { const m = arg.split('|').map(x => x.trim()); if (m.length < 3) return 'Say the mail as: to, subject, body.'; if (!a.confirm) { S.pendingConfirm = { type: 'send_email', arg }; toast(`SEND MAIL to ${m[0]} — confirm?`, () => submit('confirm')); return `Mail to ${m[0]} is ready. Say confirm to send.`; } const d = await (await fetch(ADDONS + '/mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: m[0], subject: m[1], body: m.slice(2).join(' | '), confirm: true }) })).json(); return d.ok ? d.did : `Mail failed: ${d.error}`; }
+        case 'look_at_screen': { const r2 = await visionAnswer('screen', arg || 'Describe what is on the screen.'); return r2.text; }
+        case 'look_at_camera': { const r2 = await visionAnswer('camera', arg || 'Describe what the camera sees.'); return r2.text; }
+        case 'desktop_task': { T(() => desktopTask(arg), 1500); return null; }
+        case 'browse_open': case 'browse_read': case 'browse_click': case 'browse_type': case 'browse_find': case 'browse_back': case 'browse_screenshot': {
+          try { const d = await (await fetch('http://localhost:9600/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: type.slice(7), arg }) })).json(); widgets.pushTty(`browser ${type.slice(7)} → ${d.ok ? 'ok' : d.error}`, d.ok ? '#2ee6ff' : '#ff3d6e'); if (d.ok && d.text && brain.online && type === 'browse_read') { const out = await brain.ask(`Summarise this web page for ${brain.user.name} in 2-3 spoken sentences (title: ${d.title}):\n${d.text.slice(0, 6000)}`, null); return out.reply; } return d.ok ? (d.did || d.title || 'Done.') : `Browser: ${d.error}`; }
+          catch (e) { return 'The browser agent is not running. Start it from the control panel.'; }
+        }
         case 'play_music': { if (widgets.data.music.live && widgets.music('find', arg)) return null; widgets.data.music.queryTitle = arg; widgets.data.music.now.playing = true; widgets.render('mus'); break; }
         case 'music_play': widgets.music('play'); return null; case 'music_pause': widgets.music('pause'); return null;
         case 'music_next': widgets.music('next'); return null; case 'music_prev': widgets.music('prev'); return null;
@@ -266,6 +369,19 @@
       if (d.ok) { widgets.pushTty(`${type}${arg ? ' ' + arg.slice(0, 30) : ''} → ok`, '#2ee6ff'); return d.text || null; }
       widgets.pushTty(`${type} → ${d.error}`, '#ff3d6e'); return null;
     } catch (e) { log('warn', `action ${type} · action server offline (:9300)`); return null; }
+  }
+  async function runRoutineQueue() { const cmd = S.routineQueue && S.routineQueue.shift(); if (!cmd) return; await submit(cmd); const wait = setInterval(() => { if (S.mode !== 'speaking' && S.mode !== 'thinking') { clearInterval(wait); T(runRoutineQueue, 600); } }, 400); }
+  /* proactive events from the add-ons scheduler and watch */
+  let eventsSince = Date.now() / 1000;
+  async function pollEvents() {
+    try {
+      const d = await (await fetch(`${ADDONS}/events?since=${eventsSince}`)).json(); eventsSince = d.now || eventsSince;
+      for (const e of d.events || []) {
+        if (S.mode === 'thinking') continue;
+        if (e.kind === 'command') { widgets.pushTty(`⏰ ${e.source}: ${e.text}`, '#a07cff'); await submit(e.text); }
+        else { widgets.pushTty(`${e.kind === 'alert' ? '⚠' : '⏰'} ${e.text}`, e.kind === 'alert' ? '#ff3d6e' : '#a07cff'); say(e.text, e.kind === 'alert' ? 'sys' : null); }
+      }
+    } catch (err) { }
   }
   async function agentDelegate(mode, arg) {
     const agent = brain.preferredAgent() || (await brain.agentPing(), brain.preferredAgent());
@@ -338,6 +454,9 @@
       <select id="optStrategy"><option value="failover"${b.pool.strategy === 'failover' ? ' selected' : ''}>FAILOVER — FIRST THAT ANSWERS</option><option value="roundrobin"${b.pool.strategy === 'roundrobin' ? ' selected' : ''}>ROUND ROBIN — ROTATE EACH TURN</option></select>
       <input type="text" id="optPool" value="${esc(b.pool.order.join(', '))}" placeholder="ORDER: ollama, groq, claude, openai…" spellcheck="false">
       <div class="note">Only configured providers are used. Say <b>"ask all: question"</b> to compare every configured provider at once.</div>
+      <h4>TASK ROUTING</h4>
+      ${['chat', 'work', 'research', 'vision'].map(role => `<select id="role_${role}"><option value="">${role.toUpperCase()}: SAME AS MAIN</option>${Object.entries(brain.PROVIDERS).map(([id, x]) => `<option value="${id}"${(b.roles || {})[role] === id ? ' selected' : ''}>${role.toUpperCase()}: ${x.label}</option>`).join('')}</select>`).join('')}
+      <div class="note">Chat = quick questions · work = writing and code · research = live information · vision = "what is on my screen".</div>
       <h4>VOICE</h4>
       <select id="optVoice">${(voiceList.length ? voiceList : [{ id: v.neuralVoice, label: v.neuralVoice }]).map(x => `<option value="${esc(x.id)}"${x.id === v.neuralVoice ? ' selected' : ''}>NEURAL: ${esc(x.label)}</option>`).join('')}</select>
       <div class="row"><span>SPEED <em id="rateVal">${v.rate.toFixed(1)}</em></span><input type="range" id="optRate" min="0.5" max="2" step="0.1" value="${v.rate}"></div>
@@ -353,6 +472,8 @@
       <h4>ADD-ONS · PINNED TO HUD</h4>
       <div class="addons">${W.map(w => `<div class="row"><span><b>${w.code}</b>${w.name}</span>${sw('pin:' + w.id, !!S.pinned[w.id])}</div>`).join('')}</div>
       <div class="note">Unpinned add-ons dock into their ring node. Click the node or ask for them by voice to summon.</div>
+      <h4>THEME</h4>
+      <select id="optTheme">${Object.keys(THEMES).map(t => `<option value="${t}"${S.theme === t ? ' selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select>
       <h4>LAYOUT</h4>
       <div class="lbtns"><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
       <div class="row"><span>PARALLAX DEPTH</span>${sw('parallax', S.parallax)}</div>
@@ -362,6 +483,7 @@
       <div class="half"><input type="text" id="optName" value="${esc((cfgU.user || {}).name || 'Boss')}" placeholder="YOUR NAME"><input type="text" id="optNode" value="${esc((cfgU.user || {}).node || 'LOCAL-01')}" placeholder="NODE"></div>
       <div class="half"><input type="number" id="optLat" step="0.0001" value="${(cfgU.location || {}).lat || ''}" placeholder="LAT"><input type="number" id="optLon" step="0.0001" value="${(cfgU.location || {}).lon || ''}" placeholder="LON"></div>
       <input type="text" id="optLabel" value="${esc((cfgU.location || {}).label || '')}" placeholder="CITY LABEL (e.g. BLR)">
+      <input type="text" id="optDocs" value="${esc(((cfgU.widgets || {}).documents || {}).dir || '')}" placeholder="DOCUMENTS FOLDER (for 'search my documents')">
       <div class="dbtn" id="saveYou">SAVE TO CONFIG</div>
       <div class="note">Name and location are stored in config.json by the add-ons service and drive the weather and position widgets. Control panel: <b>http://localhost:9000</b></div>`;
     $('drawerX').onclick = () => toggleDrawer(false);
@@ -370,6 +492,9 @@
     bindText('optUrl', v2 => { b.urls[b.provider] = v2.replace(/\/$/, ''); }); bindText('optKey', v2 => { b.keys[b.provider] = v2; }); bindText('optModel', v2 => { b.models[b.provider] = v2; });
     if ($('optModelSel')) $('optModelSel').onchange = e => { if (e.target.value) { b.models[b.provider] = e.target.value; $('optModel').value = e.target.value; save(); pill(); } };
     $('optStrategy').onchange = e => { b.pool.strategy = e.target.value; save(); };
+    b.roles = b.roles || { chat: '', work: '', research: '', vision: '' };
+    ['chat', 'work', 'research', 'vision'].forEach(role => { $('role_' + role).onchange = e => { b.roles[role] = e.target.value; save(); }; });
+    $('optTheme').onchange = e => { applyTheme(e.target.value); save(); };
     $('optPool').onchange = e => { b.pool.order = e.target.value.split(/[,\s]+/).map(x => x.trim().toLowerCase()).filter(x => brain.PROVIDERS[x]); e.target.value = b.pool.order.join(', '); save(); };
     $('optVoice').onchange = e => { v.neuralVoice = e.target.value; save(); };
     $('optRate').oninput = e => { v.rate = +e.target.value; $('rateVal').textContent = v.rate.toFixed(1); save(); };
@@ -379,7 +504,7 @@
     $('optHumor').oninput = e => { b.humor = +e.target.value; $('humorVal').textContent = b.humor; save(); };
     $('voiceTest').onclick = () => say(`Voice check. This is ${v.neuralVoice.split('-')[2] || 'the neural voice'}, standing by, ${brain.user.name}.`, undefined, { quick: true });
     $('micTest').onclick = () => window.open('voice-test.html', '_blank');
-    $('saveYou').onclick = async () => { try { const r = await fetch(ADDONS + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: { name: $('optName').value.trim() || 'Boss', node: $('optNode').value.trim() || 'LOCAL-01' }, location: { lat: +$('optLat').value || 0, lon: +$('optLon').value || 0, label: $('optLabel').value.trim() } }) }); if (!r.ok) throw 0; await loadConfig(); widgets.pollAddons('weather'); widgets.pollAddons('position'); log('ok', 'config saved'); } catch (e) { log('warn', 'add-ons service offline · config not saved'); } };
+    $('saveYou').onclick = async () => { try { const r = await fetch(ADDONS + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: { name: $('optName').value.trim() || 'Boss', node: $('optNode').value.trim() || 'LOCAL-01' }, location: { lat: +$('optLat').value || 0, lon: +$('optLon').value || 0, label: $('optLabel').value.trim() }, widgets: { documents: { dir: $('optDocs').value.trim() } } }) }); if (!r.ok) throw 0; await loadConfig(); widgets.pollAddons('weather'); widgets.pollAddons('position'); log('ok', 'config saved'); } catch (e) { log('warn', 'add-ons service offline · config not saved'); } };
     d.querySelectorAll('.sbtn.lay').forEach(el => el.onclick = () => { S.layout = el.dataset.l; S.focus = null; save(); applyLayout(); renderDrawer(); });
     d.querySelectorAll('.sw').forEach(el => el.onclick = () => {
       const k = el.dataset.sw, on = !el.classList.contains('on'); el.classList.toggle('on', on);
@@ -391,6 +516,8 @@
       save();
     });
   }
+  const THEMES = { arc: ['46,230,255', '160,124,255', '217,248,255'], ember: ['255,106,61', '255,181,71', '255,227,214'], gold: ['255,194,77', '46,230,255', '255,233,194'], matrix: ['61,255,160', '160,255,124', '214,255,233'], ice: ['142,197,255', '195,166,255', '240,247,255'] };
+  function applyTheme(name) { const t = THEMES[name] || THEMES.arc; S.theme = THEMES[name] ? name : 'arc'; document.documentElement.dataset.theme = S.theme; core.setTheme(t[0], t[1], t[2]); }
   function toggleDrawer(open) { S.drawer = open === undefined ? !S.drawer : open; $('drawer').classList.toggle('hidden', !S.drawer); if (S.drawer) renderDrawer(); }
   function pill() { const p = brain.P(brain.cfg.provider); $('pillProvider').textContent = (brain.online ? '' : 'OFFLINE · ') + p.label.split(' — ')[0].replace(' (NO KEY)', ''); }
   async function loadConfig() { const c = await widgets.pollAddons('config'); if (c) { brain.user = { name: (c.user || {}).name || 'Boss', node: (c.user || {}).node || 'LOCAL-01', label: (c.location || {}).label || '' }; $('nodeText').textContent = brain.user.node; widgets.render('tty'); } }
@@ -434,10 +561,13 @@
     tickClock(); setInterval(tickClock, 1000); blinkLoop(); eyes();
     widgets.startPolling(); loadConfig().then(() => { brain.loadMemory(); });
     brain.agentPing().then(() => brain.ping().then(pill)); setInterval(() => brain.ping().then(pill), 30000);
+    setInterval(pollEvents, 10000);
+    fetch(ACTION_URL.replace('/action', '') + '/actions').then(r => r.json()).then(d => { brain.extraActions = d.plugins || []; if (brain.extraActions.length) log('ok', `${brain.extraActions.length} plugin tool(s) loaded`); }).catch(() => { });
+    applyTheme(S.theme || 'arc');
     setTimeout(renderTicker, 1500);
     if (voice.cfg.wake) T(() => voice.start(), 4000);
     boot();
   }
-  SAM.hud = { S, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert };
+  SAM.hud = { S, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask };
   init();
 })(window.SAM);

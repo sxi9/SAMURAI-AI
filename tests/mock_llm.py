@@ -38,8 +38,14 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0)); req = json.loads(self.rfile.read(n) or b"{}")
-        user = next((m["content"] for m in reversed(req.get("messages", [])) if m["role"] == "user"), "")
-        text = json.dumps(reply_for(user))
+        last = next((m["content"] for m in reversed(req.get("messages", [])) if m["role"] == "user"), "")
+        if isinstance(last, list):                       # vision request: text + image parts
+            user = " ".join(p.get("text", "") for p in last if p.get("type") == "text")
+            has_img = any(p.get("type") == "image_url" for p in last)
+            text = f"I can see the image you sent ({'screenshot' if has_img else 'no image'}). It shows a dark interface with glowing elements. {user[:40]}"
+        else:
+            user = last
+            text = json.dumps(reply_for(user))
         if req.get("stream"):
             self.send_response(200); self._cors(); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
             for i in range(0, len(text), 6):

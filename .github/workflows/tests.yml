@@ -1,0 +1,40 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install (non-interactive)
+        run: python install.py --yes --no-shortcut
+      - name: Start services
+        run: |
+          nohup .venv/bin/python servers/samurai_panel.py --autostart --no-browser > panel.log 2>&1 &
+          for i in $(seq 1 60); do
+            up=$(curl -s -H 'Origin: http://localhost:9000' localhost:9000/panel/status | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(s['state']=='ok' for s in d['services']))" 2>/dev/null || echo 0)
+            [ "$up" -ge 7 ] && break; sleep 2
+          done
+          echo "services up: $up"
+      - name: Smoke test
+        run: .venv/bin/python tests/smoke_sidecars.py
+      - name: Voice end-to-end (needs the Edge TTS endpoint)
+        continue-on-error: true
+        run: .venv/bin/python tests/voice_e2e.py
+      - name: Syntax check scripts
+        run: |
+          for f in app/js/*.js; do node --check "$f"; done
+          .venv/bin/python -m py_compile servers/*.py install.py tests/*.py
+      - name: Logs on failure
+        if: failure()
+        run: tail -n 50 logs/*.log panel.log || true

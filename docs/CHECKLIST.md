@@ -68,6 +68,33 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Headless Claude Code: chat with memory, live web search, file task in `workspace/`
 - [x] Interface boots with live telemetry; headless provider routes search queries
 
+## Stage 7 — Automation and knowledge
+
+- [x] Scheduler: "every day at 8 say …", "every 30 minutes …", "remind me at 5 pm to …" (add-ons, persisted)
+- [x] Routines: named command lists ("focus mode", "good night"), editable
+- [x] Briefings: "morning briefing" narrates weather, agenda, tasks, inbox, system
+- [x] Proactive alerts: CPU temperature, disk full, battery low, meeting in 5 minutes, spoken unprompted
+- [x] Audit log of every action + "what did you do today"; per-action allow/deny lists
+- [x] Plugin system: drop a Python file into plugins/ to add tools the brain can call
+- [x] Task routing: separate providers for chat, work and research
+- [x] Document search over a folder (txt, md, pdf, code), results fed to the brain
+- [x] Colour themes
+
+## Stage 8 — Sight and hands
+
+- [x] Vision: "what is on my screen" / "what do you see" through vision-capable providers
+- [x] Browser agent sidecar (Playwright): open, read, click, type, find, screenshot; chained by the brain
+- [x] Desktop agent loop: screenshot → vision model → click / type / key, step by step with a cancel toast (code complete; needs a real desktop to verify)
+- [x] Mouse control actions (click, move, scroll) on Windows, Linux, macOS (needs a desktop to verify)
+- [x] Send email (SMTP) with confirmation (code complete; needs a mail account to verify)
+- [x] Secrets in the OS keychain when the keyring package is present
+- [x] System tray app (pystray, untested here), CI workflow running the tests
+
+## Stage 9 — Walkthrough
+
+- [ ] Recorded walkthrough video (mp4 + gif) of the HUD and control panel
+- [ ] docs/WALKTHROUGH.md with labeled step screenshots
+
 ## Not verified in this build (needs a real desktop)
 
 - Windows-specific paths: Startup-folder autostart, PowerShell volume/brightness/screenshot, `start` app launcher

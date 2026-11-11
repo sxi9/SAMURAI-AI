@@ -10,11 +10,11 @@ Levels:
            run_command only runs entries from config.json "actions.commands" (name -> command line)
 Run: python samurai_action_server.py
 """
-import json, os, re, shutil, subprocess, sys, time, urllib.parse, urllib.request, webbrowser
+import glob, importlib.util, json, os, re, shutil, subprocess, sys, time, urllib.parse, urllib.request, webbrowser
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import JSONHandler, NOWIN, IS_WIN, IS_MAC, PORTS, ROOT, load_config
+from samurai_common import JSONHandler, NOWIN, IS_WIN, IS_MAC, PORTS, ROOT, DATA, load_config
 
 PORT = PORTS["actions"]
 SHOTS = os.path.join(ROOT, "data", "screenshots")
@@ -49,7 +49,52 @@ APPS_MAC = {
     "notepad": "TextEdit", "music": "Music", "vlc": "VLC", "discord": "Discord", "youtube": "https://www.youtube.com",
 }
 APPS = APPS_WIN if IS_WIN else (APPS_MAC if IS_MAC else APPS_LINUX)
-POWER_ACTIONS = {"sleep", "shutdown", "restart", "kill_process", "run_command"}
+POWER_ACTIONS = {"sleep", "shutdown", "restart", "kill_process", "run_command", "desktop_step"}
+AUDIT_PATH = os.path.join(DATA, "audit.jsonl")
+PLUGINS = {}          # tool type -> {"run": fn, "description": str, "plugin": name}
+
+
+def load_plugins():
+    """plugins/*.py each define PLUGIN = {"name", "description", "tools": [{"type", "description", "run": fn(arg) -> str}]}"""
+    PLUGINS.clear()
+    for path in sorted(glob.glob(os.path.join(ROOT, "plugins", "*.py"))):
+        if os.path.basename(path).startswith("_"):
+            continue
+        try:
+            spec = importlib.util.spec_from_file_location("samurai_plugin_" + os.path.basename(path)[:-3], path)
+            mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+            pl = getattr(mod, "PLUGIN", None)
+            for t in (pl or {}).get("tools", []):
+                if t.get("type") and callable(t.get("run")):
+                    PLUGINS[t["type"]] = {"run": t["run"], "description": t.get("description", ""), "plugin": pl.get("name", os.path.basename(path))}
+            print(f"[SAMURAI-ACT] plugin {pl.get('name') if pl else path}: {len((pl or {}).get('tools', []))} tool(s)")
+        except Exception as e:
+            print(f"[SAMURAI-ACT] plugin {path} failed: {e}")
+
+
+def audit(atype, arg, ok, result):
+    try:
+        os.makedirs(DATA, exist_ok=True)
+        with open(AUDIT_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": time.time(), "type": atype, "arg": (arg or "")[:200], "ok": bool(ok), "result": str(result)[:200]}) + "\n")
+    except OSError:
+        pass
+
+
+def read_audit(n=50, since=0):
+    out = []
+    try:
+        with open(AUDIT_PATH, encoding="utf-8") as f:
+            for line in f.readlines()[-max(n, 1) * 4:]:
+                try:
+                    e = json.loads(line)
+                    if e["t"] >= since:
+                        out.append(e)
+                except ValueError:
+                    pass
+    except OSError:
+        pass
+    return out[-n:]
 
 
 def sh(cmd, timeout=15, check=False):
@@ -313,13 +358,54 @@ def run_named_command(name):
     return (r.stdout or r.stderr or "").strip()[-400:]
 
 
+def mouse(cmd, x=None, y=None, button="left", amount=0):
+    if IS_WIN:
+        import ctypes
+        u = ctypes.windll.user32
+        if cmd in ("move", "click", "double") and x is not None:
+            u.SetCursorPos(int(x), int(y))
+        if cmd in ("click", "double"):
+            down, up = (0x0002, 0x0004) if button == "left" else (0x0008, 0x0010)
+            for _ in range(2 if cmd == "double" else 1):
+                u.mouse_event(down, 0, 0, 0, 0); u.mouse_event(up, 0, 0, 0, 0)
+        if cmd == "scroll":
+            u.mouse_event(0x0800, 0, 0, int(amount) * 120, 0)
+    elif IS_MAC:
+        if not shutil.which("cliclick"):
+            raise ValueError("brew install cliclick for mouse control")
+        if cmd == "move":
+            sh(["cliclick", f"m:{int(x)},{int(y)}"])
+        elif cmd == "click":
+            sh(["cliclick", f"{'rc' if button == 'right' else 'c'}:{int(x)},{int(y)}"])
+        elif cmd == "double":
+            sh(["cliclick", f"dc:{int(x)},{int(y)}"])
+        elif cmd == "scroll":
+            sh(["osascript", "-e", f'tell application "System Events" to scroll {"up" if amount > 0 else "down"} {abs(int(amount))}'])
+    else:
+        if not shutil.which("xdotool"):
+            raise ValueError("install xdotool for mouse control")
+        if cmd in ("move", "click", "double") and x is not None:
+            sh(["xdotool", "mousemove", str(int(x)), str(int(y))])
+        if cmd == "click":
+            sh(["xdotool", "click", "3" if button == "right" else "1"])
+        if cmd == "double":
+            sh(["xdotool", "click", "--repeat", "2", "1"])
+        if cmd == "scroll":
+            sh(["xdotool", "click", "--repeat", str(abs(int(amount))), "4" if amount > 0 else "5"])
+
+
 # ----------------------------------------------------------------------------- dispatcher
 def do_action(atype, arg, confirm=False):
     arg = (arg or "").strip()
     cfg = load_config()
-    if atype in POWER_ACTIONS and not confirm:
+    acfg = cfg.get("actions", {})
+    if atype in acfg.get("deny", []):
+        raise ValueError(f"'{atype}' is blocked by actions.deny in config.json")
+    if atype in POWER_ACTIONS and atype not in acfg.get("no_confirm", []) and not confirm:
         return {"ok": False, "needs_confirm": True,
                 "error": f"'{atype}' needs confirmation — say it again with 'confirm' or press CONFIRM"}
+    if atype in PLUGINS:
+        return {"ok": True, "did": str(PLUGINS[atype]["run"](arg))[:1000], "plugin": PLUGINS[atype]["plugin"]}
     if atype == "open_url":
         if not arg.startswith(("http://", "https://")):
             arg = "https://" + arg
@@ -359,7 +445,9 @@ def do_action(atype, arg, confirm=False):
     if atype == "brightness":
         brightness(arg or 70); return f"Brightness {arg}%"
     if atype == "screenshot":
-        return f"Screenshot saved to {screenshot()}"
+        return {"ok": True, "did": "Screenshot taken", "path": screenshot()}
+    if atype == "camera_frame":
+        return {"ok": True, "did": "Camera frame captured", "path": camera_frame()}
     if atype == "clipboard_get":
         return {"ok": True, "did": "Clipboard read", "text": clipboard_get()[:4000]}
     if atype == "clipboard_set":
@@ -376,30 +464,94 @@ def do_action(atype, arg, confirm=False):
         return f"Terminated {kill_process(arg)} process(es) named {arg}"
     if atype == "run_command":
         return f"Ran {arg}: {run_named_command(arg)}"
+    if atype in ("mouse_click", "mouse_move", "mouse_double", "mouse_right"):
+        m = re.match(r"\s*(\d+)\s*[, ]\s*(\d+)", arg)
+        if not m:
+            raise ValueError("arg must be 'x,y'")
+        mouse({"mouse_click": "click", "mouse_move": "move", "mouse_double": "double", "mouse_right": "click"}[atype], int(m.group(1)), int(m.group(2)),
+              "right" if atype == "mouse_right" else "left")
+        return f"{atype.replace('_', ' ')} at {m.group(1)},{m.group(2)}"
+    if atype == "scroll":
+        mouse("scroll", amount=int(arg or -3)); return f"Scrolled {arg or -3}"
+    if atype == "desktop_step":
+        # one step of the desktop agent: arg is JSON {"action": "click|double|right|type|key|scroll|move", "x", "y", "text", "key", "amount"}
+        st = json.loads(arg or "{}"); a = st.get("action")
+        if a in ("click", "double", "right", "move"):
+            mouse("click" if a == "right" else a, st.get("x"), st.get("y"), "right" if a == "right" else "left")
+        elif a == "type":
+            type_text(str(st.get("text", "")))
+        elif a == "key":
+            hotkey(str(st.get("key", "")))
+        elif a == "scroll":
+            mouse("scroll", amount=int(st.get("amount", -3)))
+        else:
+            raise ValueError("unknown desktop step")
+        return f"desktop {a} done"
     raise ValueError(f"unknown action '{atype}'")
 
 
 def post_action(h, q, body):
-    res = do_action(body.get("type", ""), body.get("arg", ""), bool(body.get("confirm")))
+    atype, arg = body.get("type", ""), body.get("arg", "")
+    try:
+        res = do_action(atype, arg, bool(body.get("confirm")))
+    except Exception as e:
+        audit(atype, arg, False, str(e)); raise
     if isinstance(res, dict):
+        if not res.get("needs_confirm"):
+            audit(atype, arg, res.get("ok", True), res.get("did") or res.get("error"))
         return res
+    audit(atype, arg, True, res)
     print(f"[SAMURAI-ACT] {res}")
     return {"ok": True, "did": res}
+
+
+def get_audit(h, q, body):
+    return {"ok": True, "entries": read_audit(int(q.get("n", 50)), float(q.get("since", 0) or 0))}
+
+
+def get_file(h, q, body):
+    """Serve a screenshot or camera frame back to the HUD (only from data/screenshots and data/camera)."""
+    p = os.path.abspath(q.get("path", ""))
+    allowed = [os.path.join(DATA, "screenshots"), os.path.join(DATA, "camera")]
+    if not any(p.startswith(a + os.sep) for a in allowed) or not os.path.exists(p):
+        raise ValueError("not allowed")
+    with open(p, "rb") as f:
+        h.send_bytes(f.read(), "image/png" if p.lower().endswith(".png") else "image/jpeg", extra={"Cache-Control": "no-store"})
+    return None
+
+
+def camera_frame():
+    """Grab one webcam frame with OpenCV (optional dependency)."""
+    try:
+        import cv2
+    except ImportError:
+        raise ValueError("pip install opencv-python for the camera")
+    d = os.path.join(DATA, "camera"); os.makedirs(d, exist_ok=True)
+    cam = cv2.VideoCapture(0)
+    ok, frame = cam.read(); cam.release()
+    if not ok:
+        raise ValueError("no camera frame")
+    path = os.path.join(d, time.strftime("cam-%Y%m%d-%H%M%S.jpg"))
+    cv2.imwrite(path, frame)
+    return path
 
 
 def get_actions(h, q, body):
     return {"ok": True, "os": sys.platform, "apps": sorted(APPS), "hotkeys": sorted(HOTKEYS),
             "actions": ["open_url", "web_search", "play_music", "open_app", "open_path", "volume_up", "volume_down",
                         "volume_set", "mute", "media_play_pause", "media_next", "media_prev", "media_stop",
-                        "brightness", "screenshot", "clipboard_get", "clipboard_set", "type_text", "hotkey", "lock"],
-            "needs_confirm": sorted(POWER_ACTIONS)}
+                        "brightness", "screenshot", "camera_frame", "clipboard_get", "clipboard_set", "type_text", "hotkey", "lock",
+                        "mouse_click", "mouse_move", "mouse_double", "mouse_right", "scroll"],
+            "needs_confirm": sorted(POWER_ACTIONS), "deny": load_config().get("actions", {}).get("deny", []),
+            "plugins": [{"type": t, "description": v["description"], "plugin": v["plugin"]} for t, v in PLUGINS.items()]}
 
 
 class Handler(JSONHandler):
     TAG = "SAMURAI-ACT"
-    ROUTES = {("POST", "/action"): post_action, ("GET", "/actions"): get_actions}
+    ROUTES = {("POST", "/action"): post_action, ("GET", "/actions"): get_actions, ("GET", "/audit"): get_audit, ("GET", "/file"): get_file}
 
 
 if __name__ == "__main__":
-    print(f"[SAMURAI] Action sidecar on http://localhost:{PORT}/action  ({sys.platform})")
+    load_plugins()
+    print(f"[SAMURAI] Action sidecar on http://localhost:{PORT}/action  ({sys.platform}) · {len(PLUGINS)} plugin tool(s)")
     ThreadingHTTPServer(("localhost", PORT), Handler).serve_forever()

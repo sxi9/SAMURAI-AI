@@ -4,15 +4,18 @@
   "ui": { "origins": ["http://localhost:8080", "http://127.0.0.1:8080"] },
   "widgets": {
     "agenda": { "ics_path": "", "sample": true },
-    "inbox":  { "imap_host": "", "imap_user": "", "imap_password": "", "sample": true },
+    "inbox":  { "imap_host": "", "imap_user": "", "imap_password": "", "smtp_host": "", "sample": true },
     "home":   { "hass_url": "", "hass_token": "", "sample": true },
     "music":  { "library_dir": "", "sample": true },
     "gallery": { "dir": "gallery" },
+    "documents": { "dir": "" },
     "camera": { "url": "" },
     "position": { "nearby": [ { "name": "OFFICE", "km": 4.2, "bearing": 40 },
                               { "name": "AIRPORT", "km": 31, "bearing": 225 } ] }
   },
   "agent": { "allow_bash": false },
+  "actions": { "apps": {}, "commands": {}, "deny": [], "no_confirm": [] },
+  "browser": { "headless": true },
   "voice": { "vad": true, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge" },
   "autostart": false
 }

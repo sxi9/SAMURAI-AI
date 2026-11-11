@@ -15,7 +15,12 @@ CHECKS = [
     ("GET", "http://localhost:9500/home", None, lambda d: "lights" in d.get("state", {})),
     ("GET", "http://localhost:9500/security", None, lambda d: d.get("level") in ("LOW", "MEDIUM", "HIGH")),
     ("GET", "http://localhost:9500/memory", None, lambda d: "facts" in d),
-    ("GET", "http://localhost:9000/panel/status", None, lambda d: len(d.get("services", [])) == 7),
+    ("GET", "http://localhost:9000/panel/status", None, lambda d: len(d.get("services", [])) == 8),
+    ("GET", "http://localhost:9500/schedules", None, lambda d: isinstance(d.get("schedules"), list)),
+    ("GET", "http://localhost:9500/routines", None, lambda d: "focus mode" in d.get("routines", {})),
+    ("GET", "http://localhost:9500/events", None, lambda d: "events" in d),
+    ("GET", "http://localhost:9300/audit", None, lambda d: "entries" in d),
+    ("GET", "http://localhost:9600/browser/status", None, lambda d: "playwright" in d),
 ]
 
 
@@ -40,7 +45,7 @@ def main():
         fails += not good
         print(f"{'PASS' if good else 'FAIL'}  {method} {url} ({code})")
     # origin lock
-    for port in (8765, 9200, 9300, 9400, 9500, 9000):
+    for port in (8765, 9200, 9300, 9400, 9500, 9000, 9600):
         req = urllib.request.Request(f"http://localhost:{port}/", headers={"Origin": "https://evil.example"})
         try:
             urllib.request.urlopen(req, timeout=5); code = 200

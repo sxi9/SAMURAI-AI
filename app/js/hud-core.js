@@ -6,11 +6,12 @@ window.SAM = window.SAM || {};
   const SHAPE_CYCLE = ['sphere', 'galaxy', 'text:SAMURAI', 'heart', 'knot', 'helix', 'cube', 'ring', 'wave'];
   const SHAPE_TILT = { sphere: .3, heart: 0, text: 0, cube: .35, galaxy: .25, helix: .15, knot: .35, ring: .75, wave: .85 };
   const FACING = { heart: 1, text: 1, galaxy: 1 };
-  const CFG = {
-    idle: { amp: 36, base: 22, sp: 1.2, col: '46,230,255' }, listening: { amp: 78, base: 24, sp: 5, col: '217,248,255' },
-    thinking: { amp: 70, base: 18, sp: 3, col: '160,124,255' }, speaking: { amp: 80, base: 22, sp: 4, col: '46,230,255' },
-    alert: { amp: 96, base: 16, sp: 9, col: '255,61,110' }, boot: { amp: 10, base: 10, sp: .5, col: '46,230,255' }
-  };
+  const THEME = { c: '46,230,255', v: '160,124,255', ice: '217,248,255', red: '255,61,110' };
+  const CFG = () => ({
+    idle: { amp: 36, base: 22, sp: 1.2, col: THEME.c }, listening: { amp: 78, base: 24, sp: 5, col: THEME.ice },
+    thinking: { amp: 70, base: 18, sp: 3, col: THEME.v }, speaking: { amp: 80, base: 22, sp: 4, col: THEME.c },
+    alert: { amp: 96, base: 16, sp: 9, col: THEME.red }, boot: { amp: 10, base: 10, sp: .5, col: THEME.c }
+  });
 
   function shapeOf(name) {
     const a = new Float32Array(PN * 3), R = Math.random, set = (i, x, y, z) => { a[i * 3] = x; a[i * 3 + 1] = y; a[i * 3 + 2] = z; };
@@ -36,7 +37,8 @@ window.SAM = window.SAM || {};
   }
 
   const core = {
-    SHAPE_CYCLE, mode: 'boot', shapeName: 'sphere', shapeLock: 0, particles: true, flowStep: 1,
+    SHAPE_CYCLE, THEME, mode: 'boot', shapeName: 'sphere', shapeLock: 0, particles: true, flowStep: 1,
+    setTheme(c, v, ice) { THEME.c = c; THEME.v = v; THEME.ice = ice || '217,248,255'; },
     shapes: {}, morphT: 1, spin: 0, tilt: SHAPE_TILT.sphere, lastTs: 0, raf: 0, canvas: null, ctx: null,
     onShape: null,
     init(canvas) {
@@ -59,7 +61,7 @@ window.SAM = window.SAM || {};
     nextShape(lock) { return this.setShape(SHAPE_CYCLE[(SHAPE_CYCLE.indexOf(this.shapeName) + 1) % SHAPE_CYCLE.length], lock); },
     draw(ts) {
       const x = this.ctx; if (!x) return;
-      const S = 1520, cx = S / 2, cy = S / 2, t = ts / 1000, m = this.mode, cfg = CFG[m] || CFG.idle;
+      const S = 1520, cx = S / 2, cy = S / 2, t = ts / 1000, m = this.mode, C = CFG(), cfg = C[m] || C.idle;
       x.clearRect(0, 0, S, S);
       const g = x.createRadialGradient(cx, cy, 0, cx, cy, 560);
       g.addColorStop(0, `rgba(${cfg.col},.26)`); g.addColorStop(.45, `rgba(${cfg.col},.06)`); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -84,7 +86,7 @@ window.SAM = window.SAM || {};
           const y2 = y0 * ct - z1 * st, z2 = y0 * st + z1 * ct;
           const sc = 1000 / (1000 - z2 * Rp), d = (z2 + 1) / 2;
           const sx = cx + x1 * Rp * sc, sy = cy - y2 * Rp * sc;
-          x.fillStyle = m === 'alert' ? `rgba(255,61,110,${.15 + d * .6})` : m === 'thinking' ? `rgba(160,124,255,${.15 + d * .6})` : z2 > 0 ? `rgba(46,230,255,${.18 + d * .6})` : `rgba(160,124,255,${.1 + d * .35})`;
+          x.fillStyle = m === 'alert' ? `rgba(${THEME.red},${.15 + d * .6})` : m === 'thinking' ? `rgba(${THEME.v},${.15 + d * .6})` : z2 > 0 ? `rgba(${THEME.c},${.18 + d * .6})` : `rgba(${THEME.v},${.1 + d * .35})`;
           x.beginPath(); x.arc(sx, sy, (1.1 + d * 2) * sc, 0, 6.283); x.fill();
         }
         x.globalCompositeOperation = 'source-over';
@@ -106,15 +108,15 @@ window.SAM = window.SAM || {};
       for (let k = 0; k < 2; k++) {
         const a = t * (k ? -.25 : .35) + k * 1.1, rr = R * (1.5 + k * .12);
         x.beginPath(); x.ellipse(cx, cy, rr, rr * .3, a, 0, 6.283);
-        x.strokeStyle = k ? 'rgba(160,124,255,.35)' : 'rgba(46,230,255,.35)'; x.stroke();
+        x.strokeStyle = k ? `rgba(${THEME.v},.35)` : `rgba(${THEME.c},.35)`; x.stroke();
       }
     },
     /* eyes: computed from mode + blink + tick, written as inline styles */
     eyes(elL, elR, mode, blink, tick) {
       for (const [el, L] of [[elL, true], [elR, false]]) {
-        let w = 34, h = 46, rot = 0, tx = 0, ty = 0, color = '#d9f8ff', glow = '0 0 14px rgba(46,230,255,.9),0 0 36px rgba(46,230,255,.5)', clip = 'none', op = 1;
+        let w = 34, h = 46, rot = 0, tx = 0, ty = 0, color = `rgb(${THEME.ice})`, glow = `0 0 14px rgba(${THEME.c},.9),0 0 36px rgba(${THEME.c},.5)`, clip = 'none', op = 1;
         if (mode === 'listening') { w = 40; h = 54; }
-        if (mode === 'thinking') { h = 22; ty = -12; tx = 9; color = '#a07cff'; glow = '0 0 14px rgba(160,124,255,.9),0 0 36px rgba(160,124,255,.5)'; }
+        if (mode === 'thinking') { h = 22; ty = -12; tx = 9; color = `rgb(${THEME.v})`; glow = `0 0 14px rgba(${THEME.v},.9),0 0 36px rgba(${THEME.v},.5)`; }
         if (mode === 'speaking') h = tick % 2 ? 42 : 50;
         if (mode === 'alert') { color = '#ff3d6e'; glow = '0 0 14px rgba(255,61,110,1),0 0 36px rgba(255,61,110,.5)'; rot = L ? 10 : -10; clip = L ? 'polygon(0 0,100% 38%,100% 100%,0 100%)' : 'polygon(0 38%,100% 0,100% 100%,0 100%)'; }
         if (mode === 'boot') { h = 4; op = .4; }
