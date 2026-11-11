@@ -1,4 +1,4 @@
-# SAMURAI v1.0.0 — feature list
+# SAMURAI — feature list
 
 Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC control, a cinematic HUD, and a control panel that keeps it all running. Windows build: `SAMURAI-windows-x64.zip` below. Unzip, run `SAMURAI.exe`, the HUD opens.
 
