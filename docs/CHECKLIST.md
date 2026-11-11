@@ -112,7 +112,27 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] 1080p walkthrough v5 with roaming, music bounce, themes and shapes (docs/walkthrough-motion.mp4); narration, user voice and replies never overlap (scheduled into silent gaps)
 - [ ] Trained "samurai" wake-word model (needs recorded samples), voice identity, full-duplex speech-to-speech, camera presence — still open
 
+## Stage 11 — Everything on the roadmap that fits (v1.2.0)
+
+- [x] 3D core: Three.js nebula, 24k particle field, volumetric lip-syncing orb, bloom, quality auto-detect, 2D fallback, holo globe
+- [x] Effects layer: energy arcs, hologram materialise, weather particles and lightning, alert tears and glitch, CPU heartbeat, day cycle, mouse chase, expressive eyes; cinema and retro looks
+- [x] Video widget: local library (range requests), YouTube search without a key, direct streams, cinema mode, PiP
+- [x] Browser widget: the Playwright browser streamed live as JPEG frames, click / scroll / type, driven by voice or the brain
+- [x] Radio and podcasts in the Music widget
+- [x] Premium TTS engines (ElevenLabs, OpenAI, Cartesia, Azure) + curated natural voices; Whisper STT option with a panel installer
+- [x] Claude and Gemini sign-in from the control panel with session status
+- [x] Phone companion mode: https with a generated certificate, QR pairing, relay queue, phone-side recognition and speech, PC-side execution (relay verified with two browser pages)
+- [x] Connections sidecar: ntfy / Pushover push, wake-on-LAN, SSH run (confirmed), Wi-Fi / Bluetooth / VPN, file search index, journal, radio stations, podcasts, read-aloud, Telegram bridge, Discord / Slack webhooks, Steam launcher, disk cleanup (confirmed), focus sessions
+- [x] Presence through the camera (motion), greeting after an absence
+- [x] Backup / restore, update check, log bundle, VERSION file, high-contrast theme
+- [x] Walkthrough v6 at 1080p covering the 3D core, video, browser, music, looks, alert, journal, focus, cleanup and the phone relay (docs/walkthrough-ultimate.mp4)
+- [ ] Not built yet: gestures (MediaPipe), screen OCR, Google Calendar / Gmail write, Spotify Web API, map tiles, Live2D / VRM head, holographic desk, memory constellations, Android app, installer exe, multi-room, plugin marketplace
+
 ## Not verified in this build (needs a real desktop)
+
+- Premium voice engines with real keys (request shaping tested against a fake backend); browser SpeechRecognition on a phone; Siri / Google voices
+- Real hardware: Wi-Fi / Bluetooth / VPN toggles, wake-on-LAN on a LAN, SSH to a machine, Steam, ntfy / Telegram with tokens
+- WebGL performance on a real GPU (verified here with software rendering at about 22 fps on medium)
 
 - Windows-specific paths: Startup-folder autostart, PowerShell volume/brightness/screenshot, `start` app launcher
 - macOS paths: launchd autostart, osascript volume/media keys

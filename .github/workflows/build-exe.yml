@@ -82,6 +82,7 @@ jobs:
         with:
           files: |
             SAMURAI-linux-x64.tar.gz
+            docs/walkthrough-ultimate.mp4
             docs/walkthrough-motion.mp4
             docs/walkthrough-voice.mp4
             docs/walkthrough.mp4

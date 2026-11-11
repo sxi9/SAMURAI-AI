@@ -3,6 +3,9 @@
 Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC control, a cinematic HUD, and a control panel that keeps it all running. Windows build: `SAMURAI-windows-x64.zip` below. Unzip, run `SAMURAI.exe`, the HUD opens.
 
 ## Talk to it
+- Premium voices: ElevenLabs, OpenAI (nova, shimmer, coral), Cartesia and Azure HD (Ava, Emma) with keys set in the control panel; Edge voices led by Ava and Emma multilingual; Kokoro fully offline
+- Whisper option for recognition (faster-whisper, offline, one-click install from the panel) next to Vosk
+- Phone companion mode: scan the QR code in the panel, the phone recognises with Google or Siri, the PC runs the command, the reply is spoken on the phone, the PC or both; https on the LAN with a one-click certificate
 - Offline speech recognition (Vosk) with a voice-activity gate; small model downloaded automatically, large model optional
 - Wake word "samurai" that tolerates mishearings, optional openWakeWord engine for hands-free use
 - Neural voice replies (Microsoft Edge voices online, Kokoro fully local as a one-click install)
@@ -22,15 +25,22 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Mock provider for trying everything with no account
 
 ## The HUD
+- 3D core (WebGL, Three.js): a nebula shader background that stirs when it listens and turns red on alert, up to 24,000 particles morphing through every shape, a volumetric glass orb that lip-syncs to the voice, bloom; quality auto / low / medium / high, falls back to the 2D canvas; "3d on" / "3d off"
+- Effects layer: energy arcs from the orb to the widget it is driving, hologram materialise when a card appears, rain or snow from the live forecast, lightning in storms, alert tears and glitch, a CPU heartbeat line, day-cycle tint, the orb chasing the mouse, eyes that glance at what they act on
+- Looks: "cinema look" (letterbox, grain, warm vignette) and "retro look" (CRT scanlines and fringing)
+- Holographic globe in the position widget (wireframe Earth, your marker, a satellite)
 - Orb avatar with eyes and a waveform ring for idle, listening, thinking, speaking and alert
 - Free roaming when idle: the avatar picks a spot anywhere on the screen, glides there, banks into turns and glances ahead; "stay still" / "roam" by voice
 - Music reaction: while the library player runs, a real audio analyser drives the beat; the orb bounces, the ring pumps, the eyes squint on the kick (external players get a steady pulse)
 - Particle core that morphs: sphere, galaxy, heart, knot, helix, cube, ring, wave, any spelled word; idle cycle
-- Twelve widgets: System, Agenda, Tasks, Inbox, Terminal, Timers, Weather, Music, Home, Position, Camera feed, Holo gallery
+- Fourteen widgets: System, Agenda, Tasks, Inbox, Terminal, Timers, Weather, Music, Home, Position, Camera feed, Holo gallery, Video, Browser
+- Video in the HUD: "play video <name>" from your library folder, "watch <anything> on youtube" (no API key), direct mp4 / HLS streams, cinema mode that dims the HUD, picture-in-picture
+- Browser in the HUD: the agent's real Chromium streamed live into a widget; click, scroll and type on it, or let the brain drive it ("browse wikipedia.org", "browse for …")
+- Radio and podcasts in the Music widget ("play radio", "play jazz radio", "play the latest podcast"), with your own station list and RSS feeds
 - Orbital ring of twelve nodes: click to summon, unpin to dock
 - Focus layout (six widgets, calmer default), full layout (twelve), ambient (core only)
 - Boot sequence with assembling widgets, welcome flash, security alert card
-- Sixteen colour themes (arc, ember, gold, matrix, ice, crimson, rose, nebula, aurora, ocean, sunset, solar, mono, stealth, lime, royal) plus a custom theme from two colour pickers; by voice: "theme ocean", "blue theme", "random theme" (see docs/screenshot-themes.png)
+- Seventeen colour themes (arc, ember, gold, matrix, ice, crimson, rose, nebula, aurora, ocean, sunset, solar, mono, stealth, lime, royal, high-contrast) plus a custom theme from two colour pickers; by voice: "theme ocean", "blue theme", "random theme" (see docs/screenshot-themes.png)
 - Live ticker (markets, headlines), clock, parallax, reduced-motion support
 - Cockpit mode on big screens, flow layout on laptops, tablets and phones
 - Settings drawer: brains, pool, routing, voice, mic, personality, pinned add-ons, layout, theme, your name and location
@@ -67,6 +77,7 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Plan mode: "plan: get me ready for deep work" turns a goal into steps and runs them
 
 ## Sight and hands
+- Presence: the camera notices when you arrive after being away and greets you; optional lock when you leave
 - Vision: "what is on my screen", "look at my screen and tell me the error", "what do you see" (webcam)
 - Browser agent: a real Chromium the brain drives: open, read, links, click, type, find, back, screenshot
 - Desktop agent: screenshot, vision brain, one click or keystroke at a time, with a cancel toast
@@ -74,6 +85,10 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Send email over SMTP with confirmation
 
 ## Runs itself
+- Sign in to Claude (your claude.ai subscription through Claude Code) and Gemini from the control panel; session status shown
+- Connections: push to your phone (ntfy, Pushover), Telegram bridge (chat with SAMURAI from your phone), Discord and Slack webhooks, wake-on-LAN and SSH to your other machines, Wi-Fi / Bluetooth / VPN on and off
+- Journal by voice ("note: …", "read my journal"), focus sessions with a spoken break, file search across your drives, read any text, PDF or Word file aloud, Steam game launcher, disk cleanup that reports first and asks before deleting
+- Backup and restore of config, memory and routines; update check against GitHub releases; one-click log bundle
 - One installer for Windows, Linux and macOS, or the packaged executable with no Python at all
 - Browser control panel: start, stop, restart each service; logs; watchdog that restarts crashed services and repairs missing packages or models; doctor with 24 checks and auto-fix
 - Start with boot: Windows Startup folder, Linux systemd user service, macOS launchd
