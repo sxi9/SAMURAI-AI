@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
                             load_config, save_config, http_json, run_hidden)
 import samurai_automation as auto
+import samurai_connect as connect
 
 PORT = PORTS["addons"]
 TASKS_PATH = os.path.join(DATA, "tasks.json")
@@ -569,6 +570,7 @@ class Handler(JSONHandler):
         ("GET", "/memory"): get_memory, ("POST", "/memory"): post_memory, ("GET", "/memory/search"): get_memory_search,
         ("GET", "/addons/status"): get_status,
         **auto.ROUTES,
+        **connect.ROUTES,
     }
 
 
@@ -576,5 +578,6 @@ if __name__ == "__main__":
     os.makedirs(DATA, exist_ok=True)
     os.makedirs(gallery_dir(), exist_ok=True)
     auto.start_threads(lambda: get_agenda(None, {}, None).get("events", []))
+    connect.start_threads()
     print(f"[SAMURAI] Add-ons sidecar on http://localhost:{PORT}/  (config: {os.path.join(ROOT, 'config.json')})")
     ThreadingHTTPServer((bind_host(), PORT), Handler).serve_forever()
