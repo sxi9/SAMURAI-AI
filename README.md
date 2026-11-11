@@ -20,4 +20,12 @@ Settings drawer:
 
 ![SAMURAI settings drawer](docs/screenshot-settings.png)
 
+## Headless Claude Code / Gemini CLI (no API key)
+
+SAMURAI can use the official [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-code) or
+[Gemini CLI](https://www.npmjs.com/package/@google/gemini-cli) as its brain, as a live web researcher,
+and as a worker that creates and edits files in `workspace/`, signed in with your normal plan instead of an API key.
+Install one, run it once to sign in, start the AGENT service (port 9400) from the dashboard, and pick
+"CLAUDE CODE — HEADLESS" or "GEMINI CLI — HEADLESS" under NEURAL CORE in settings.
+
 Install and run instructions are in [README.txt](README.txt).

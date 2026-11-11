@@ -42,6 +42,8 @@ WHAT'S INSIDE
   servers\samurai_telemetry.py       live system stats                  :8765
   servers\samurai_tts_server.py      human-like neural voice            :9200
   servers\samurai_action_server.py   PC control (open apps/music/web)   :9300
+  servers\samurai_agent_server.py    headless Claude Code / Gemini CLI   :9400
+  workspace\             files the headless agent creates or edits
   models\                voice models are downloaded here by setup
   docs\                  screenshots
 
@@ -50,6 +52,22 @@ USING SAMURAI
   Click the mic, say "Samurai ..." followed by your command.
   Settings drawer: LLM provider (Ollama / OpenAI / Claude / Gemini + API key),
   voice model, neural voice, mood + humor level, system access & control.
+
+HEADLESS AGENTS (NO API KEY)
+  SAMURAI can use the official Claude Code or Gemini CLI as its brain, as a
+  live web researcher, and as a worker that edits files — signed in with
+  your normal Claude plan / Google account instead of an API key.
+    1. npm install -g @anthropic-ai/claude-code     (and/or)  npm install -g @google/gemini-cli
+    2. run  claude   (or  gemini )  once in a terminal and sign in
+    3. START ALL in the dashboard (the AGENT service runs on port 9400)
+    4. Settings -> NEURAL CORE -> "CLAUDE CODE — HEADLESS" or "GEMINI CLI — HEADLESS"
+  Ask "search the latest ..." and the agent searches the web for you.
+  Ask "write a script that ..." and it works inside the workspace\ folder.
+  Any other brain (Ollama, OpenAI, ...) can also hand off a question or a
+  task to the headless agent with the research / task directives.
+  Shell access for work tasks is off by default; set SAMURAI_AGENT_ALLOW_BASH=1
+  to allow it. Note: free-tier Google accounts moved to Antigravity CLI in
+  June 2026 — set SAMURAI_GEMINI_CMD to that command if `gemini` is gone.
 
 NOTES
   - Everything runs locally. Cloud LLMs are optional (add API key in settings).

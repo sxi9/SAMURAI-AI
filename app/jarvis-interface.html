@@ -464,6 +464,8 @@ body.bosswake #scene{animation:sceneFlash 1.2s ease both}
       <option value="openai">OPENAI — GPT</option>
       <option value="claude">ANTHROPIC — CLAUDE</option>
       <option value="gemini">GOOGLE — GEMINI</option>
+      <option value="claudecode">CLAUDE CODE — HEADLESS (NO KEY)</option>
+      <option value="geminicli">GEMINI CLI — HEADLESS (NO KEY)</option>
     </select>
     <input type="text" id="optUrl" value="http://localhost:11434" spellcheck="false">
     <input type="text" id="optModel" value="llama3.1:8b" spellcheck="false" placeholder="MODEL">
@@ -1147,7 +1149,8 @@ function buildSystemPrompt(){
   p += ` Humor level ${humorLevel}/10 (0 = strictly serious, 10 = maximum comedy).`;
   if (actionsEnabled){
     p += "\n\nYou can control this Windows PC. When Krish wants you to open an app, search the web, open a website, or play music, add a directive on its own line in EXACTLY this format: <<ACT:type:argument>>\n" +
-         "Valid types: open_app (argument = one of chrome, edge, firefox, brave, spotify, explorer, notepad, calculator, paint, settings, cmd, terminal, vscode, word, excel, powerpoint, task manager, youtube), web_search (argument = search terms), open_url (argument = full url), play_music (argument = song or artist).\n" +
+         "Valid types: open_app (argument = one of chrome, edge, firefox, brave, spotify, explorer, notepad, calculator, paint, settings, cmd, terminal, vscode, word, excel, powerpoint, task manager, youtube), web_search (argument = search terms), open_url (argument = full url), play_music (argument = song or artist)" +
+         (isHeadless() ? ".\n" : ", research (argument = a question that needs live web information; a headless agent will search the web and report back), task (argument = a work task such as writing code, creating or editing a file, or analysing a document; a headless agent does it in the workspace folder).\n") +
          "Say a short spoken confirmation in your normal voice/tone, then put the directive. Only include a directive when Krish actually wants that action done. Never explain the directive syntax to him.";
   }
   return p;
@@ -1155,6 +1158,7 @@ function buildSystemPrompt(){
 const SYSTEM_PROMPT = buildSystemPrompt();  /* initial; rebuilt per call */
 
 async function runAction(type, arg){
+  if (type === 'research' || type === 'task') return agentDelegate(type, arg);
   try{
     const r = await fetch(ACTION_URL, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1178,8 +1182,59 @@ function executeActions(text){
 const LLM_DEFAULTS = {
   provider: 'local',
   keys:   { openai: '', claude: '', gemini: '' },
-  models: { local: 'llama3.1:8b', openai: 'gpt-4o-mini', claude: 'claude-sonnet-5', gemini: 'gemini-2.0-flash' }
+  models: { local: 'llama3.1:8b', openai: 'gpt-4o-mini', claude: 'claude-sonnet-5', gemini: 'gemini-2.0-flash', claudecode: '', geminicli: '' }
 };
+/* --- headless agents: Claude Code / Gemini CLI via samurai_agent_server.py (port 9400) --- */
+const AGENT_URL = 'http://localhost:9400/agent';
+const AGENT_PROVIDER = { claudecode: 'claude', geminicli: 'gemini' };
+function isHeadless(){ try{ return llmCfg.provider === 'claudecode' || llmCfg.provider === 'geminicli'; }catch(e){ return false; } }  // hoisted: buildSystemPrompt() runs before llmCfg exists
+let agentStatus = null;                 // last /agent/status payload
+const agentSessions = {};               // provider -> session id (Claude Code --resume)
+async function agentPing(){
+  try{
+    const opts = {};
+    if (AbortSignal.timeout) opts.signal = AbortSignal.timeout(4000);
+    const r = await fetch(AGENT_URL + '/status', opts);
+    agentStatus = r.ok ? await r.json() : null;
+  }catch(e){ agentStatus = null; }
+  return agentStatus;
+}
+function detectAgentMode(q){
+  if (/\b(search|look ?up|latest|news|current|today'?s?|right now|price of|who won|what happened|find out|google|headlines|stock|score)\b/i.test(q)) return 'search';
+  if (actionsEnabled && /\b(create|write|edit|build|make|generate|fix|refactor|rename|convert|analy[sz]e|summari[sz]e|workspace|script|code|file|folder)\b/i.test(q)) return 'work';
+  return 'chat';
+}
+async function agentRun(agent, prompt, mode, history){
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), mode === 'chat' ? 130000 : 620000);
+  try{
+    const r = await fetch(AGENT_URL, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider: agent, prompt, mode, session_id: agentSessions[agent] || null,
+                            model: llmCfg.models[agent === 'claude' ? 'claudecode' : 'geminicli'] || '', history}),
+      signal: ctl.signal
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    if (d.session_id) agentSessions[agent] = d.session_id;
+    pushLog('ok', `${agent} ${mode} done in ${d.seconds}s`);
+    return d.text;
+  } finally { clearTimeout(to); }
+}
+/* research / task directives from any brain -> headless agent, result spoken */
+async function agentDelegate(type, arg){
+  const st = agentStatus || await agentPing();
+  const agent = st && st.claude && st.claude.found ? 'claude' : (st && st.gemini && st.gemini.found ? 'gemini' : null);
+  if (!agent){ pushLog('warn', 'no headless agent found (install claude or gemini CLI, start port 9400)'); return; }
+  const mode = type === 'research' ? 'search' : 'work';
+  pushLog('ok', `${agent} ${mode}: ${arg.slice(0, 40)}`);
+  $('coretag').textContent = mode === 'search' ? 'CORE · RESEARCHING' : 'CORE · WORKING';
+  try{
+    const text = await agentRun(agent, arg, mode, recentMessages());
+    chatHistory.push({role: 'assistant', content: text});
+    speak(text);
+  }catch(e){ pushLog('warn', `${agent} ${mode} failed: ${String(e.message).slice(0, 60)}`); speak('The headless agent could not finish that.'); }
+}
 // retired model ids that must be auto-upgraded to a current one on load
 const RETIRED_MODELS = {
   claude: [/^claude-sonnet-4/, /^claude-opus-4-[0-7]\b/, /^claude-3/, /^claude-2/, /sonnet-4-6/]
@@ -1205,13 +1260,13 @@ try{
 function saveLLMCfg(){ localStorage.setItem('samuraiLLM', JSON.stringify(llmCfg)); }
 function llmModel(){ return llmCfg.models[llmCfg.provider]; }
 
-const PROVIDER_LABELS = { local: 'OLLAMA', openai: 'OPENAI', claude: 'CLAUDE', gemini: 'GEMINI' };
+const PROVIDER_LABELS = { local: 'OLLAMA', openai: 'OPENAI', claude: 'CLAUDE', gemini: 'GEMINI', claudecode: 'CLAUDE CODE', geminicli: 'GEMINI CLI' };
 let llmOnline = false;
 const chatHistory = [{role: 'system', content: SYSTEM_PROMPT}];
 
 function updateLLMPill(){
   $('llmpill').innerHTML = llmOnline
-    ? `<i class="dot"></i>${PROVIDER_LABELS[llmCfg.provider]} · ` + llmModel().toUpperCase()
+    ? `<i class="dot"></i>${PROVIDER_LABELS[llmCfg.provider]} · ` + (llmModel() || (isHeadless() ? 'HEADLESS' : '')).toUpperCase()
     : '<i class="dot amber"></i>SIM MODE · LLM OFFLINE';
 }
 async function pingLLM(){
@@ -1222,6 +1277,10 @@ async function pingLLM(){
       const r = await fetch(CONFIG.ollamaUrl + '/api/tags', opts);
       llmOnline = r.ok;
     }catch(e){ llmOnline = false; }
+  } else if (isHeadless()){
+    const st = await agentPing();
+    const a = AGENT_PROVIDER[llmCfg.provider];
+    llmOnline = !!(st && st[a] && st[a].found);
   } else {
     llmOnline = !!llmCfg.keys[llmCfg.provider];
   }
@@ -1315,6 +1374,11 @@ async function askLLM(q){
       const d = await r.json();
       if (d.error) throw new Error(d.error.message);
       txt = d.content && d.content[0] && d.content[0].text;
+    } else if (isHeadless()){
+      const mode = detectAgentMode(q);
+      $('coretag').textContent = mode === 'search' ? 'CORE · RESEARCHING' : (mode === 'work' ? 'CORE · WORKING' : 'CORE · THINKING');
+      const sysNote = sysPrompt.includes('LIVE SYSTEM TELEMETRY') ? sysPrompt.slice(sysPrompt.indexOf('LIVE SYSTEM TELEMETRY')) + '\n\n' : '';
+      txt = await agentRun(AGENT_PROVIDER[p], sysNote + q, mode, recentMessages().slice(0, -1));
     } else if (p === 'gemini'){
       const contents = recentMessages().map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
@@ -1985,14 +2049,17 @@ const LLM_NOTES = {
   local:  'Run: OLLAMA_ORIGINS="*" ollama serve<br>Falls back to simulated replies if offline.',
   openai: 'Key from platform.openai.com/api-keys<br>e.g. gpt-4o-mini, gpt-4o, o3-mini',
   claude: 'Key from console.anthropic.com<br>e.g. claude-sonnet-5, claude-opus-4-8, claude-haiku-4-5',
-  gemini: 'Key from aistudio.google.com/apikey<br>e.g. gemini-2.0-flash, gemini-2.5-pro'
+  gemini: 'Key from aistudio.google.com/apikey<br>e.g. gemini-2.0-flash, gemini-2.5-pro',
+  claudecode: 'No API key: uses the Claude Code CLI signed in with your Claude plan.<br>npm i -g @anthropic-ai/claude-code → run <b>claude</b> once to sign in → start samurai_agent_server.py (port 9400).<br>Searches the web and works on files in workspace\\ when asked. Model box optional.',
+  geminicli: 'No API key: uses the Gemini CLI signed in with your Google account.<br>npm i -g @google/gemini-cli → run <b>gemini</b> once to sign in → start samurai_agent_server.py (port 9400).<br>Searches the web and works on files in workspace\\ when asked. Model box optional.'
 };
 function refreshLLMUI(){
   const p = llmCfg.provider;
   $('optProvider').value = p;
   $('optUrl').style.display = p === 'local' ? '' : 'none';
-  $('optKey').style.display = p === 'local' ? 'none' : '';
+  $('optKey').style.display = (p === 'local' || isHeadless()) ? 'none' : '';
   $('optModel').value = llmCfg.models[p];
+  $('optModel').placeholder = isHeadless() ? 'MODEL (OPTIONAL — CLI DEFAULT)' : 'MODEL';
   $('optKey').value = llmCfg.keys[p] || '';
   $('llmNote').innerHTML = LLM_NOTES[p];
 }

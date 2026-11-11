@@ -128,6 +128,9 @@ SERVICES = [
     {"key": "act",    "name": "ACTIONS",        "port": 9300,
      "check": "http://localhost:9300/action",  # 404 on GET still proves it's alive
      "cmd": [sys.executable, os.path.join(SRV, "samurai_action_server.py")]},
+    {"key": "agent",  "name": "AGENT (CLI)",    "port": 9400,
+     "check": "http://localhost:9400/agent/status",
+     "cmd": [sys.executable, os.path.join(SRV, "samurai_agent_server.py")]},
 ]
 
 BG, PANEL, FG, ACCENT, RED, DIM = "#060a12", "#0b1322", "#9adfff", "#27e0a6", "#ff5f6d", "#3a5a78"
@@ -178,7 +181,7 @@ class Dash(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("SAMURAI DASHBOARD")
-        self.geometry("520x430")
+        self.geometry("520x470")
         self.configure(bg=BG)
         self.resizable(False, False)
         self.procs = {}

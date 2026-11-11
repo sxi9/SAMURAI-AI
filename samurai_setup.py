@@ -212,7 +212,8 @@ class Setup(tk.Tk):
 
             for rel in ("app\\jarvis-interface.html", "servers\\samurai_speech_server.py",
                         "servers\\samurai_telemetry.py", "servers\\samurai_tts_server.py",
-                        "servers\\samurai_action_server.py", "samurai_dashboard.py"):
+                        "servers\\samurai_action_server.py", "servers\\samurai_agent_server.py",
+                        "samurai_dashboard.py"):
                 ok = os.path.exists(os.path.join(ROOT, rel))
                 all_ok &= ok
                 ui(self.plog, f"    {'✓' if ok else '✗'} file {rel}")
