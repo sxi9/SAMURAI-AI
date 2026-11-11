@@ -6,7 +6,10 @@ Browser sends raw 16 kHz mono PCM audio, server returns transcribed text.
 Client messages: binary PCM chunks, "EOF" (finalise), "MODEL:small|large".
 Server messages: {"text", "final"}, {"wake": true, "score"}, {"model", "status"}, {"engine", "vad"}
 
-config.json  "voice": {"vad": true, "wake_engine": "text" | "openwakeword", "oww_model": "hey_jarvis", "wake_window": 8}
+config.json  "voice": {"vad": true, "wake_engine": "text" | "openwakeword", "oww_model": "hey_jarvis", "wake_window": 8,
+                        "stt_engine": "vosk" | "whisper", "whisper_model": "base"}
+  stt_engine whisper  faster-whisper on the CPU (int8): more accurate than Vosk, needs the package (one click in the panel);
+                      speech is cut into utterances by the VAD and each one is transcribed when you pause
   text          the HUD looks for the word "samurai" in the transcript (default, no extra packages)
   openwakeword  pip install openwakeword — audio only reaches the recogniser for wake_window seconds after
                 the wake word; models: hey_jarvis, alexa, hey_mycroft, hey_rhasspy, timer, weather
@@ -15,7 +18,7 @@ Run: python samurai_speech_server.py   (ws://localhost:9100)
 import asyncio, json, os, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import MODELS, PORTS, model_valid, SMALL_MODEL_NAME, LARGE_MODEL_NAME, load_config, bind_host, lan_mode
+from samurai_common import MODELS, PORTS, model_valid, SMALL_MODEL_NAME, LARGE_MODEL_NAME, load_config, bind_host, lan_mode, tls_context
 
 try:
     from vosk import Model, KaldiRecognizer, SetLogLevel
@@ -26,8 +29,13 @@ except ImportError as e:
 
 SetLogLevel(-1)
 PORT = PORTS["speech"]
+if "--port" in sys.argv:
+    PORT = int(sys.argv[sys.argv.index("--port") + 1])
 SAMPLE_RATE = 16000
 VCFG = load_config().get("voice", {})
+STT_ENGINE = VCFG.get("stt_engine", "vosk")
+if "--engine" in sys.argv:
+    STT_ENGINE = sys.argv[sys.argv.index("--engine") + 1]
 MODEL_PATHS = {"large": os.path.join(MODELS, LARGE_MODEL_NAME), "small": os.path.join(MODELS, SMALL_MODEL_NAME)}
 DEFAULT_MODEL = "large" if model_valid(LARGE_MODEL_NAME) else "small"
 if not model_valid(os.path.basename(MODEL_PATHS[DEFAULT_MODEL])):
@@ -88,7 +96,83 @@ if get_model(DEFAULT_MODEL) is None:
     sys.exit(2)
 
 
+# ----------------------------------------------------------------------------- whisper (optional)
+_whisper = {"model": None, "error": None}
+
+
+def whisper_model():
+    """faster-whisper model, loaded once (CPU, int8). None if the package or the download is unavailable."""
+    if _whisper["model"] is not None or _whisper["error"]:
+        return _whisper["model"]
+    try:
+        from faster_whisper import WhisperModel
+        name = VCFG.get("whisper_model", "base")
+        print(f"[SAMURAI] Loading whisper '{name}' (first run downloads it) ...")
+        _whisper["model"] = WhisperModel(name, device="cpu", compute_type="int8", download_root=os.path.join(MODELS, "whisper"))
+        print("[SAMURAI] whisper ready")
+    except Exception as e:
+        _whisper["error"] = str(e)
+        print(f"[SAMURAI] whisper unavailable ({e}) — using vosk")
+    return _whisper["model"]
+
+
+class WhisperRec:
+    """Same interface as KaldiRecognizer: AcceptWaveform() is True when an utterance ended (then Result()),
+    PartialResult() reports that speech is being collected, FinalResult() flushes."""
+    BYTES_PER_S = SAMPLE_RATE * 2
+
+    def __init__(self, model):
+        self.m, self.buf, self.voiced, self.silence, self.text = model, b"", 0, 0, ""
+
+    def _speech(self, pcm):
+        if VAD is not None:
+            return has_speech(pcm)
+        import array
+        a = array.array("h", pcm[: len(pcm) // 2 * 2])
+        return (sum(x * x for x in a) / max(1, len(a))) ** 0.5 > 350
+
+    def AcceptWaveform(self, pcm):
+        if self._speech(pcm):
+            self.buf += pcm; self.voiced += len(pcm); self.silence = 0
+        else:
+            if self.voiced:
+                self.buf += pcm; self.silence += len(pcm)
+        if self.voiced >= 0.35 * self.BYTES_PER_S and (self.silence >= 0.8 * self.BYTES_PER_S or self.voiced >= 20 * self.BYTES_PER_S):
+            self._transcribe(); return True
+        if self.voiced and self.voiced < 0.35 * self.BYTES_PER_S and self.silence >= 1.5 * self.BYTES_PER_S:
+            self.buf, self.voiced, self.silence = b"", 0, 0          # a click, not speech
+        return False
+
+    def _transcribe(self):
+        import numpy as np
+        audio = np.frombuffer(self.buf, dtype=np.int16).astype(np.float32) / 32768.0
+        self.buf, self.voiced, self.silence = b"", 0, 0
+        try:
+            segs, _ = self.m.transcribe(audio, language="en", beam_size=2, vad_filter=False, condition_on_previous_text=False)
+            self.text = " ".join(s.text.strip() for s in segs).strip().lower().strip(".,!?")
+        except Exception as e:
+            print(f"[SAMURAI] whisper error: {e}"); self.text = ""
+
+    def Result(self):
+        t, self.text = self.text, ""
+        return json.dumps({"text": t})
+
+    def PartialResult(self):
+        return json.dumps({"partial": "…" if self.voiced else ""})
+
+    def FinalResult(self):
+        if self.voiced >= 0.3 * self.BYTES_PER_S:
+            self._transcribe()
+        else:
+            self.buf, self.voiced, self.silence = b"", 0, 0
+        return self.Result()
+
+
 def new_rec(model):
+    if STT_ENGINE == "whisper":
+        wm = whisper_model()
+        if wm is not None:
+            return WhisperRec(wm)
     rec = KaldiRecognizer(model, SAMPLE_RATE)
     rec.SetWords(True)
     return rec
@@ -145,7 +229,7 @@ async def recognize(websocket):
     rec = new_rec(get_model(current))
     gate, silence = WakeGate(), 0
     print("[SAMURAI] Client connected")
-    await websocket.send(json.dumps({"engine": WAKE_ENGINE, "vad": VAD is not None}))
+    await websocket.send(json.dumps({"engine": WAKE_ENGINE, "vad": VAD is not None, "stt": "whisper" if isinstance(rec, WhisperRec) else "vosk"}))
     try:
         async for message in websocket:
             if isinstance(message, str) and message.startswith("MODEL:"):
@@ -195,10 +279,14 @@ async def recognize(websocket):
 
 
 async def main():
-    async with websockets.serve(recognize, bind_host(), PORT, max_size=2**20):
-        print(f"[SAMURAI] Listening on ws://localhost:{PORT}")
+    ctx = tls_context()
+    async with websockets.serve(recognize, bind_host(), PORT, max_size=2**20, ssl=ctx):
+        print(f"[SAMURAI] Listening on {'wss' if ctx else 'ws'}://localhost:{PORT} · stt engine {STT_ENGINE}")
         await asyncio.Future()
 
 
 if __name__ == "__main__":
+    if STT_ENGINE == "whisper":
+        import threading
+        threading.Thread(target=whisper_model, daemon=True).start()
     asyncio.run(main())

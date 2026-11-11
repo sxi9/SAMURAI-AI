@@ -65,8 +65,37 @@ a{color:var(--cyan)}
   </div>
   <div class="card">
     <h2>DOCTOR</h2>
-    <div class="row"><button class="b" id="doctor">RUN CHECKS</button><button class="b v" id="doctorFix">CHECK + AUTO-FIX</button><button class="b" id="model">DOWNLOAD VOICE MODEL</button><button class="b v" id="kokoro">INSTALL LOCAL VOICE (KOKORO, 330 MB)</button><button class="b v" id="wake">INSTALL WAKE WORD + VAD</button><a class="b" href="http://localhost:8080/voice-test.html" target="_blank">MIC / SPEAKER TEST</a></div>
+    <div class="row"><button class="b" id="doctor">RUN CHECKS</button><button class="b v" id="doctorFix">CHECK + AUTO-FIX</button><button class="b" id="model">DOWNLOAD VOICE MODEL</button><button class="b v" id="kokoro">INSTALL LOCAL VOICE (KOKORO, 330 MB)</button><button class="b v" id="wake">INSTALL WAKE WORD + VAD</button><button class="b v" id="whisper">INSTALL WHISPER (ACCURATE MIC)</button><a class="b" href="http://localhost:8080/voice-test.html" target="_blank">MIC / SPEAKER TEST</a></div>
     <div class="chk" id="checks"><span class="muted">not run yet</span></div>
+  </div>
+  <div class="card">
+    <h2>CLAUDE &amp; GEMINI · SIGN IN WITH YOUR OWN ACCOUNT</h2>
+    <div class="muted">Headless Claude Code and Gemini CLI use your subscription, no API key. Sign in once; the browser opens, the session is saved by the CLI.</div>
+    <table id="authTbl"></table>
+    <div class="row"><button class="b" id="claudeLogin">SIGN IN TO CLAUDE</button><button class="b v" id="claudeToken">LONG-LIVED TOKEN</button><button class="b r sm" id="claudeLogout">SIGN OUT</button>
+      <button class="b" id="geminiLogin">SIGN IN TO GEMINI</button><button class="b r sm" id="geminiLogout">SIGN OUT</button></div>
+    <div id="authUrl" class="status"></div>
+    <div class="row" id="authInputRow" style="display:none"><input id="authInput" placeholder="paste the code the browser shows, if asked" style="margin:0;flex:1"><button class="b sm" id="authSend">SEND</button></div>
+    <pre id="authLog" style="height:120px">no login running</pre>
+  </div>
+  <div class="card">
+    <h2>PHONE · COMPANION MODE</h2>
+    <div class="muted">Your phone's own speech recognition (Google / Siri) and voices, SAMURAI's brain and PC control. Same Wi-Fi. HTTPS is needed for the phone's microphone: switch it on, install the certificate once on the phone.</div>
+    <div class="row"><span class="muted">PHONE / LAN ACCESS</span><div class="sw" id="swLan2"><i></i></div><span class="muted">HTTPS (SELF-SIGNED)</span><div class="sw" id="swHttps"><i></i></div><a class="b sm" id="certLink" href="/phone/cert" style="display:none">DOWNLOAD CERTIFICATE</a></div>
+    <div id="phoneQr" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap"></div>
+    <div class="muted" id="phoneLinks"></div>
+  </div>
+  <div class="card">
+    <h2>PREMIUM VOICES · KEYS</h2>
+    <div class="muted">Optional. Edge voices are free and already on. Add a key to unlock the most natural voices in the HUD's voice list.</div>
+    <label>ELEVENLABS API KEY</label><input id="k_eleven" type="password"><label>OPENAI API KEY (gpt-4o-mini-tts)</label><input id="k_openai" type="password">
+    <label>CARTESIA API KEY</label><input id="k_cartesia" type="password"><label>AZURE SPEECH KEY · REGION</label><div class="row"><input id="k_azure" type="password" style="flex:2;margin:0"><input id="k_azure_region" placeholder="eastus" style="flex:1;margin:0"></div>
+    <div class="row"><button class="b" id="saveKeys">SAVE KEYS</button><span class="muted" id="keysMsg"></span><span class="muted" id="engines"></span></div>
+  </div>
+  <div class="card">
+    <h2>BACKUP · UPDATE · SUPPORT</h2>
+    <div class="row"><a class="b" href="/backup">DOWNLOAD BACKUP</a><button class="b v" id="restoreBtn">RESTORE FROM BACKUP</button><input type="file" id="restoreFile" accept=".zip" style="display:none"><a class="b" href="/logs/bundle">LOG BUNDLE</a><button class="b" id="updateBtn">CHECK FOR UPDATES</button></div>
+    <div class="status" id="updateMsg"></div>
   </div>
   <div class="card wide">
     <h2>CONFIG · YOU AND YOUR WIDGETS</h2>
@@ -109,7 +138,9 @@ async function loadCfg() {
     $('c_ics').value = (w.agenda || {}).ics_path || ''; $('c_music').value = (w.music || {}).library_dir || ''; $('c_docs').value = (w.documents || {}).dir || ''; $('c_cam').value = (w.camera || {}).url || '';
     $('c_hass').value = (w.home || {}).hass_url || ''; $('c_hasst').value = (w.home || {}).hass_token || ''; $('c_imaph').value = (w.inbox || {}).imap_host || ''; $('c_imapu').value = (w.inbox || {}).imap_user || ''; $('c_imapp').value = (w.inbox || {}).imap_password || '';
     $('swBash').classList.toggle('on', !!(c.agent || {}).allow_bash);
-    const lan = c.lan || {}; $('swLan').classList.toggle('on', !!lan.enabled); $('lanLinks').innerHTML = lan.enabled ? 'Phone link (same Wi-Fi): ' + (lan.ips || []).map(ip => `<a href="http://${ip}:8080/jarvis-interface.html?token=${lan.token}">http://${ip}:8080/…?token=${lan.token}</a>`).join(' · ') : '';
+    const lan = c.lan || {}; $('swLan').classList.toggle('on', !!lan.enabled); $('swLan2').classList.toggle('on', !!lan.enabled); $('swHttps').classList.toggle('on', !!lan.https);
+    const k = (c.voice || {}).keys || {}; ['eleven:elevenlabs', 'openai:openai', 'cartesia:cartesia', 'azure:azure', 'azure_region:azure_region'].forEach(x => { const [id, key] = x.split(':'); if (document.activeElement !== $('k_' + id)) $('k_' + id).value = k[key] || ''; });
+    loadPhone(); $('lanLinks').innerHTML = lan.enabled ? 'Phone link (same Wi-Fi): ' + (lan.ips || []).map(ip => `<a href="http://${ip}:8080/jarvis-interface.html?token=${lan.token}">http://${ip}:8080/…?token=${lan.token}</a>`).join(' · ') : '';
     $('hl').innerHTML = `<label style="display:inline"><input type="checkbox" id="c_headless" ${(c.browser || {}).headless === false ? 'checked' : ''}> show the window</label>`;
     $('cfgMsg').textContent = '';
   } catch (e) { $('cfgMsg').textContent = 'add-ons service offline — start it to edit config'; }
@@ -125,7 +156,43 @@ $('stopAll').onclick = () => POST('/panel/control', { action: 'stop_all' }).then
 $('openHud').onclick = () => { if (last) window.open(last.ui, '_blank'); };
 $('swWatch').onclick = () => POST('/panel/watchdog', { on: !$('swWatch').classList.contains('on') }).then(refresh);
 $('swAuto').onclick = () => POST('/panel/autostart', { on: !$('swAuto').classList.contains('on') }).then(d => { if (!d.ok) alert(d.error); refresh(); });
-$('swLan').onclick = () => POST('/panel/lan', { on: !$('swLan').classList.contains('on') }).then(d => { $('swLan').classList.toggle('on', d.enabled); $('lanLinks').innerHTML = d.enabled ? 'Open on your phone (same Wi-Fi): ' + d.links.map(l => `<a href="${l}">${l}</a>`).join(' · ') + ' — services are restarting' : 'LAN access off: everything listens on this PC only'; setTimeout(loadCfg, 4000); });
+const lanToggle = () => POST('/panel/lan', { on: !$('swLan').classList.contains('on') }).then(d => { $('swLan').classList.toggle('on', d.enabled); $('lanLinks').innerHTML = d.enabled ? 'Open on your phone (same Wi-Fi): ' + d.links.map(l => `<a href="${l}">${l}</a>`).join(' · ') + ' — services are restarting' : 'LAN access off: everything listens on this PC only'; setTimeout(loadCfg, 4000); });
+$('swLan').onclick = lanToggle; $('swLan2').onclick = lanToggle;
+$('swHttps').onclick = () => POST('/panel/lan', { on: true, https: !$('swHttps').classList.contains('on') }).then(d => { $('swHttps').classList.toggle('on', d.https); $('swLan').classList.toggle('on', d.enabled); $('swLan2').classList.toggle('on', d.enabled); $('phoneLinks').textContent = (d.cert || '') + ' — services are restarting'; setTimeout(loadPhone, 4000); });
+async function loadPhone() {
+  try {
+    const d = await J('/phone');
+    $('certLink').style.display = d.cert_url ? '' : 'none';
+    $('phoneQr').innerHTML = d.enabled && d.qr ? `<div style="width:170px;height:170px;background:#fff;padding:6px">${d.qr.replace('<svg', '<svg style="width:100%;height:100%"')}</div><div class="muted" style="flex:1;line-height:1.9">1. Same Wi-Fi.<br>2. ${d.https ? 'Open the certificate link on the phone once and trust it.' : 'Switch HTTPS on for the phone microphone.'}<br>3. Scan the code, or open the link below.<br>4. In the HUD settings pick MIC: PHONE and where replies are spoken.</div>` : '<span class="muted">switch PHONE / LAN ACCESS on to pair a phone</span>';
+    $('phoneLinks').innerHTML = d.links.map(l => `<a href="${l}">${l}</a>`).join('<br>');
+  } catch (e) { }
+}
+async function loadAuth() {
+  try {
+    const d = await J('/auth/status');
+    const row = (name, a) => `<tr><td><span class="dot ${a.logged_in ? 'ok' : (a.installed ? 'warn' : '')}"></span>${name}</td><td style="color:${a.logged_in ? 'var(--cyan)' : 'var(--muted)'}">${a.installed ? (a.logged_in ? 'SIGNED IN' : 'NOT SIGNED IN') : 'NOT INSTALLED'}</td><td class="muted">${a.email || a.subscription || a.method || ''} ${a.detail && !a.logged_in ? '· ' + a.detail : ''}</td></tr>`;
+    $('authTbl').innerHTML = row('CLAUDE CODE', d.claude) + row('GEMINI CLI', d.gemini);
+    const L = d.login; $('authLog').textContent = L.log || (L.running ? 'starting…' : 'no login running'); $('authLog').scrollTop = 1e9;
+    $('authUrl').innerHTML = L.url ? `open this link to sign in: <a href="${L.url}" target="_blank">${L.url}</a>` : (L.running ? `${L.tool} login running…` : '');
+    $('authInputRow').style.display = L.running ? '' : 'none';
+  } catch (e) { }
+}
+$('claudeLogin').onclick = () => POST('/auth/login', { tool: 'claude' }).then(d => { if (!d.ok) alert(d.error); loadAuth(); });
+$('claudeToken').onclick = () => POST('/auth/login', { tool: 'claude-token' }).then(d => { if (!d.ok) alert(d.error); loadAuth(); });
+$('geminiLogin').onclick = () => POST('/auth/login', { tool: 'gemini' }).then(d => { if (!d.ok) alert(d.error); loadAuth(); });
+$('claudeLogout').onclick = () => POST('/auth/logout', { tool: 'claude' }).then(loadAuth);
+$('geminiLogout').onclick = () => POST('/auth/logout', { tool: 'gemini' }).then(loadAuth);
+$('authSend').onclick = () => POST('/auth/input', { text: $('authInput').value }).then(() => { $('authInput').value = ''; });
+$('saveKeys').onclick = async () => {
+  const body = { voice: { keys: { elevenlabs: $('k_eleven').value.trim(), openai: $('k_openai').value.trim(), cartesia: $('k_cartesia').value.trim(), azure: $('k_azure').value.trim(), azure_region: $('k_azure_region').value.trim() || 'eastus' } } };
+  try { await POST(ADDONS + '/config', body); $('keysMsg').textContent = 'saved — restart NEURAL TTS to pick them up'; loadEngines(); } catch (e) { $('keysMsg').textContent = 'save failed — add-ons service offline'; }
+};
+async function loadEngines() { try { const d = await J('http://localhost:9200/engines'); $('engines').textContent = 'engines: ' + ['edge', 'kokoro', 'elevenlabs', 'openai', 'cartesia', 'azure'].map(e => `${e} ${d[e] ? '✓' : '–'}`).join(' · '); } catch (e) { } }
+$('restoreBtn').onclick = () => $('restoreFile').click();
+$('restoreFile').onchange = async () => { const f = $('restoreFile').files[0]; if (!f) return; const r = await fetch('/restore', { method: 'POST', body: await f.arrayBuffer() }).then(r => r.json()); $('updateMsg').textContent = r.ok ? `restored ${r.restored} file(s) — ${r.note}` : r.error; };
+$('updateBtn').onclick = async () => { $('updateMsg').textContent = 'checking…'; const d = await J('/update'); $('updateMsg').innerHTML = d.ok ? (d.newer ? `v${d.latest} is available (you run v${d.current}): <a href="${d.url}" target="_blank">download</a>` : `up to date (v${d.current})`) : `check failed: ${d.error}`; };
+$('whisper').onclick = () => POST('/panel/voice', { what: 'whisper' }).then(refresh);
+loadAuth(); setInterval(loadAuth, 4000); loadEngines();
 $('swBash').onclick = () => $('swBash').classList.toggle('on');
 $('logKey').onchange = loadLog; $('refreshLog').onclick = loadLog;
 $('doctor').onclick = () => runDoctor(false); $('doctorFix').onclick = () => runDoctor(true);

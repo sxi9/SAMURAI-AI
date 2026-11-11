@@ -24,6 +24,12 @@ LOGS = os.path.join(ROOT, "logs")
 DATA = os.path.join(ROOT, "data")
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 CONFIG_EXAMPLE = os.path.join(_BUNDLE if _FROZEN else ROOT, "config.example.json")
+TLS_DIR = os.path.join(DATA, "tls")
+try:
+    with open(os.path.join(_BUNDLE if _FROZEN else ROOT, "VERSION"), encoding="utf-8") as _f:
+        VERSION = _f.read().strip() or "0.0.0"
+except OSError:
+    VERSION = "0.0.0"
 NOWIN = 0x08000000 if os.name == "nt" else 0          # CREATE_NO_WINDOW
 IS_WIN = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
@@ -50,10 +56,12 @@ DEFAULT_CONFIG = {
                                 {"name": "AIRPORT", "km": 31, "bearing": 225}]},
     },
     "agent": {"allow_bash": False},
-    "voice": {"vad": True, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge"},
+    "voice": {"vad": True, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge",
+              "stt_engine": "vosk", "whisper_model": "base",            # stt_engine: vosk (offline, default) | whisper (faster-whisper, more accurate)
+              "keys": {"elevenlabs": "", "openai": "", "cartesia": "", "azure": "", "azure_region": "eastus"}},
     "actions": {"apps": {}, "commands": {}, "deny": [], "no_confirm": []},
     "browser": {"headless": True},
-    "lan": {"enabled": False, "token": ""},            # LAN mode: reachable from your phone / other PCs with a token
+    "lan": {"enabled": False, "token": "", "https": False},   # LAN mode: reachable from your phone / other PCs with a token; https = self-signed TLS
     "autostart": False,
 }
 
@@ -79,7 +87,8 @@ def load_config():
         return dict(DEFAULT_CONFIG)
 
 
-SECRET_FIELDS = (("widgets", "inbox", "imap_password"), ("widgets", "home", "hass_token"))
+SECRET_FIELDS = (("widgets", "inbox", "imap_password"), ("widgets", "home", "hass_token"),
+                 ("voice", "keys", "elevenlabs"), ("voice", "keys", "openai"), ("voice", "keys", "cartesia"), ("voice", "keys", "azure"))
 
 
 def _keyring():
@@ -151,10 +160,85 @@ def bind_host():
 
 def allowed_origins():
     base = set(DEFAULT_CONFIG["ui"]["origins"]) | set(load_config().get("ui", {}).get("origins", []))
+    base |= {o.replace("http://", "https://", 1) for o in base}
     if lan_mode().get("enabled"):
         for ip in lan_ips():
-            base |= {f"http://{ip}:{PORTS['ui']}", f"http://{ip}:{PORTS['panel']}"}
+            base |= {f"{sch}://{ip}:{PORTS[p]}" for sch in ("http", "https") for p in ("ui", "panel")}
     return base
+
+
+# --------------------------------------------------------------------------- TLS (phone mode over https)
+def tls_enabled():
+    lan = lan_mode()
+    return bool(lan.get("enabled") and lan.get("https"))
+
+
+def scheme():
+    return "https" if tls_enabled() else "http"
+
+
+def tls_paths():
+    return os.path.join(TLS_DIR, "samurai.crt"), os.path.join(TLS_DIR, "samurai.key")
+
+
+def ensure_cert(force=False):
+    """Self-signed certificate for the LAN (SAN = every LAN ip + localhost, 10 years). Needs the cryptography package.
+    Returns (ok, message). Trust the .crt once on the phone and every SAMURAI page loads over https."""
+    crt, key = tls_paths()
+    if not force and os.path.exists(crt) and os.path.exists(key):
+        return True, "certificate present"
+    try:
+        import datetime, ipaddress
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+    except ImportError:
+        return False, "pip install cryptography (needed to create the https certificate)"
+    os.makedirs(TLS_DIR, exist_ok=True)
+    k = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "SAMURAI"), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "SAMURAI local")])
+    sans = [x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+    for ip in lan_ips():
+        try:
+            sans.append(x509.IPAddress(ipaddress.ip_address(ip)))
+        except ValueError:
+            pass
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(k.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(days=1)).not_valid_after(now + datetime.timedelta(days=3650))
+            .add_extension(x509.SubjectAlternativeName(sans), critical=False)
+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .sign(k, hashes.SHA256()))
+    with open(key, "wb") as f:
+        f.write(k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+    with open(crt, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+    return True, f"certificate created for {', '.join(lan_ips()) or 'localhost'}"
+
+
+def tls_context():
+    """A server-side SSLContext when https is on and the certificate exists, else None."""
+    if not tls_enabled():
+        return None
+    crt, key = tls_paths()
+    if not (os.path.exists(crt) and os.path.exists(key)):
+        ok, msg = ensure_cert()
+        if not ok:
+            print(f"[SAMURAI] https requested but {msg} — serving plain http")
+            return None
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(crt, key)
+    return ctx
+
+
+def maybe_wrap_tls(httpd):
+    """Call right before serve_forever(): wraps the listening socket in TLS when lan.https is on. Returns httpd."""
+    ctx = tls_context()
+    if ctx is not None:
+        httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+        print(f"[SAMURAI] https on :{httpd.server_address[1]}")
+    return httpd
 
 
 def venv_python():

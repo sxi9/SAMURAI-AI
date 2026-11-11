@@ -4,10 +4,15 @@
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas, binaries, hiddenimports = [("app", "app"), ("servers", "servers"), ("plugins", "plugins"), ("tests/mock_llm.py", "tests"),
-                                  ("config.example.json", "."), ("requirements.txt", ".")], [], []
+                                  ("config.example.json", "."), ("requirements.txt", "."), ("VERSION", ".")], [], []
 for pkg in ("vosk", "edge_tts", "websockets", "psutil", "certifi"):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
+import importlib.util
+for pkg in ("cryptography", "qrcode", "faster_whisper", "ctranslate2", "huggingface_hub", "tokenizers", "onnxruntime"):   # optional: bundled when installed
+    if importlib.util.find_spec(pkg):
+        d, b, h = collect_all(pkg)
+        datas += d; binaries += b; hiddenimports += h
 hiddenimports += collect_submodules("servers") if False else []
 hiddenimports += ["samurai_common", "samurai_automation", "samurai_autostart", "samurai_panel", "samurai_telemetry", "samurai_tts_server",
                   "samurai_speech_server", "samurai_action_server", "samurai_agent_server", "samurai_addons", "samurai_browser", "mock_llm",
