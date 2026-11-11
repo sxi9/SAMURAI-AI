@@ -126,4 +126,4 @@ The first checks every route and the origin lock. The second synthesises a phras
 
 ## Files
 
-`README.txt` has the plain-text version of this guide. `docs/CHECKLIST.md` tracks what was built. `app/legacy-interface.html` is the previous interface. `samurai_dashboard.py` is the older tkinter dashboard for Windows; the browser control panel replaces it.
+`README.txt` has the plain-text version of this guide. `docs/CHECKLIST.md` tracks what was built and `docs/ROADMAP.md` lists everything that could still be added, numbered. `app/legacy-interface.html` is the previous interface. `samurai_dashboard.py` is the older tkinter dashboard for Windows; the browser control panel replaces it.

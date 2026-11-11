@@ -1,0 +1,117 @@
+# SAMURAI roadmap — everything that could still be added
+
+Numbered so you can say "build 3, 12 and 40". Legend: `[ ]` not started · `[x]` done.
+Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it needs a graphics card for real time.
+
+## A. Claude and brains
+
+- [ ] A1 (S) "Log in to Claude" button in the control panel: runs the Claude Code login, shows whether the session is valid, which plan, and when it expires
+- [ ] A2 (S) Claude session health on the HUD pill (logged in, expired, rate limited) with a spoken warning
+- [ ] A3 (S) Claude panel: a ring node that opens claude.ai in an embedded browser window for manual chat (cannot drive SAMURAI; the site refuses iframes and scraping it breaks the terms)
+- [ ] A4 (S) Gemini CLI login button, same as A1
+- [ ] A5 (M) Streaming for headless Claude Code (today the JSON answer arrives whole)
+- [ ] A6 (M) Tool calling through Claude Code's own MCP servers: let Claude use SAMURAI's actions, browser agent and documents as tools inside one session
+- [ ] A7 (M) Per-provider cost and token meter, monthly budget with a spoken warning
+- [ ] A8 (M) Local vision model (Ollama llava / moondream) so "what is on my screen" works offline
+- [ ] A9 (L) Agent loop with a scratchpad: multi-hour tasks that keep working while you are away and report when done
+
+## B. Voice
+
+- [ ] B1 (S) Premium online voices behind the TTS sidecar: ElevenLabs, OpenAI gpt-4o-mini-tts (nova, shimmer), Cartesia Sonic, Azure HD (Ava, Emma); voice picker with a sample button
+- [ ] B2 (S) More Edge voices surfaced by default: en-US-AvaMultilingual, en-US-Emma, en-GB-Sonia, en-AU-Natasha, en-IN-Neerja
+- [ ] B3 (M, GPU) Local natural voices: Chatterbox (emotion control), Orpheus (laughs, sighs), XTTS v2 (clone a voice from a 10-second sample), Fish Speech, F5-TTS
+- [ ] B4 (S) Voice styles: whisper, excited, calm, per mood, where the engine supports it
+- [ ] B5 (M) Full duplex speech-to-speech: OpenAI Realtime, Gemini Live, or Moshi locally; natural interruptions and back-channel ("mm-hm")
+- [ ] B6 (M) Trained "samurai" wake-word model from your own recordings (openWakeWord training script)
+- [ ] B7 (M) Voice identity: only obey enrolled voices; greet the right person
+- [ ] B8 (S) Large Vosk model as default on capable machines; Whisper option (faster-whisper) for better accuracy
+- [ ] B9 (S) Global push-to-talk hotkey that works in any app
+- [ ] B10 (S) Live translation: speak one language, reply in another; subtitles on the HUD
+- [ ] B11 (M) Meeting mode: transcribe the room, summarise, pull out action items
+
+## C. Media inside the HUD
+
+- [ ] C1 (S) Video widget: YouTube embed with voice control (play, pause, skip, volume, search), cinema mode that dims the rest of the HUD
+- [ ] C2 (S) Local video files and folders in the same widget
+- [ ] C3 (S) HLS and Twitch live streams
+- [ ] C4 (M) Real Spotify control through the Web API: play anything, album art, queue
+- [ ] C5 (S) Album art and lyrics for the local library (tags, LRC files)
+- [ ] C6 (S) Internet radio and podcasts
+- [ ] C7 (S) Read a PDF, an article or the clipboard aloud; "summarise this page"
+- [ ] C8 (M) Map widget with Leaflet: your location, routes, traffic, "how long to the office"
+- [ ] C9 (S) Photo slideshow from the gallery in ambient mode
+- [ ] C10 (S) Picture-in-picture: any widget can float small over other apps (browser PiP for video)
+
+## D. Senses
+
+- [ ] D1 (M) Presence: greet you when the camera sees you, pause and lock when you leave
+- [ ] D2 (M) Face recognition for per-person profiles and greetings
+- [ ] D3 (M) Hand gestures via webcam (MediaPipe): volume, next, pause, summon a widget
+- [ ] D4 (S) Screen OCR: read any text on screen, copy it, translate it
+- [ ] D5 (M) Activity awareness: knows which app you are in and adapts (quiet during calls, no interruptions while gaming)
+- [ ] D6 (S) Clipboard history and "what did I copy earlier"
+- [ ] D7 (M) Windows notifications read aloud, with reply by voice
+- [ ] D8 (S) Microphone always-on with a privacy light on the HUD and a hardware-style kill switch
+
+## E. Tasks and connections
+
+- [ ] E1 (M) Google Calendar and Gmail write access: create events, send replies by voice
+- [ ] E2 (M) WhatsApp or Telegram bridge: read and send messages, phone notifications to the HUD
+- [ ] E3 (S) ntfy or Pushover: push alerts to your phone when you are away
+- [ ] E4 (S) Discord and Slack presence and messages
+- [ ] E5 (S) Wi-Fi, Bluetooth, VPN on and off; "connect my headphones"
+- [ ] E6 (S) Wake-on-LAN and SSH to other machines: "turn on the server", "run the backup on the NAS"
+- [ ] E7 (S) File search across drives (everything-style index) and "open the file I worked on yesterday"
+- [ ] E8 (S) Download manager and torrent client control
+- [ ] E9 (S) Game launcher: Steam library, "launch Elden Ring", FPS overlay
+- [ ] E10 (S) System cleanup and updates: temp files, package updates, driver check, with confirmation
+- [ ] E11 (M) Notes and journal by voice, searchable, daily summary
+- [ ] E12 (S) Pomodoro and focus sessions with app blocking
+- [ ] E13 (M) Shopping and orders: price watch, "order more coffee" through a confirmed browser flow
+- [ ] E14 (M) Smart home beyond Home Assistant: Hue, Tuya, Tapo, Govee direct; scenes by voice
+- [ ] E15 (L) Android companion app (Capacitor) with wake word, instead of the phone web page
+- [ ] E16 (S) Kiosk mode for a wall tablet: full screen, auto-start, dim at night
+
+## F. Avatar and look (the "incredible visual" list)
+
+- [ ] F1 (L) Volumetric orb in Three.js: glass sphere with refraction, inner plasma shader, fresnel rim, 50,000-particle point cloud, 3D shape morphs with depth of field, slow orbiting camera
+- [ ] F2 (M) Reactive nebula background: GPU noise or fluid shader that stirs when listening, brightens when speaking, turns red and turbulent on alert
+- [ ] F3 (S) Voice visualiser: real spectrum of the reply audio as rings around the orb; lip-sync via the audio analyser
+- [ ] F4 (L) 3D head option: Live2D or VRM avatar with eye tracking toward the mouse or your face, blinking, mood expressions
+- [ ] F5 (M) Hologram materialise: widgets assemble from scanlines and particles, dissolve when docked
+- [ ] F6 (M) Shape-to-widget morphs: the particles form a cloud before weather opens, a heartbeat line before system, a note before music
+- [ ] F7 (S) Energy arcs between the orb and the widget it is driving; a flash when an action runs
+- [ ] F8 (S) Camera moves: dolly and parallax from the mouse and the phone gyroscope; slow drift in ambient
+- [ ] F9 (M) Depth layers with real blur: foreground glass, mid widgets, deep background
+- [ ] F10 (S) Chromatic aberration and glitch on alert; CRT bloom "retro" theme; film grain and lens flares "cinema" theme
+- [ ] F11 (M) Day cycle: palette and background follow the real clock and the weather feed; rain or snow particles when forecast
+- [ ] F12 (S) Audio-reactive everything: ring, ticker glow and corner brackets pulse with music, not only the orb
+- [ ] F13 (M) 3D Earth globe for the position widget: textured globe, your location, satellites, the day-night line, spins on voice
+- [ ] F14 (L) Holographic desk: a 3D room in ambient mode with widgets as floating panels
+- [ ] F15 (M) Data constellations: memories and tasks as stars connected by topic, searchable by voice
+- [ ] F16 (S) Wall or projector mode: 4K ambient scene with the orb alone, as a living wallpaper
+- [ ] F17 (S) Typewriter reply text with a cursor glow, sound-synced
+- [ ] F18 (S) Heartbeat line behind the system widget that follows real CPU load
+- [ ] F19 (S) Eyes narrow on hard questions, widen on alerts, look at the widget being read
+- [ ] F20 (S) Boot sequence with a diagnostic scroll, a power hum and a "systems online" flash
+- [ ] F21 (M) Desktop overlay: Electron shell, transparent and always on top, so the orb floats over any app
+- [ ] F22 (S) Widget themes: glass, wireframe, paper; custom fonts
+- [ ] F23 (S) Idle behaviours: the orb yawns, stretches, chases the mouse, hides behind a widget
+
+## G. Platform and polish
+
+- [ ] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage
+- [ ] G2 (S) Auto-update from GitHub releases with a changelog spoken on first boot
+- [ ] G3 (S) Settings sync across machines through a folder or Git
+- [ ] G4 (M) Multi-room: several HUDs on the LAN, one brain, hand-off between rooms
+- [ ] G5 (S) Backup and restore of memory, config and routines
+- [ ] G6 (S) Crash reporter into the control panel, with one-click log bundle
+- [ ] G7 (M) Plugin marketplace page that installs plugins from a Git URL
+- [ ] G8 (S) Accessibility: screen-reader labels, high-contrast theme, bigger text mode
+
+## Suggested order
+
+1. A1 Claude login button · B1 premium voices · C1 video widget · F3 voice visualiser (all small, all visible)
+2. F1 volumetric orb · F2 nebula shader · F5 hologram transitions (the look of every frame)
+3. D1 presence · B5 full duplex speech · F11 day cycle
+4. E1 calendar and mail · C4 Spotify · F13 globe
