@@ -264,8 +264,26 @@ window.SAM = window.SAM || {};
       else if (cmd === 'next' || cmd === 'prev') { this.onAction && this.onAction(cmd === 'next' ? 'media_next' : 'media_prev', ''); }
       this.render('mus'); return true;
     },
+    /* music energy 0..1 for the avatar: real analyser on the library player, a steady 120 BPM pulse for external players */
+    musicLevel() {
+      const m = this.data.music;
+      if (!m.now.playing) return 0;
+      if (this.analyser && this.audio && !this.audio.paused) {
+        const a = this.analyser, buf = this._fft || (this._fft = new Uint8Array(a.frequencyBinCount)); a.getByteFrequencyData(buf);
+        let bass = 0; for (let i = 1; i < 10; i++) bass += buf[i];                // low bins ≈ kick / bass
+        const v = bass / 9 / 255; this._lvl = Math.max(v, (this._lvl || 0) * .85); return Math.min(1, this._lvl * 1.4);
+      }
+      const t = performance.now() / 1000, beat = (t * 2) % 1;                     // 120 BPM
+      return Math.max(0, 1 - beat * 3) * .8;
+    },
+    _attachAnalyser() {
+      if (this.analyser || !this.audio) return;
+      try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const src = ctx.createMediaElementSource(this.audio); this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 256; this.analyser.smoothingTimeConstant = .5; src.connect(this.analyser); this.analyser.connect(ctx.destination); this._actx = ctx; }
+      catch (e) { this.analyser = null; }
+    },
     playTrack(i) {
-      const m = this.data.music; if (!this.audio) { this.audio = new Audio(); this.audio.addEventListener('ended', () => this.music('next')); }
+      const m = this.data.music; if (!this.audio) { this.audio = new Audio(); this.audio.crossOrigin = 'anonymous'; this.audio.addEventListener('ended', () => this.music('next')); this._attachAnalyser(); }
+      if (this._actx && this._actx.state === 'suspended') this._actx.resume().catch(() => { });
       const src = `${ADDONS}/music/file?i=${i}${TQ}`; if (!this.audio.src.endsWith(src)) this.audio.src = src;
       this.audio.play().catch(() => this.log('warn', 'audio playback blocked (click the page once)'));
       const tr = m.tracks[i]; this.pushTty(`music · ${tr ? tr.title : i}`, '#a07cff');

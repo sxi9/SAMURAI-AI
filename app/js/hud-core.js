@@ -48,7 +48,8 @@ window.SAM = window.SAM || {};
   const core = {
     SHAPE_CYCLE, THEME, mode: 'boot', shapeName: 'sphere', shapeLock: 0, particles: true, flowStep: 1,
     setTheme(c, v, ice) { THEME.c = c; THEME.v = v; THEME.ice = ice || '217,248,255'; },
-    shapes: {}, morphT: 1, spin: 0, tilt: SHAPE_TILT.sphere, lastTs: 0, raf: 0, canvas: null, ctx: null,
+    shapes: {}, morphT: 1, spin: 0, tilt: SHAPE_TILT.sphere, lastTs: 0, raf: 0, canvas: null, ctx: null, show: 0,
+    showcase() { return Date.now() < this.shapeLock; },
     onShape: null,
     init(canvas) {
       this.canvas = canvas; this.ctx = canvas.getContext('2d');
@@ -75,6 +76,8 @@ window.SAM = window.SAM || {};
       const g = x.createRadialGradient(cx, cy, 0, cx, cy, 560);
       g.addColorStop(0, `rgba(${cfg.col},.26)`); g.addColorStop(.45, `rgba(${cfg.col},.06)`); g.addColorStop(1, 'rgba(0,0,0,0)');
       x.fillStyle = g; x.fillRect(0, 0, S, S);
+      this.show += ((this.showcase() ? 1 : 0) - this.show) * .05;          // 0 = normal, 1 = commanded shape on display
+      const sh = this.show;
       if (this.particles && this.ppos) {
         const dt = Math.min(.05, (ts - (this.lastTs || ts)) / 1000); this.lastTs = ts;
         const P = this.ppos, F = this.pfrom, T = this.ptarget, D = this.pdelay;
@@ -86,7 +89,8 @@ window.SAM = window.SAM || {};
         const spinSpeed = m === 'thinking' ? 1.4 : m === 'alert' ? 2 : .3;
         if (FACING[base]) this.spin += (Math.sin(t * .6) * .3 - this.spin) * .04; else this.spin += spinSpeed * dt;
         this.tilt += ((SHAPE_TILT[base] ?? .3) - this.tilt) * .04;
-        const cs = Math.cos(this.spin), sn = Math.sin(this.spin), ct = Math.cos(this.tilt), st = Math.sin(this.tilt), Rp = 380;
+        const cs = Math.cos(this.spin), sn = Math.sin(this.spin), ct = Math.cos(this.tilt), st = Math.sin(this.tilt), Rp = 380 + 110 * sh;
+        const rBase = 1.7 + 1.3 * sh, rGain = 2.4 + 1.6 * sh, aBoost = .12 * sh;
         x.globalCompositeOperation = 'lighter';
         const step = this.flowStep;
         for (let i = 0; i < PN; i += step) {
@@ -95,12 +99,12 @@ window.SAM = window.SAM || {};
           const y2 = y0 * ct - z1 * st, z2 = y0 * st + z1 * ct;
           const sc = 1000 / (1000 - z2 * Rp), d = (z2 + 1) / 2;
           const sx = cx + x1 * Rp * sc, sy = cy - y2 * Rp * sc;
-          x.fillStyle = m === 'alert' ? `rgba(${THEME.red},${.15 + d * .6})` : m === 'thinking' ? `rgba(${THEME.v},${.15 + d * .6})` : z2 > 0 ? `rgba(${THEME.c},${.18 + d * .6})` : `rgba(${THEME.v},${.1 + d * .35})`;
-          x.beginPath(); x.arc(sx, sy, (1.1 + d * 2) * sc, 0, 6.283); x.fill();
+          x.fillStyle = m === 'alert' ? `rgba(${THEME.red},${.15 + d * .6 + aBoost})` : m === 'thinking' ? `rgba(${THEME.v},${.15 + d * .6 + aBoost})` : z2 > 0 ? `rgba(${THEME.c},${.22 + d * .6 + aBoost})` : `rgba(${THEME.v},${.16 + d * .4 + aBoost})`;
+          x.beginPath(); x.arc(sx, sy, (rBase + d * rGain) * sc, 0, 6.283); x.fill();
         }
         x.globalCompositeOperation = 'source-over';
       }
-      const R = 300, n = 72, level = this.micLevel || 0;
+      const R = 300, n = 72, level = this.micLevel || 0, music = this.musicLevel || 0;
       x.lineCap = 'round'; x.lineWidth = 6;
       for (let i = 0; i < n; i++) {
         const a = i / n * Math.PI * 2; let v;
@@ -109,8 +113,9 @@ window.SAM = window.SAM || {};
         else if (m === 'alert') v = Math.abs(Math.sin(i * 7.1 + t * cfg.sp)) * (.4 + Math.random() * .6);
         else if (m === 'listening') v = (Math.sin(i * .9 + t * cfg.sp) * .5 + .5) * (Math.sin(i * 2.3 - t * cfg.sp * .7) * .5 + .5) * (1.4 + level * 1.2);
         else v = Math.sin(i * .6 + t * cfg.sp) * .5 + .5;
-        const len = cfg.base + v * cfg.amp;
-        x.strokeStyle = `rgba(${cfg.col},${.3 + Math.min(1, v) * .65})`;
+        if (music > 0.02 && m !== 'alert') v = v * (1 - music * .5) + music * (.6 + .4 * Math.abs(Math.sin(i * 1.7 + t * 9)));
+        const len = (cfg.base + v * cfg.amp * (1 + 1.1 * music)) * (1 - .45 * sh);
+        x.strokeStyle = `rgba(${cfg.col},${(.3 + Math.min(1, v) * .65) * (1 - .55 * sh)})`;
         x.beginPath(); x.moveTo(cx + Math.cos(a) * (R - len * .3), cy + Math.sin(a) * (R - len * .3)); x.lineTo(cx + Math.cos(a) * (R + len), cy + Math.sin(a) * (R + len)); x.stroke();
       }
       x.lineWidth = 1.5;

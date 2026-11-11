@@ -11,7 +11,7 @@
   const S = {
     mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
-    parallax: true, particles: true, idleMorph: true, wander: true, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    parallax: true, particles: true, idleMorph: true, wander: true, theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
   };
   const stage = $('stage'), root = $('root');
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -108,20 +108,37 @@
 
   /* ---------- orb wander: in idle the avatar drifts on every axis (x, y, depth, tilt) and its eyes glance around;
      it eases back to the centre whenever it listens, thinks, speaks or a widget is focused ---------- */
-  const WD = { x: 0, y: 0, s: 1, rx: 0, ry: 0, gx: 0, gy: 0 };
+  /* the avatar roams the whole stage when idle: it picks a waypoint anywhere, glides there with a little banking,
+     drifts on every axis on the way, glances where it is going, and bounces to the music when something is playing */
+  const WD = { x: 0, y: 0, vx: 0, vy: 0, s: 1, rx: 0, ry: 0, rz: 0, gx: 0, gy: 0, sh: 0, wx: 0, wy: 0, nextWp: 0, beat: 0, bob: 0 };
+  function pickWaypoint(t) {
+    const flow = S.flow, R = flow ? 0.35 : 1;
+    WD.wx = (Math.random() * 2 - 1) * 600 * R; WD.wy = (Math.random() * 2 - 1) * 290 * R;     // anywhere on the stage, clear of the console
+    WD.nextWp = t + 5 + Math.random() * 7;
+  }
   function wanderFrame(ts) {
-    const t = ts / 1000, idle = S.wander && !S.reduced && S.mode === 'idle' && !S.focus && !S.drawer;
-    const tx = idle ? 70 * Math.sin(t * .21) + 25 * Math.sin(t * .53 + 1.3) : 0;
-    const ty = idle ? 42 * Math.sin(t * .17 + 1) + 14 * Math.sin(t * .41 + .4) : 0;
+    const t = ts / 1000, showcase = core.showcase(), playing = widgets.data.music.now.playing;
+    const idle = S.wander && !S.reduced && S.mode === 'idle' && !S.focus && !S.drawer && !showcase;
+    WD.sh += ((showcase ? 1 : 0) - WD.sh) * .05;       // a commanded shape is on display: orb shrinks and stays centred so the shape reads
+    if (idle) { if (t > WD.nextWp) pickWaypoint(t); }
+    else { WD.wx = WD.wy = 0; WD.nextWp = t + 2; }
+    const dx = WD.wx + (idle ? 40 * Math.sin(t * .53 + 1.3) : 0) - WD.x, dy = WD.wy + (idle ? 24 * Math.sin(t * .41 + .4) : 0) - WD.y;
+    const acc = idle ? .0022 : .006, damp = idle ? .96 : .86;
+    WD.vx = (WD.vx + dx * acc) * damp; WD.vy = (WD.vy + dy * acc) * damp; WD.x += WD.vx; WD.y += WD.vy;
+    const speed = Math.hypot(WD.vx, WD.vy);
     const tsc = idle ? 1 + .08 * Math.sin(t * .13 + 2) : 1;
-    const trx = idle ? 9 * Math.sin(t * .19 + .7) : 0, tryy = idle ? 12 * Math.sin(t * .23 + 1.9) : 0;
-    const k = idle ? .03 : .06;                       // slow drift out, quicker return to centre
-    WD.x += (tx - WD.x) * k; WD.y += (ty - WD.y) * k; WD.s += (tsc - WD.s) * k; WD.rx += (trx - WD.rx) * k; WD.ry += (tryy - WD.ry) * k;
-    const gx = idle ? WD.x * .14 + 6 * Math.sin(t * .9) : 0, gy = idle ? WD.y * .12 + 3 * Math.sin(t * .7 + 2) : 0;
+    const trx = idle ? 9 * Math.sin(t * .19 + .7) - WD.vy * 3 : 0, tryy = idle ? 12 * Math.sin(t * .23 + 1.9) + WD.vx * 3 : 0, trz = idle ? WD.vx * 4 : 0;
+    WD.s += (tsc - WD.s) * .05; WD.rx += (Math.max(-18, Math.min(18, trx)) - WD.rx) * .05; WD.ry += (Math.max(-22, Math.min(22, tryy)) - WD.ry) * .05; WD.rz += (Math.max(-14, Math.min(14, trz)) - WD.rz) * .05;
+    const gx = idle ? Math.max(-9, Math.min(9, dx * .03)) + 4 * Math.sin(t * .9) : 0, gy = idle ? Math.max(-6, Math.min(6, dy * .03)) + 2 * Math.sin(t * .7 + 2) : 0;
     WD.gx += (gx - WD.gx) * .08; WD.gy += (gy - WD.gy) * .08;
+    /* music: a bounce on every beat, a little sway, the ring pumps too */
+    const lvl = playing ? widgets.musicLevel() : 0; WD.beat += (lvl - WD.beat) * (lvl > WD.beat ? .5 : .12);
+    WD.bob = playing ? WD.bob * .9 + Math.sin(t * 4.2) * 2 : WD.bob * .9;
+    core.musicLevel = WD.beat;
+    const bs = 1 + .16 * WD.beat, by = -22 * WD.beat + WD.bob, bz = (playing ? 6 * Math.sin(t * 2.1) : 0);
     const anchor = document.querySelector('.orbAnchor'), eyes = document.querySelector('.eyes');
-    if (anchor) anchor.style.transform = `perspective(900px) translate3d(${WD.x.toFixed(1)}px,${WD.y.toFixed(1)}px,0) rotateX(${WD.rx.toFixed(1)}deg) rotateY(${WD.ry.toFixed(1)}deg) scale(${WD.s.toFixed(3)})`;
-    if (eyes) eyes.style.transform = `translate(${WD.gx.toFixed(1)}px,${WD.gy.toFixed(1)}px)`;
+    if (anchor) anchor.style.transform = `perspective(900px) translate3d(${WD.x.toFixed(1)}px,${(WD.y + by).toFixed(1)}px,0) rotateX(${WD.rx.toFixed(1)}deg) rotateY(${WD.ry.toFixed(1)}deg) rotateZ(${(WD.rz + bz).toFixed(1)}deg) scale(${(WD.s * bs * (1 - .42 * WD.sh)).toFixed(3)})`;
+    if (eyes) eyes.style.transform = `translate(${WD.gx.toFixed(1)}px,${(WD.gy - 3 * WD.beat).toFixed(1)}px) scaleY(${(1 - .25 * WD.beat).toFixed(2)})`;
     requestAnimationFrame(wanderFrame);
   }
   requestAnimationFrame(wanderFrame);
@@ -175,11 +192,22 @@
     if (has('full layout', 'show all', 'full mode', 'show everything', 'dashboard mode')) return { text: 'Full layout restored.', effect: () => { S.layout = 'full'; save(); applyLayout(); } };
     if (/^(focus layout|focus mode layout|calm (mode|layout)|less widgets|fewer widgets|declutter)$/.test(q)) return { text: 'Focus layout. Six widgets, the rest wait in the ring.', effect: () => { S.layout = 'focus'; save(); applyLayout(); } };
     const pl = q.match(/^(?:plan|make a plan|do all this|multi ?step)[:,]?\s+(.{4,})$/); if (pl) return { plan: pl[1] };
+    const th = q.match(/^(?:(?:set |switch |change )?(?:the )?(?:theme|colou?rs?|skin)(?: to)? |go )([a-z]+)(?: theme| mode| colou?rs?)?$/) || q.match(/^([a-z]+) theme$/) || q.match(/^the ([a-z]+)$/);
+    const THEME_ALIAS = { ark: 'arc', arch: 'arc', art: 'arc', amber: 'ember', embers: 'ember', eyes: 'ice', iced: 'ice', golden: 'gold', green: 'matrix', blue: 'ocean', red: 'crimson', pink: 'rose', purple: 'nebula', violet: 'nebula', orange: 'sunset', yellow: 'solar', white: 'mono', grey: 'stealth', gray: 'stealth', dark: 'stealth', teal: 'aurora', indigo: 'royal' };
+    if (th && THEME_ALIAS[th[1]]) th[1] = THEME_ALIAS[th[1]];
+    if (th && (th[1] in THEMES) && th[1] !== 'custom') return { text: `${th[1]} theme.`, effect: () => { applyTheme(th[1]); save(); } };
+    if (/^(random|next|another|surprise) (theme|colou?rs?|skin)$/.test(q)) return { text: 'New colours.', effect: () => { const names = Object.keys(THEMES).filter(n => n !== 'custom' && n !== S.theme); applyTheme(names[Math.floor(Math.random() * names.length)]); save(); } };
+    if (/^(stay|stay still|stop moving|stop wandering|hold still|come back|come here|center|centre)$/.test(q)) return { text: 'Holding position.', effect: () => { S.wander = false; save(); } };
+    if (/^(roam|rome|roman|wander|wonder|move around|explore|free roam|go explore|move as you like|go roam)$/.test(q)) return { text: 'Roaming.', effect: () => { S.wander = true; save(); } };
     if (/^proactive check$/.test(q)) return { proactive: true };
     const tm = q.match(/\b(?:timer|countdown|alarm)\b.*?(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty|forty|sixty)\s*(?:min|minute|m\b)/) || q.match(/(\d+|one|two|three|four|five|ten|fifteen|twenty|thirty)\s*(?:min|minute)s?\s*(?:timer|countdown)/);
     if (tm) { const n = WORDS[tm[1]] || +tm[1]; return { focus: 'tmr', text: `Timer set, ${n} minute${n > 1 ? 's' : ''}. I'll ping you when it's done.`, effect: () => widgets.timerStart(n * 60) }; }
     if (/\b(stop|cancel|reset)\b.*\btimer\b|\btimer\b.*\b(stop|cancel|reset)\b/.test(q)) return { focus: 'tmr', text: 'Timer cleared.', effect: () => widgets.timerReset() };
     const tm2 = q.match(/\b(?:timer|countdown|alarm)\b(?: for)? (\d+|one|two|three|four|five|ten|fifteen|twenty|thirty)$/); if (tm2) { const n = WORDS[tm2[1]] || +tm2[1]; return { focus: 'tmr', text: `Timer set, ${n} minute${n > 1 ? 's' : ''}.`, effect: () => widgets.timerStart(n * 60) }; }
+    const pm = q.match(/^(?:play|start|put on|resume)(?: me)?(?: the| some| a| any)?(?: (.+?))?(?: please)?$/);
+    if (pm) { const what = (pm[1] || '').replace(/^(music|song|songs|track|tune|tunes|something|anything|beat|a beat|playlist|the music)$/, '').trim(), m = widgets.data.music;
+      if (!what) return { focus: 'mus', text: 'Playing music.', effect: () => widgets.music('play') };
+      if (m.live && m.tracks.some(t => t.title.toLowerCase().includes(what) || (t.artist || '').toLowerCase().includes(what))) return { focus: 'mus', text: `Playing ${what}.`, effect: () => widgets.music('find', what) }; }
     if (/^(pause|pause music|stop music|stop the music)$/.test(q)) return { focus: 'mus', text: 'Paused.', effect: () => widgets.music('pause') };
     if (/^(next|next track|next song|skip)$/.test(q)) return { focus: 'mus', text: 'Next track.', effect: () => widgets.music('next') };
     const vl = q.match(/^(?:set )?volume (?:to )?(\d{1,3})%?$/); if (vl) return { text: `Volume ${vl[1]} percent.`, actions: [{ type: 'volume_set', arg: vl[1] }] };
@@ -215,7 +243,7 @@
   function offlineRoute(q) {
     const d = widgets.data, has = (...k) => k.some(x => q.includes(x));
     if (has('weather', 'forecast', 'rain', 'temperature')) { const w = d.weather; return { focus: 'wx', text: w && w.temp !== '--' ? `${w.temp} degrees and ${String(w.cond).toLowerCase()}${w.label ? ' in ' + w.label : ''}. High of ${w.hi}, low ${w.lo}.` : 'Weather feed is offline.' }; }
-    if (has('play ', 'music', 'song')) { const what = (q.match(/play (?:me )?(?:some )?(.+)/) || [])[1] || ''; return { focus: 'mus', text: what ? `Playing ${what}.` : 'Playing music.', effect: () => widgets.music(what ? 'find' : 'play', what) }; }
+    if (has('play ', 'music', 'song')) { let what = ((q.match(/play (?:me )?(?:some )?(.+)/) || [])[1] || '').replace(/^(the |a |some )?(music|song|songs|track|tune|tunes|something|anything|a beat|beat)$/, '').trim(); return { focus: 'mus', text: what ? `Playing ${what}.` : 'Playing music.', effect: () => { if (!(what && widgets.music('find', what))) widgets.music('play'); } }; }
     if (has('light', 'lamp')) { const off = has('off'); return { focus: 'home', text: off ? 'Lights off.' : 'Lights on.', effect: () => widgets.setHome('lights', !off) }; }
     if (has('unlock')) return { focus: 'home', text: 'Front door unlocked.', effect: () => widgets.setHome('lock', false) };
     if (has('lock')) return { focus: 'home', text: 'Front door locked.', effect: () => widgets.setHome('lock', true) };
@@ -532,7 +560,8 @@
       <div class="addons">${W.map(w => `<div class="row"><span><b>${w.code}</b>${w.name}</span>${sw('pin:' + w.id, !!S.pinned[w.id])}</div>`).join('')}</div>
       <div class="note">Unpinned add-ons dock into their ring node. Click the node or ask for them by voice to summon.</div>
       <h4>THEME</h4>
-      <select id="optTheme">${Object.keys(THEMES).map(t => `<option value="${t}"${S.theme === t ? ' selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select>
+      <div class="themes">${Object.keys(THEMES).map(t => { const [a, b] = themeHex(t); return `<div class="sw${S.theme === t ? ' on' : ''}" data-t="${t}" style="--a:${a};--b:${b}" title="${t}"><span>${t}</span></div>`; }).join('')}</div>
+      <div class="pick"><label>ACCENT <input type="color" id="optColA" value="${S.custom.a}"></label><label>SECOND <input type="color" id="optColB" value="${S.custom.b}"></label><span class="note" style="margin:0">pick two colours for your own theme · say "theme ocean", "random theme"</span></div>
       <h4>LAYOUT</h4>
       <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
       <div class="note">Focus shows six widgets; the other six wait in the ring. Full shows all twelve.</div>
@@ -556,7 +585,9 @@
     $('optStrategy').onchange = e => { b.pool.strategy = e.target.value; save(); };
     b.roles = b.roles || { chat: '', work: '', research: '', vision: '' };
     ['chat', 'work', 'research', 'vision'].forEach(role => { $('role_' + role).onchange = e => { b.roles[role] = e.target.value; save(); }; });
-    $('optTheme').onchange = e => { applyTheme(e.target.value); save(); };
+    document.querySelectorAll('.themes .sw').forEach(el => el.onclick = () => { applyTheme(el.dataset.t); save(); });
+    const colPick = () => { S.custom = { a: $('optColA').value, b: $('optColB').value }; applyTheme('custom'); save(); };
+    $('optColA').oninput = colPick; $('optColB').oninput = colPick;
     $('optPool').onchange = e => { b.pool.order = e.target.value.split(/[,\s]+/).map(x => x.trim().toLowerCase()).filter(x => brain.PROVIDERS[x]); e.target.value = b.pool.order.join(', '); save(); };
     $('optVoice').onchange = e => { v.neuralVoice = e.target.value; save(); };
     $('optRate').oninput = e => { v.rate = +e.target.value; $('rateVal').textContent = v.rate.toFixed(1); save(); };
@@ -579,8 +610,27 @@
       save();
     });
   }
-  const THEMES = { arc: ['46,230,255', '160,124,255', '217,248,255'], ember: ['255,106,61', '255,181,71', '255,227,214'], gold: ['255,194,77', '46,230,255', '255,233,194'], matrix: ['61,255,160', '160,255,124', '214,255,233'], ice: ['142,197,255', '195,166,255', '240,247,255'] };
-  function applyTheme(name) { const t = THEMES[name] || THEMES.arc; S.theme = THEMES[name] ? name : 'arc'; document.documentElement.dataset.theme = S.theme; core.setTheme(t[0], t[1], t[2]); }
+  /* [accent, second accent, bright text] as rgb triplets; the CSS has a matching block per name. 'custom' is built from two colour pickers. */
+  const THEMES = { arc: ['46,230,255', '160,124,255', '217,248,255'], ember: ['255,106,61', '255,181,71', '255,227,214'], gold: ['255,194,77', '46,230,255', '255,233,194'], matrix: ['61,255,160', '160,255,124', '214,255,233'], ice: ['142,197,255', '195,166,255', '240,247,255'],
+    crimson: ['255,61,110', '255,140,66', '255,219,228'], rose: ['255,122,200', '176,124,255', '255,230,244'], nebula: ['178,124,255', '255,111,216', '239,228,255'], aurora: ['56,242,198', '124,255,158', '223,255,246'],
+    ocean: ['56,166,255', '54,227,212', '224,241,255'], sunset: ['255,140,66', '255,77,141', '255,232,214'], solar: ['255,240,77', '255,159,28', '255,251,224'], mono: ['230,230,230', '154,154,154', '255,255,255'],
+    stealth: ['90,111,138', '63,95,122', '201,214,230'], lime: ['198,255,61', '61,255,160', '243,255,214'], royal: ['109,124,255', '255,194,77', '230,232,255'], custom: null };
+  const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  const rgbHex = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+  function customTheme() {
+    const a = hexRgb(S.custom.a), b = hexRgb(S.custom.b), ice = mix(a, [255, 255, 255], .82), text = mix(a, [170, 180, 190], .7), tick = mix(a, [140, 150, 160], .75), muted = mix(a, [90, 100, 110], .8), bg = mix(a, [4, 5, 10], .96);
+    const r = document.documentElement.style; r.setProperty('--cyan', S.custom.a); r.setProperty('--cyan-rgb', a.join(',')); r.setProperty('--violet', S.custom.b); r.setProperty('--violet-rgb', b.join(','));
+    r.setProperty('--ice', rgbHex(...ice)); r.setProperty('--text', rgbHex(...text)); r.setProperty('--tick', rgbHex(...tick)); r.setProperty('--muted', rgbHex(...muted)); r.setProperty('--bg', rgbHex(...bg));
+    return [a.join(','), b.join(','), ice.map(Math.round).join(',')];
+  }
+  function applyTheme(name) {
+    if (!(name in THEMES)) name = 'arc'; S.theme = name; document.documentElement.dataset.theme = name;
+    const r = document.documentElement.style; ['--cyan', '--cyan-rgb', '--violet', '--violet-rgb', '--ice', '--text', '--tick', '--muted', '--bg'].forEach(k => r.removeProperty(k));
+    const t = name === 'custom' ? customTheme() : THEMES[name]; core.setTheme(t[0], t[1], t[2]);
+    document.querySelectorAll('.themes .sw').forEach(el => el.classList.toggle('on', el.dataset.t === name));
+  }
+  const themeHex = n => n === 'custom' ? [S.custom.a, S.custom.b] : THEMES[n].slice(0, 2).map(x => rgbHex(...x.split(',').map(Number)));
   function toggleDrawer(open) { S.drawer = open === undefined ? !S.drawer : open; $('drawer').classList.toggle('hidden', !S.drawer); if (S.drawer) renderDrawer(); }
   function pill() { const p = brain.P(brain.cfg.provider); $('pillProvider').textContent = (brain.online ? '' : 'OFFLINE · ') + p.label.split(' — ')[0].replace(' (NO KEY)', ''); }
   async function loadConfig() { const c = await widgets.pollAddons('config'); if (c) { brain.user = { name: (c.user || {}).name || 'Boss', node: (c.user || {}).node || 'LOCAL-01', label: (c.location || {}).label || '' }; $('nodeText').textContent = brain.user.node; widgets.render('tty'); } }
@@ -631,6 +681,6 @@
     if (voice.cfg.wake) T(() => voice.start(), 4000);
     boot();
   }
-  SAM.hud = { S, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask };
+  SAM.hud = { S, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask, quickRoute };
   init();
 })(window.SAM);

@@ -105,7 +105,11 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Phone / LAN mode with a token (switch in the control panel, phone link)
 - [x] Packaged build: PyInstaller spec + launcher, verified on Linux (8 services from one executable); Windows SAMURAI.exe built by the build-exe workflow
 - [x] Walkthrough v2 with real microphone input and spoken replies
-- [x] Idle orb wander on every axis with glancing eyes; shapes-and-motion video (docs/walkthrough-shapes.mp4)
+- [x] Idle orb wander on every axis with glancing eyes; particle showcase mode so commanded shapes read clearly
+- [x] Free roaming across the whole stage (waypoints, banking, gaze), "stay still" / "roam" commands
+- [x] Music reaction: AnalyserNode beat level from the library player bounces the orb, pumps the ring; steady pulse for external players
+- [x] Sixteen colour themes + custom two-colour theme, swatch picker, theme voice commands
+- [x] 1080p walkthrough v5 with roaming, music bounce, themes and shapes (docs/walkthrough-motion.mp4); narration, user voice and replies never overlap (scheduled into silent gaps)
 - [ ] Trained "samurai" wake-word model (needs recorded samples), voice identity, full-duplex speech-to-speech, camera presence — still open
 
 ## Not verified in this build (needs a real desktop)

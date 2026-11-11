@@ -23,12 +23,14 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 
 ## The HUD
 - Orb avatar with eyes and a waveform ring for idle, listening, thinking, speaking and alert
+- Free roaming when idle: the avatar picks a spot anywhere on the screen, glides there, banks into turns and glances ahead; "stay still" / "roam" by voice
+- Music reaction: while the library player runs, a real audio analyser drives the beat; the orb bounces, the ring pumps, the eyes squint on the kick (external players get a steady pulse)
 - Particle core that morphs: sphere, galaxy, heart, knot, helix, cube, ring, wave, any spelled word; idle cycle
 - Twelve widgets: System, Agenda, Tasks, Inbox, Terminal, Timers, Weather, Music, Home, Position, Camera feed, Holo gallery
 - Orbital ring of twelve nodes: click to summon, unpin to dock
 - Focus layout (six widgets, calmer default), full layout (twelve), ambient (core only)
 - Boot sequence with assembling widgets, welcome flash, security alert card
-- Five colour themes: arc, ember, gold, matrix, ice
+- Sixteen colour themes (arc, ember, gold, matrix, ice, crimson, rose, nebula, aurora, ocean, sunset, solar, mono, stealth, lime, royal) plus a custom theme from two colour pickers; by voice: "theme ocean", "blue theme", "random theme"
 - Live ticker (markets, headlines), clock, parallax, reduced-motion support
 - Cockpit mode on big screens, flow layout on laptops, tablets and phones
 - Settings drawer: brains, pool, routing, voice, mic, personality, pinned add-ons, layout, theme, your name and location
