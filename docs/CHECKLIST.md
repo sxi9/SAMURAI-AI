@@ -17,16 +17,16 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 
 ## Stage 2 — HUD v3 page (design handoff, pixel-for-pixel at 1920×1080)
 
-- [ ] Stage scaling (cockpit ≥ 0.75, flow layout below), bundled fonts, reduced-motion
-- [ ] Header, ticker, corner brackets, background grid, scanlines, vignette, parallax
-- [ ] Core: particle field with morphing shapes, waveform ring, ellipses, DOM rings
-- [ ] Orb + eyes with the six states (boot, idle, listening, thinking, speaking, alert)
-- [ ] 12 widget cards, orbital ring nodes, focus fly-in, docking, ambient layout
-- [ ] Boot overlay + assemble animation, alert card, settings drawer
-- [ ] Response console, input bar, keyboard shortcuts, `?demo` state strip
-- [ ] Carry over: Vosk mic, neural TTS + browser fallback, 4 API providers, headless agents, telemetry injection, moods
-- [ ] LLM JSON contract `{reply, focus_widget, actions[]}` with keyword fallback
-- [ ] Old page kept as `app/legacy-interface.html`
+- [x] Stage scaling (cockpit ≥ 0.75, flow layout below), bundled fonts, reduced-motion
+- [x] Header, ticker, corner brackets, background grid, scanlines, vignette, parallax
+- [x] Core: particle field with morphing shapes, waveform ring, ellipses, DOM rings
+- [x] Orb + eyes with the six states (boot, idle, listening, thinking, speaking, alert)
+- [x] 12 widget cards, orbital ring nodes, focus fly-in, docking, ambient layout
+- [x] Boot overlay + assemble animation, alert card, settings drawer
+- [x] Response console, input bar, keyboard shortcuts, `?demo` state strip
+- [x] Carry over: Vosk mic, neural TTS + browser fallback, 4 API providers, headless agents, telemetry injection, moods
+- [x] LLM JSON contract `{reply, focus_widget, actions[]}` with keyword fallback
+- [x] Old page kept as `app/legacy-interface.html`
 
 ## Stage 3 — Platform: installer, control panel, autostart
 
@@ -39,18 +39,18 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 
 ## Stage 4 — Brains (as many AIs as possible) and memory
 
-- [ ] Providers: Ollama, LM Studio, llama.cpp, OpenAI, Anthropic Claude, Google Gemini, OpenRouter, Groq, Mistral, DeepSeek, xAI Grok, Perplexity, Together, Hugging Face, Azure OpenAI, plus headless Claude Code and Gemini CLI
-- [ ] Generic "OpenAI-compatible" provider: any endpoint works with just a base URL, key and model name
-- [ ] Per-provider model lists fetched live where the API offers them; free-tier providers marked
-- [ ] Multi-AI modes: ask one, ask several at once and compare, or route by task (fast model for chat, strong model for work, search-capable model for research)
-- [ ] Provider pool with round-robin and failover (order configurable; multiple keys per provider rotated; rate-limit aware)
-- [~] Local context: conversation history and "remember …" facts saved to SQLite, recalled into every prompt, "forget" command
+- [x] Providers: Ollama, LM Studio, llama.cpp, OpenAI, Anthropic Claude, Google Gemini, OpenRouter, Groq, Mistral, DeepSeek, xAI Grok, Perplexity, Together, Hugging Face, Azure OpenAI, plus headless Claude Code and Gemini CLI
+- [x] Generic "OpenAI-compatible" provider: any endpoint works with just a base URL, key and model name
+- [x] Per-provider model lists fetched live where the API offers them; free-tier providers marked
+- [x] Multi-AI modes: ask one, ask several at once and compare, or route by task (fast model for chat, strong model for work, search-capable model for research)
+- [x] Provider pool with round-robin and failover (order configurable; multiple keys per provider rotated; rate-limit aware)
+- [x] Local context: conversation history and "remember …" facts saved to SQLite, recalled into every prompt, "forget" command
 - [ ] Streaming replies with sentence-level speech
 
 ## Stage 5 — Audio and speech hardening
 
 - [ ] Wake word model (openWakeWord) instead of full-time transcription
-- [ ] Voice activity detection, barge-in (interrupt SAMURAI by speaking)
+- [~] Voice activity detection, barge-in (interrupt SAMURAI by speaking) — barge-in done, VAD pending
 - [~] Local TTS option (Kokoro) so voice works offline; edge-tts stays as the online voice
 - [ ] Mic/speaker self-test page wired into the control panel
 - [ ] End-to-end voice test (TTS clip → Vosk → command) in the test suite

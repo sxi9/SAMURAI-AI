@@ -1,5 +1,7 @@
 # SAMURAI — Jarvis-style local AI assistant
 
+> **HUD v3** is live in `app/jarvis-interface.html`: a 1920×1080 cockpit with an orb avatar, a morphing particle core, 12 live widgets, an orbital add-on ring, boot and alert sequences, and a flow layout for laptops and phones. The previous interface is kept as `app/legacy-interface.html`. Screenshots below are refreshed at the end of the build.
+
 ![SAMURAI interface, labeled](docs/screenshot-labeled.png)
 
 | # | Area | What it does |
