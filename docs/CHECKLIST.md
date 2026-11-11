@@ -57,9 +57,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 
 ## Stage 6 — Verification and docs
 
-- [ ] Playwright checks: 1920×1080 vs design reference, 1366×768 and phone flow mode, typed command, voice command, headless search
-- [ ] Labeled screenshots regenerated after every UI stage (`docs/screenshot-labeled.png`)
-- [ ] README.md / README.txt updated per stage; this checklist updated per stage
+- [x] Playwright checks: 1920×1080 vs design reference, 1366×768 and phone flow mode, typed command, simulated voice command, headless search, streaming via mock provider
+- [x] Labeled screenshots regenerated (`docs/screenshot-labeled.png`, settings, alert, phone, control panel)
+- [x] README.md / README.txt rewritten for HUD v3; this checklist kept current
 
 ## Verified so far
 
@@ -67,3 +67,12 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Dashboard downloader fetches and extracts the small model
 - [x] Headless Claude Code: chat with memory, live web search, file task in `workspace/`
 - [x] Interface boots with live telemetry; headless provider routes search queries
+
+## Not verified in this build (needs a real desktop)
+
+- Windows-specific paths: Startup-folder autostart, PowerShell volume/brightness/screenshot, `start` app launcher
+- macOS paths: launchd autostart, osascript volume/media keys
+- openWakeWord engine (package install path is wired, model inference untested here)
+- Kokoro local voice (install path wired, 330 MB download untested here)
+- Real microphone input in a browser (the Vosk pipeline is verified with synthesised audio)
+- Gemini CLI headless (written from its docs; Claude Code headless is verified)

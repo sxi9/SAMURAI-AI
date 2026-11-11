@@ -309,6 +309,7 @@
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };
   widgets.onSecurity = sec => showAlert(sec);
   widgets.onAction = (type, arg) => runAction({ type, arg });
+  widgets.onTicker = () => renderTicker();
   core.onShape = (name, locked) => { $('shapeText').textContent = `PARTICLES · ${name.replace('text:', '').toUpperCase()}`; if (locked) widgets.pushTty(`particles → ${name.replace('text:', 'text ')}`, '#a07cff'); };
 
   /* ---------- settings drawer ---------- */

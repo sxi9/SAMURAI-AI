@@ -191,7 +191,7 @@ window.SAM = window.SAM || {};
       const d = this.data;
       try {
         if (kind === 'weather') { const r = await J(ADDONS + '/weather'); d.weather = r; this.render('wx'); if (!r.live && !r.note && (this._wxRetry = (this._wxRetry || 0) + 1) <= 5) setTimeout(() => this.pollAddons('weather'), 20000); }
-        if (kind === 'ticker') { d.ticker = await J(ADDONS + '/ticker'); }
+        if (kind === 'ticker') { d.ticker = await J(ADDONS + '/ticker'); this.onTicker && this.onTicker(); }
         if (kind === 'tasks') { const r = await J(ADDONS + '/tasks'); d.tasks = r.tasks || []; this.render('task'); }
         if (kind === 'agenda') { const r = await J(ADDONS + '/agenda'); d.agenda = r.events || []; d.agendaLive = !!r.live; this.render('cal'); }
         if (kind === 'inbox') { const r = await J(ADDONS + '/inbox'); d.inbox = r.mail || []; d.inboxLive = !!r.live; this.render('msg'); }

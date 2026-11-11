@@ -1,33 +1,93 @@
 # SAMURAI — Jarvis-style local AI assistant
 
-> **HUD v3** is live in `app/jarvis-interface.html`: a 1920×1080 cockpit with an orb avatar, a morphing particle core, 12 live widgets, an orbital add-on ring, boot and alert sequences, and a flow layout for laptops and phones. The previous interface is kept as `app/legacy-interface.html`. Screenshots below are refreshed at the end of the build.
+A voice-driven assistant that runs on your own PC: an offline speech stack, a cinematic HUD with twelve live widgets, PC control, and any AI brain you like, from a local Ollama model to Claude, GPT, Gemini, Groq and a dozen more, or the Claude Code / Gemini CLI signed in with your normal plan and no API key.
 
-![SAMURAI interface, labeled](docs/screenshot-labeled.png)
+![SAMURAI HUD v3, labeled](docs/screenshot-labeled.png)
 
 | # | Area | What it does |
 |---|------|--------------|
-| 1 | LLM status pill | Shows the active brain: Ollama (local), OpenAI, Claude or Gemini. Falls back to SIM MODE when none is reachable. |
-| 2 | Live ticker | Crypto prices and Hacker News headlines. |
-| 3 | Clock / weather | Local time, date and live weather (Open-Meteo). |
-| 4 | System core | CPU, RAM, GPU and network load from the telemetry sidecar on port 8765. |
-| 5 | Network traffic | Throughput graph and active TCP connections by process. |
-| 6 | Event log | Service events plus recent Windows event-log entries. |
-| 7 | Particle core | 3D core whose shape and state follow idle / listening / responding. |
-| 8 | Response | SAMURAI's reply, typed on screen and spoken aloud. |
-| 9 | Command input | Type a command, or press `/` to focus. |
-| 10 | Mic | Streams microphone audio to the offline Vosk speech server on port 9100. |
-| 11 | Settings | LLM provider and key, voices, speech model, mood and humor, PC control. |
+| 1 | Status pills | Core, which neural provider is active, secure channel, mic state. |
+| 2 | Live ticker | Crypto prices and headlines from the add-ons service. |
+| 3 | Clock | Time, date and your node label. |
+| 4 | SYSTEM | CPU, RAM, GPU, network sparkline and connection count from the telemetry service. |
+| 5 | AGENDA | Today's events from an `.ics` calendar file. |
+| 6 | TASKS | Persistent task list. Click to toggle, or say "remind me to …". |
+| 7 | INBOX | Latest mail headers over IMAP. |
+| 8 | TERMINAL | Everything SAMURAI does: commands, actions, service events. |
+| 9 | TIMERS | "timer 5 min", pause, reset, spoken when done. |
+| 10 | Orb + particle core | The avatar. Eyes and the waveform ring change with idle, listening, thinking, speaking and alert. The particle field morphs: "make a heart", "spell hello". |
+| 11 | Orbital ring | Twelve nodes. Click one to fly its widget to the centre; unpinned widgets dock here. |
+| 12 | WEATHER | Open-Meteo for your location, no key needed. |
+| 13 | MUSIC | Your music folder, or YouTube through the action service, plus system media keys. |
+| 14 | HOME | Home Assistant devices, or a local sample you can toggle. |
+| 15 | POSITION | Radar with your node and nearby places. |
+| 16 | FEED 01 | A camera URL (MJPEG, MP4 or HLS). |
+| 17 | HOLO GALLERY | Photos dropped into the `gallery/` folder. |
+| 18 | Response | The reply types in as it streams and is spoken sentence by sentence. |
+| 19 | Command bar | Type, or press `/` to focus. |
+| 20 | MIC · TX · CFG | Voice input, transmit, settings drawer. |
 
-Settings drawer:
+Settings drawer, security alert, and the flow layout on a phone:
 
-![SAMURAI settings drawer](docs/screenshot-settings.png)
+<p><img src="docs/screenshot-settings.jpg" width="48%"> <img src="docs/screenshot-alert.jpg" width="48%"></p>
+<p><img src="docs/screenshot-phone.jpg" width="24%"> <img src="docs/screenshot-phone-cards.jpg" width="24%"> <img src="docs/screenshot-panel.jpg" width="48%"></p>
 
-## Headless Claude Code / Gemini CLI (no API key)
+## Install
 
-SAMURAI can use the official [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-code) or
-[Gemini CLI](https://www.npmjs.com/package/@google/gemini-cli) as its brain, as a live web researcher,
-and as a worker that creates and edits files in `workspace/`, signed in with your normal plan instead of an API key.
-Install one, run it once to sign in, start the AGENT service (port 9400) from the dashboard, and pick
-"CLAUDE CODE — HEADLESS" or "GEMINI CLI — HEADLESS" under NEURAL CORE in settings.
+Windows: install Python 3.9+ from python.org (tick "Add Python to PATH"), then double-click `SETUP.bat`.
 
-Install and run instructions are in [README.txt](README.txt).
+Linux and macOS:
+
+```bash
+./install.sh
+```
+
+The installer creates `.venv`, installs the requirements, downloads the 40 MB offline voice model, writes `config.json`, offers the headless agent CLIs, a desktop shortcut and start-with-boot, runs a 24-point health check, and starts everything. Afterwards use `START.bat` or `./install.sh --start`, or open the control panel at `http://localhost:9000`.
+
+## How it is put together
+
+| Piece | Port | Role |
+|---|---|---|
+| `app/jarvis-interface.html` + `app/js/*` | 8080 | The HUD. Plain HTML, CSS and JavaScript, no build step. |
+| `servers/samurai_panel.py` + `app/panel.html` | 9000 | Control panel and supervisor: start/stop/restart, logs, watchdog, doctor with auto-fix, autostart, config editor, optional voice engines. |
+| `servers/samurai_telemetry.py` | 8765 | CPU, memory, GPU, network, processes, disks, battery, system log. |
+| `servers/samurai_speech_server.py` | 9100 | Offline speech recognition (Vosk) over WebSocket, voice-activity gate, optional wake-word engine. |
+| `servers/samurai_tts_server.py` | 9200 | Neural voice: Microsoft Edge voices online, or Kokoro fully local. |
+| `servers/samurai_action_server.py` | 9300 | PC control on Windows, Linux and macOS: apps, URLs, music, volume, media keys, brightness, screenshot, clipboard, typing, hotkeys, lock, and confirmation-gated sleep, shutdown, restart, kill process and allow-listed commands. |
+| `servers/samurai_agent_server.py` | 9400 | Headless Claude Code / Gemini CLI: chat, live web search, file tasks in `workspace/`. |
+| `servers/samurai_addons.py` | 9500 | Widget data: config, weather, ticker, tasks, agenda, inbox, home, music, gallery, position, security watch with firewall block, memory. |
+
+Every sidecar answers only the SAMURAI pages' origin; other websites get 403. Nothing listens outside localhost.
+
+## Brains
+
+Pick a provider in CFG → NEURAL CORE. Local and free options are marked. The reply contract is JSON (`reply`, `focus`, `actions`, `shape`), so every provider can drive the widgets and the PC.
+
+- **Local**: Ollama, LM Studio, llama.cpp, or any OpenAI-compatible server.
+- **No API key**: Claude Code and Gemini CLI, run headless and signed in with your own plan. Install one, run `claude auth login` or `gemini` once, and pick the headless provider.
+- **API keys**: OpenAI, Anthropic Claude, Google Gemini (free tier), OpenRouter, Groq (free tier), Mistral, DeepSeek, xAI Grok, Perplexity, Together, Hugging Face, Azure OpenAI.
+- **Pool**: list several providers and choose failover or round-robin. Say "ask all: question" to hear what each configured provider answers.
+- **Memory**: facts ("remember that …") and recent turns are stored locally by the add-ons service and fed into every prompt.
+- **Streaming**: replies type in as they arrive and are spoken sentence by sentence. Speak to interrupt (barge-in).
+
+Test without any AI: `python tests/mock_llm.py`, then choose LOCAL — LM STUDIO.
+
+## Voice
+
+Vosk runs offline on CPU. The small model ships through the installer; the large one is optional. The server-side voice-activity gate skips silence, and the control panel can install the openWakeWord engine for a hands-free wake word, or the Kokoro engine for a fully local voice. Say "samurai …" with the wake-word toggle on, or just click MIC and talk.
+
+## Tests
+
+```bash
+.venv/bin/python tests/smoke_sidecars.py
+```
+
+```bash
+.venv/bin/python tests/voice_e2e.py
+```
+
+The first checks every route and the origin lock. The second synthesises a phrase, feeds it through the recogniser, and expects it back.
+
+## Files
+
+`README.txt` has the plain-text version of this guide. `docs/CHECKLIST.md` tracks what was built. `app/legacy-interface.html` is the previous interface. `samurai_dashboard.py` is the older tkinter dashboard for Windows; the browser control panel replaces it.
