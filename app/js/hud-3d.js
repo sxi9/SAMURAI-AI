@@ -10,7 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const SAM = window.SAM;
 const W = 1920, H = 1080, CY = 470;                                   // stage size, core centre y (x = 960)
-const QUALITY = { low: { n: 5000, pr: .5, bloom: false }, medium: { n: 12000, pr: .7, bloom: true }, high: { n: 24000, pr: 1, bloom: true } };
+const QUALITY = { low: { n: 8000, pr: .5, bloom: true }, medium: { n: 12000, pr: .7, bloom: true }, high: { n: 24000, pr: 1, bloom: true } };
 const NOISE = `
 vec3 hash3(vec3 p){p=vec3(dot(p,vec3(127.1,311.7,74.7)),dot(p,vec3(269.5,183.3,246.1)),dot(p,vec3(113.5,271.9,124.6)));return fract(sin(p)*43758.5453123);}
 float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -45,6 +45,7 @@ const rgb = s => new THREE.Color(...s.split(',').map(v => +v / 255));
 const SHAPE_TILT = { sphere: .3, heart: 0, text: 0, cube: .35, galaxy: .25, helix: .15, knot: .35, ring: .75, wave: .85 }, FACING = { heart: 1, text: 1, galaxy: 1 };
 
 const gl = {
+  QUALITY,
   on: false, quality: 'medium', fps: 0, speechLevel: 0, energy: 0, ready: false, failed: '',
   canvas: null, renderer: null, scene: null, camera: null, composer: null, bloom: null,
   nebula: null, points: null, orb: null, halo: null, N: 0, shapes: {}, ppos: null, pfrom: null, ptarget: null, pdelay: null, morphT: 1, shapeName: 'sphere', spin: 0, tilt: .3, lastTs: 0, raf: 0,
@@ -67,7 +68,8 @@ const gl = {
       this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .6, .4, .4); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
     } else this.composer = null;
     this.on = true; this.ready = true; document.getElementById('stage').classList.add('gl'); SAM.core.particles = false;
-    const loop = ts => { if (!this.on) return; this.frame(ts); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop);
+    let skip = false;                                                       // below high quality the GL layer renders every other frame (30 fps): half the GPU cost, no visible loss
+    const loop = ts => { if (!this.on) return; skip = !skip && this.quality !== 'high'; if (!skip) this.frame(ts); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop);
     return true;
   },
   disable() {

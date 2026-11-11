@@ -73,9 +73,11 @@ window.SAM = window.SAM || {};
       const x = this.ctx; if (!x) return;
       const S = 1520, cx = S / 2, cy = S / 2, t = ts / 1000, m = this.mode, C = CFG(), cfg = C[m] || C.idle;
       x.clearRect(0, 0, S, S);
-      const g = x.createRadialGradient(cx, cy, 0, cx, cy, 560);
-      g.addColorStop(0, `rgba(${cfg.col},.26)`); g.addColorStop(.45, `rgba(${cfg.col},.06)`); g.addColorStop(1, 'rgba(0,0,0,0)');
-      x.fillStyle = g; x.fillRect(0, 0, S, S);
+      if (this.particles) {                                                     // the 3D layer brings its own glow; skip the big gradient when it is on
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, 560);
+        g.addColorStop(0, `rgba(${cfg.col},.26)`); g.addColorStop(.45, `rgba(${cfg.col},.06)`); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g; x.fillRect(cx - 560, cy - 560, 1120, 1120);
+      }
       this.show += ((this.showcase() ? 1 : 0) - this.show) * .05;          // 0 = normal, 1 = commanded shape on display
       const sh = this.show;
       if (this.particles && this.ppos) {
