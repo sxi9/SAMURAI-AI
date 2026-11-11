@@ -220,7 +220,7 @@ SAM.gl = gl;
 /* auto-start once the HUD exists: respects the settings switch (S.gl = auto | on | off) and drops back to 2D when slow */
 (function boot() {
   if (!SAM.hud || !SAM.hud.S) return setTimeout(boot, 50);
-  const S = SAM.hud.S, pref = S.gl || 'auto'; if (pref === 'off' || S.reduced) return;
+  const S = SAM.hud.S, pref = new URLSearchParams(location.search).get('gl') || S.gl || 'auto'; if (pref === 'off' || S.reduced) return;
   const q = S.glQuality || (pref === 'auto' ? 'medium' : 'high');
   if (!gl.enable(q)) return;
   if (pref === 'auto') setTimeout(() => { if (gl.on && gl.fps < 18 && q !== 'low') { gl.setQuality('low'); SAM.hud.log && SAM.hud.log('info', '3D core → low quality (slow GPU)'); } }, 6000);
