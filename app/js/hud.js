@@ -11,7 +11,7 @@
   const S = {
     mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
-    parallax: true, particles: true, idleMorph: true, wander: true, theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', fx: true, presence: false, theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
   };
   const stage = $('stage'), root = $('root');
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -129,7 +129,8 @@
     const tsc = idle ? 1 + .08 * Math.sin(t * .13 + 2) : 1;
     const trx = idle ? 9 * Math.sin(t * .19 + .7) - WD.vy * 3 : 0, tryy = idle ? 12 * Math.sin(t * .23 + 1.9) + WD.vx * 3 : 0, trz = idle ? WD.vx * 4 : 0;
     WD.s += (tsc - WD.s) * .05; WD.rx += (Math.max(-18, Math.min(18, trx)) - WD.rx) * .05; WD.ry += (Math.max(-22, Math.min(22, tryy)) - WD.ry) * .05; WD.rz += (Math.max(-14, Math.min(14, trz)) - WD.rz) * .05;
-    const gx = idle ? Math.max(-9, Math.min(9, dx * .03)) + 4 * Math.sin(t * .9) : 0, gy = idle ? Math.max(-6, Math.min(6, dy * .03)) + 2 * Math.sin(t * .7 + 2) : 0;
+    const look = t < (WD.lookUntil || 0);
+    const gx = look ? WD.lookX : idle ? Math.max(-9, Math.min(9, dx * .03)) + 4 * Math.sin(t * .9) : 0, gy = look ? WD.lookY : idle ? Math.max(-6, Math.min(6, dy * .03)) + 2 * Math.sin(t * .7 + 2) : 0;
     WD.gx += (gx - WD.gx) * .08; WD.gy += (gy - WD.gy) * .08;
     /* music: a bounce on every beat, a little sway, the ring pumps too */
     const lvl = playing ? widgets.musicLevel() : 0; WD.beat += (lvl - WD.beat) * (lvl > WD.beat ? .5 : .12);
@@ -137,6 +138,7 @@
     core.musicLevel = WD.beat;
     const bs = 1 + .16 * WD.beat, by = -22 * WD.beat + WD.bob, bz = (playing ? 6 * Math.sin(t * 2.1) : 0);
     const anchor = document.querySelector('.orbAnchor'), eyes = document.querySelector('.eyes');
+    WD.ox = WD.x; WD.oy = WD.y + by; WD.os = WD.s * bs * (1 - .42 * WD.sh);
     if (anchor) anchor.style.transform = `perspective(900px) translate3d(${WD.x.toFixed(1)}px,${(WD.y + by).toFixed(1)}px,0) rotateX(${WD.rx.toFixed(1)}deg) rotateY(${WD.ry.toFixed(1)}deg) rotateZ(${(WD.rz + bz).toFixed(1)}deg) scale(${(WD.s * bs * (1 - .42 * WD.sh)).toFixed(3)})`;
     if (eyes) eyes.style.transform = `translate(${WD.gx.toFixed(1)}px,${(WD.gy - 3 * WD.beat).toFixed(1)}px) scaleY(${(1 - .25 * WD.beat).toFixed(2)})`;
     requestAnimationFrame(wanderFrame);
@@ -197,6 +199,11 @@
     if (th && THEME_ALIAS[th[1]]) th[1] = THEME_ALIAS[th[1]];
     if (th && (th[1] in THEMES) && th[1] !== 'custom') return { text: `${th[1]} theme.`, effect: () => { applyTheme(th[1]); save(); } };
     if (/^(random|next|another|surprise) (theme|colou?rs?|skin)$/.test(q)) return { text: 'New colours.', effect: () => { const names = Object.keys(THEMES).filter(n => n !== 'custom' && n !== S.theme); applyTheme(names[Math.floor(Math.random() * names.length)]); save(); } };
+    const lk = q.match(/^(?:(retro|crt|cinema|film|normal|plain|default) (?:look|mode|filter))$/) || q.match(/^(?:look|filter) (retro|crt|cinema|film|normal|plain|default)$/);
+    if (lk) { const n = /retro|crt/.test(lk[1]) ? 'crt' : /cinema|film/.test(lk[1]) ? 'cinema' : 'none'; return { text: n === 'none' ? 'Clean look.' : `${n === 'crt' ? 'Retro' : 'Cinema'} look.`, effect: () => { SAM.fx && SAM.fx.setLook(n); save(); } }; }
+    if (/^(3d (on|core|mode)|go 3d|three d on|enable 3d)$/.test(q)) return { text: '3D core online.', effect: () => { S.gl = 'on'; save(); SAM.gl && !SAM.gl.on && SAM.gl.enable(S.glQuality); } };
+    if (/^(3d off|2d (mode|core)|go 2d|disable 3d|flat mode)$/.test(q)) return { text: 'Back to the flat core.', effect: () => { S.gl = 'off'; save(); SAM.gl && SAM.gl.disable(); } };
+    if (/^(presence (on|off)|(start|stop) watching( the)?( camera| for me)?|watch for me)$/.test(q)) { const on = !/off|stop/.test(q); return { text: on ? 'Watching for you.' : 'Presence off.', effect: () => { S.presence = on; save(); SAM.fx && SAM.fx.presence(on); } }; }
     if (/^(stay|stay still|stop moving|stop wandering|hold still|come back|come here|center|centre)$/.test(q)) return { text: 'Holding position.', effect: () => { S.wander = false; save(); } };
     if (/^(roam|rome|roman|wander|wonder|move around|explore|free roam|go explore|move as you like|go roam)$/.test(q)) return { text: 'Roaming.', effect: () => { S.wander = true; save(); } };
     if (/^proactive check$/.test(q)) return { proactive: true };
@@ -410,8 +417,10 @@
     $('toast').classList.add('hidden');
     say(S.desktopCancel ? 'Desktop task cancelled.' : `Desktop task finished after ${steps.length} step${steps.length === 1 ? '' : 's'}.`, 'tty');
   }
+  const ZAP = { home_set: 'home', lights: 'home', timer_start: 'tmr', task_add: 'task', task_done: 'task', play_music: 'mus', music_play: 'mus', music_next: 'mus', music_pause: 'mus', volume: 'sys', screenshot: 'sys' };
   async function runAction(a) {
     const type = String(a.type || '').toLowerCase(), arg = String(a.arg ?? '').trim();
+    if (SAM.fx) SAM.fx.zap(ZAP[type] || (type.startsWith('home') ? 'home' : type.startsWith('browse') ? 'web' : type.startsWith('video') ? 'vid' : 'tty'), true);
     if (!brain.cfg.actions && !['remember', 'forget', 'shape', 'layout', 'timer_start', 'timer_stop', 'task_add', 'task_done', 'home_set'].includes(type)) { log('warn', `action ${type} blocked · SYSTEM CONTROL is off`); return null; }
     try {
       switch (type) {
@@ -566,6 +575,12 @@
       <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
       <div class="note">Focus shows six widgets; the other six wait in the ring. Full shows all twelve.</div>
       <div class="row"><span>PROACTIVE CHECK-INS (EVERY 30 MIN)</span>${sw('proactive', !!S.proactive)}</div>
+      <h4>3D CORE</h4>
+      <div class="lbtns"><div class="sbtn gl${S.gl === 'auto' ? ' on' : ''}" data-g="auto">AUTO</div><div class="sbtn gl${S.gl === 'on' ? ' on' : ''}" data-g="on">ON</div><div class="sbtn gl${S.gl === 'off' ? ' on' : ''}" data-g="off">OFF (2D)</div></div>
+      <div class="lbtns"><div class="sbtn glq${S.glQuality === 'low' ? ' on' : ''}" data-q="low">LOW</div><div class="sbtn glq${S.glQuality === 'medium' ? ' on' : ''}" data-q="medium">MEDIUM</div><div class="sbtn glq${S.glQuality === 'high' ? ' on' : ''}" data-q="high">HIGH</div></div>
+      <div class="note">WebGL nebula, volumetric orb with lip-sync, up to 24,000 particles and bloom. Auto drops to low quality on a slow GPU.</div>
+      <div class="row"><span>EFFECTS (ARCS, HOLOGRAM, WEATHER, DAY CYCLE)</span>${sw('fx', S.fx)}</div>
+      <div class="row"><span>PRESENCE (CAMERA: GREET WHEN YOU ARRIVE)</span>${sw('presence', S.presence)}</div>
       <div class="row"><span>PARALLAX DEPTH</span>${sw('parallax', S.parallax)}</div>
       <div class="row"><span>PARTICLE FIELD</span>${sw('particles', S.particles)}</div>
       <div class="row"><span>IDLE SHAPE CYCLE</span>${sw('idleMorph', S.idleMorph)}</div>
@@ -586,6 +601,8 @@
     b.roles = b.roles || { chat: '', work: '', research: '', vision: '' };
     ['chat', 'work', 'research', 'vision'].forEach(role => { $('role_' + role).onchange = e => { b.roles[role] = e.target.value; save(); }; });
     document.querySelectorAll('.themes .sw').forEach(el => el.onclick = () => { applyTheme(el.dataset.t); save(); });
+    document.querySelectorAll('.sbtn.gl').forEach(el => el.onclick = () => { S.gl = el.dataset.g; save(); document.querySelectorAll('.sbtn.gl').forEach(b => b.classList.toggle('on', b === el)); if (!SAM.gl) return; if (S.gl === 'off') SAM.gl.disable(); else if (!SAM.gl.on) SAM.gl.enable(S.glQuality); });
+    document.querySelectorAll('.sbtn.glq').forEach(el => el.onclick = () => { S.glQuality = el.dataset.q; save(); document.querySelectorAll('.sbtn.glq').forEach(b => b.classList.toggle('on', b === el)); if (SAM.gl && SAM.gl.on) SAM.gl.setQuality(S.glQuality); });
     const colPick = () => { S.custom = { a: $('optColA').value, b: $('optColB').value }; applyTheme('custom'); save(); };
     $('optColA').oninput = colPick; $('optColB').oninput = colPick;
     $('optPool').onchange = e => { b.pool.order = e.target.value.split(/[,\s]+/).map(x => x.trim().toLowerCase()).filter(x => brain.PROVIDERS[x]); e.target.value = b.pool.order.join(', '); save(); };
@@ -605,7 +622,8 @@
       else if (k === 'sysAccess') b.sysAccess = on; else if (k === 'actions') b.actions = on; else if (k === 'memory') b.memory = on; else if (k === 'stream') b.stream = on;
       else if (k === 'pool') b.pool.enabled = on; else if (k === 'voiceOn') v.voiceOn = on; else if (k === 'wake') { v.wake = on; if (on && !voice.micOn) voice.start(); }
       else if (k === 'bargeIn') voice.bargeIn = on; else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
-      else if (k === 'particles') { S.particles = on; core.particles = on; } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
+      else if (k === 'particles') { S.particles = on; core.particles = on && !(SAM.gl && SAM.gl.on); } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
+      else if (k === 'fx') { S.fx = on; SAM.fx && SAM.fx.setEnabled(on); } else if (k === 'presence') { S.presence = on; SAM.fx && SAM.fx.presence(on); }
       else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });
@@ -614,7 +632,7 @@
   const THEMES = { arc: ['46,230,255', '160,124,255', '217,248,255'], ember: ['255,106,61', '255,181,71', '255,227,214'], gold: ['255,194,77', '46,230,255', '255,233,194'], matrix: ['61,255,160', '160,255,124', '214,255,233'], ice: ['142,197,255', '195,166,255', '240,247,255'],
     crimson: ['255,61,110', '255,140,66', '255,219,228'], rose: ['255,122,200', '176,124,255', '255,230,244'], nebula: ['178,124,255', '255,111,216', '239,228,255'], aurora: ['56,242,198', '124,255,158', '223,255,246'],
     ocean: ['56,166,255', '54,227,212', '224,241,255'], sunset: ['255,140,66', '255,77,141', '255,232,214'], solar: ['255,240,77', '255,159,28', '255,251,224'], mono: ['230,230,230', '154,154,154', '255,255,255'],
-    stealth: ['90,111,138', '63,95,122', '201,214,230'], lime: ['198,255,61', '61,255,160', '243,255,214'], royal: ['109,124,255', '255,194,77', '230,232,255'], custom: null };
+    stealth: ['90,111,138', '63,95,122', '201,214,230'], lime: ['198,255,61', '61,255,160', '243,255,214'], royal: ['109,124,255', '255,194,77', '230,232,255'], contrast: ['255,255,255', '255,230,0', '255,255,255'], custom: null };
   const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
   const rgbHex = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
   const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
@@ -681,6 +699,6 @@
     if (voice.cfg.wake) T(() => voice.start(), 4000);
     boot();
   }
-  SAM.hud = { S, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask, quickRoute };
+  SAM.hud = { S, WD, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask, quickRoute, log };
   init();
 })(window.SAM);

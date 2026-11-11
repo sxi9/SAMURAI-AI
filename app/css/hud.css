@@ -92,6 +92,10 @@ option{background:#0b1022;color:var(--ice)}
 .tape .lbl{color:var(--violet)}.tape .up{color:var(--cyan)}.tape .dn{color:var(--red)}.tape .mut{color:var(--muted)}
 
 /* ---------- core ---------- */
+.gl{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;z-index:1}
+.stage.gl .orb{background:radial-gradient(circle at 40% 35%,rgba(255,255,255,.05),rgba(0,0,0,0) 60%);box-shadow:none}
+.stage.gl .orb .tint{opacity:.5}
+.stage.gl #core{opacity:.85}
 .layerC{position:absolute;inset:0;pointer-events:none}
 #core{position:absolute;left:580px;top:90px;width:760px;height:760px}
 .ring1{position:absolute;left:660px;top:170px;width:600px;height:600px;border-radius:50%;border:1px dashed rgba(var(--cyan-rgb),.28);animation:smSpin 140s linear infinite}
@@ -394,3 +398,31 @@ option{background:#0b1022;color:var(--ice)}
 .themes{margin-bottom:22px}
 .pick{display:flex;gap:10px;align-items:center;margin:6px 0 10px}.pick label{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted);display:flex;align-items:center;gap:8px}
 .pick input[type=color]{width:38px;height:24px;border:1px solid rgba(var(--cyan-rgb),.35);background:none;padding:0;cursor:pointer}
+
+/* ---- effects layer ---- */
+.fx{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;z-index:58}
+.daytint{position:absolute;inset:0;pointer-events:none;z-index:2;background:var(--day,transparent);mix-blend-mode:screen;transition:background 2s}
+.card.holo{animation:holoIn .9s var(--ease) both}
+.card.holo::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,transparent,var(--ice),transparent);box-shadow:0 0 18px var(--cyan);animation:holoScan .9s ease-out both;pointer-events:none}
+@keyframes holoIn{0%{clip-path:inset(0 0 100% 0);filter:brightness(2.2) saturate(.2)}18%{filter:brightness(1.6)}22%{filter:brightness(.6)}26%{filter:brightness(1.8)}60%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 0 0 0);filter:brightness(1)}}
+@keyframes holoScan{0%{top:0;opacity:1}100%{top:100%;opacity:0}}
+.card.zap{animation:zapCard .7s ease-out}
+@keyframes zapCard{0%{box-shadow:0 0 0 rgba(var(--cyan-rgb),0)}15%{box-shadow:0 0 28px rgba(var(--cyan-rgb),.7),inset 0 0 30px rgba(var(--cyan-rgb),.18);border-color:var(--ice)}100%{box-shadow:0 0 0 rgba(var(--cyan-rgb),0)}}
+.ecg{display:block;width:100%;height:26px;margin-top:6px;opacity:.9}
+.stage[data-mode=alert] .header .wordmark,.stage[data-mode=alert] .reply{animation:glitchText .35s steps(2) infinite}
+@keyframes glitchText{0%{text-shadow:2px 0 rgba(255,61,110,.8),-2px 0 rgba(var(--cyan-rgb),.8)}50%{text-shadow:-2px 0 rgba(255,61,110,.8),2px 0 rgba(var(--cyan-rgb),.8);transform:translateX(1px)}100%{text-shadow:1px 0 rgba(255,61,110,.8),-1px 0 rgba(var(--cyan-rgb),.8)}}
+/* looks */
+.cine{position:absolute;inset:0;pointer-events:none;z-index:96;display:none}
+.look-cinema .cine{display:block;background:linear-gradient(180deg,#000 0 7%,transparent 7% 93%,#000 93%);}
+.look-cinema .cine::after{content:"";position:absolute;inset:0;opacity:.07;background:repeating-conic-gradient(#fff 0 .0001%,transparent 0 .0002%);background-size:5px 5px;animation:grain .25s steps(3) infinite}
+@keyframes grain{0%{transform:translate(0,0)}33%{transform:translate(-2px,1px)}66%{transform:translate(2px,-1px)}100%{transform:translate(0,0)}}
+.look-cinema .vignette{background:radial-gradient(ellipse at center,transparent 45%,rgba(20,8,4,.9) 100%)}
+.look-crt .cine{display:block;background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 2px,transparent 2px 4px);mix-blend-mode:multiply}
+.look-crt .cine::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.75) 100%);animation:crtFlick 4s infinite}
+@keyframes crtFlick{0%,97%,100%{opacity:1}98%{opacity:.85}}
+.look-crt .reply,.look-crt .wordmark,.look-crt .clock,.look-crt .card .t{text-shadow:1px 0 rgba(255,80,80,.55),-1px 0 rgba(80,200,255,.55),0 0 12px rgba(var(--cyan-rgb),.5)}
+.look-crt .card{border-radius:3px;box-shadow:inset 0 0 40px rgba(var(--cyan-rgb),.08)}
+.nofx .card.holo,.nofx .card.zap{animation:none}.nofx .card.holo::after{display:none}
+/* high-contrast theme */
+:root[data-theme=contrast]{--cyan:#ffffff;--cyan-rgb:255,255,255;--ice:#ffffff;--violet:#ffe600;--violet-rgb:255,230,0;--amber:#ffe600;--text:#ffffff;--tick:#e6e6e6;--muted:#bdbdbd;--bg:#000;--card-bg:#000;--field-bg:#000}
+:root[data-theme=contrast] .card{border-width:2px}:root[data-theme=contrast] .vignette,:root[data-theme=contrast] .bg-grid{display:none}
