@@ -42,6 +42,7 @@ DEFAULT_CONFIG = {
                                 {"name": "AIRPORT", "km": 31, "bearing": 225}]},
     },
     "agent": {"allow_bash": False},
+    "voice": {"vad": True, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge"},
     "autostart": False,
 }
 

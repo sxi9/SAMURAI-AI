@@ -45,15 +45,15 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Multi-AI modes: ask one, ask several at once and compare, or route by task (fast model for chat, strong model for work, search-capable model for research)
 - [x] Provider pool with round-robin and failover (order configurable; multiple keys per provider rotated; rate-limit aware)
 - [x] Local context: conversation history and "remember …" facts saved to SQLite, recalled into every prompt, "forget" command
-- [ ] Streaming replies with sentence-level speech
+- [x] Streaming replies with sentence-level speech (Ollama, OpenAI-compatible, Claude, Gemini)
 
 ## Stage 5 — Audio and speech hardening
 
-- [ ] Wake word model (openWakeWord) instead of full-time transcription
-- [~] Voice activity detection, barge-in (interrupt SAMURAI by speaking) — barge-in done, VAD pending
-- [~] Local TTS option (Kokoro) so voice works offline; edge-tts stays as the online voice
-- [ ] Mic/speaker self-test page wired into the control panel
-- [ ] End-to-end voice test (TTS clip → Vosk → command) in the test suite
+- [x] Wake word model (openWakeWord, optional, one-click install from the panel) + text wake word fallback
+- [x] Voice activity detection (webrtcvad, server side) and barge-in (interrupt SAMURAI by speaking)
+- [x] Local TTS option (Kokoro, one-click install from the panel) so voice works offline; edge-tts stays as the online voice
+- [x] Mic/speaker self-test page linked from the control panel
+- [x] End-to-end voice test (tests/voice_e2e.py) + sidecar smoke test + mock LLM for offline testing
 
 ## Stage 6 — Verification and docs
 

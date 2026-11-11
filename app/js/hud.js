@@ -118,6 +118,26 @@
     return new Promise(r => { const chk = setInterval(() => { if (settled || gen !== S.speakGen) { clearInterval(chk); r(); } }, 100); });
   }
   voice.onInterrupt = () => { clearInterval(S.typing); S.speakGen++; if (S.mode === 'speaking') setMode(voice.micOn ? 'listening' : 'idle'); };
+  /* streaming reply: text types in as it arrives, each finished sentence is spoken right away */
+  function sayStream() {
+    clearInterval(S.typing); const gen = ++S.speakGen;
+    let target = '', shown = '', spoken = 0, pending = 0, ended = false, settled = false, started = false;
+    const SENT = /[^.!?\n]+[.!?]+["')\]]?(?:\s+|$)|[^.!?\n]+\n/g;
+    const finish = () => { if (settled || !ended || pending || shown.length < target.length || gen !== S.speakGen) return; settled = true; setReply(target); T(() => { if (gen === S.speakGen && S.mode === 'speaking') setMode(voice.micOn ? 'listening' : 'idle'); }, 1800); };
+    const speakChunk = text => { text = text.trim(); if (!text) return; pending++; voice.speak(text, { onend: () => { pending--; finish(); } }); };
+    const flush = all => {
+      const rest = target.slice(spoken); SENT.lastIndex = 0; let m, upto = 0;
+      while ((m = SENT.exec(rest)) !== null) upto = m.index + m[0].length;
+      if (all) upto = rest.length;
+      if (upto > 0 && (all || rest.slice(0, upto).trim().length > 12 || /[.!?]\s*$/.test(rest.slice(0, upto)))) { speakChunk(rest.slice(0, upto)); spoken += upto; }
+    };
+    const startTyping = () => { if (started) return; started = true; setMode('speaking'); setReply(''); S.typing = setInterval(() => { if (gen !== S.speakGen) { clearInterval(S.typing); return; } if (shown.length < target.length) { shown = target.slice(0, shown.length + 1); setReply(shown); } else if (ended) { clearInterval(S.typing); finish(); } }, 22); };
+    return {
+      push(text) { if (gen !== S.speakGen || !text) return; target = text; startTyping(); flush(false); },
+      end(text) { if (gen !== S.speakGen) return; if (text != null) target = text; startTyping(); ended = true; flush(true); if (!target) { settled = true; setMode(voice.micOn ? 'listening' : 'idle'); } },
+      active: () => gen === S.speakGen && started,
+    };
+  }
 
   /* ---------- commands ---------- */
   const SHAPES = [[/\b(heart|love)\b/, 'heart', 'Heart, as requested.'], [/\b(cube|box)\b/, 'cube', 'Cube.'], [/\b(galaxy|spiral|stars)\b/, 'galaxy', 'One galaxy, three arms.'], [/\b(helix|dna)\b/, 'helix', 'Double helix.'], [/\bknot\b/, 'knot', 'Torus knot.'], [/\b(ring|halo|torus)\b/, 'ring', 'Ring.'], [/\b(wave|waves|ocean|ripple)\b/, 'wave', 'Wave field.'], [/\b(sphere|cloud|particles)\b/, 'sphere', 'Back to the cloud.']];
@@ -193,8 +213,9 @@
       else if (!r) {
         if (brain.online) {
           llmSnap = brain.cfg.sysAccess ? widgets.snapshot() : null;
-          try { const out = await brain.ask(q, llmSnap); r = { text: out.reply, focus: out.focus, actions: out.actions, shape: out.shape, provider: out.provider }; }
-          catch (e) { log('warn', `neural core · ${String(e.message).slice(0, 70)}`); r = offlineRoute(low); }
+          const sc = sayStream();
+          try { const out = await brain.ask(q, llmSnap, text => sc.push(text)); r = { text: out.reply, focus: out.focus, actions: out.actions, shape: out.shape, provider: out.provider, stream: sc }; }
+          catch (e) { log('warn', `neural core · ${String(e.message).slice(0, 70)}`); if (sc.active()) { sc.end(); return; } r = offlineRoute(low); }
         } else r = offlineRoute(low);
       }
     } catch (e) { r = { text: 'Something went wrong on my side.' }; }
@@ -206,6 +227,7 @@
     for (const a of acts) { const res = await runAction(a); if (res) results.push(res); }
     let text = r.text == null ? (results[0] || 'Done.') : r.text;
     if (r.text && results.length && acts.some(a => a.type === 'clipboard_get')) text += ' ' + results.join(' ');
+    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text); return; }
     say(text, r.focus === undefined ? null : r.focus);
   }
   async function compareAll(q) {
@@ -282,6 +304,7 @@
     submit(cmd);
   };
   voice.onLevel = l => { core.micLevel = l; };
+  voice.onWake = () => { widgets.pushTty('wake word detected', '#2ee6ff'); voice.stopSpeaking('wake'); setMode('listening'); };
   voice.onMicState = on => { if (!on && S.mode === 'listening') setMode('idle'); if (on && S.mode === 'idle') setMode('listening'); $('pillMic').textContent = on ? 'MIC · OPEN' : 'MIC · ARMED'; };
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };
   widgets.onSecurity = sec => showAlert(sec);
@@ -295,7 +318,7 @@
     const d = $('drawer'), b = brain.cfg, v = voice.cfg, p = brain.P(b.provider), cfgU = widgets.config || {};
     if (!voiceList) voiceList = await voice.voices();
     const sw = (id, on) => `<div class="sw${on ? ' on' : ''}" data-sw="${id}"><i></i></div>`;
-    const provOpts = Object.entries(brain.PROVIDERS).map(([id, x]) => `<option value="${id}"${id === b.provider ? ' selected' : ''}>${x.label}${brain.configured(id) ? '' : (x.nokey ? '' : ' (NO KEY)')}</option>`).join('');
+    const provOpts = Object.entries(brain.PROVIDERS).map(([id, x]) => `<option value="${id}"${id === b.provider ? ' selected' : ''}>${x.label}${x.free ? ' · FREE' : ''}${brain.configured(id) ? '' : (x.nokey ? '' : ' (NO KEY)')}</option>`).join('');
     const localModels = (brain.localModels || []).slice(0, 40);
     d.innerHTML = `<div class="dt">SETTINGS<span id="drawerX">[ × ]</span></div>
       <h4>NEURAL CORE</h4>
@@ -308,6 +331,7 @@
       <div class="row"><span>SYSTEM ACCESS (READ)</span>${sw('sysAccess', b.sysAccess)}</div>
       <div class="row"><span>SYSTEM CONTROL (ACTIONS)</span>${sw('actions', b.actions)}</div>
       <div class="row"><span>REMEMBER CONVERSATIONS</span>${sw('memory', b.memory)}</div>
+      <div class="row"><span>STREAM REPLIES (SPEAK SENTENCE BY SENTENCE)</span>${sw('stream', b.stream !== false)}</div>
       <h4>MULTI-AI POOL</h4>
       <div class="row"><span>USE A POOL OF PROVIDERS</span>${sw('pool', b.pool.enabled)}</div>
       <select id="optStrategy"><option value="failover"${b.pool.strategy === 'failover' ? ' selected' : ''}>FAILOVER — FIRST THAT ANSWERS</option><option value="roundrobin"${b.pool.strategy === 'roundrobin' ? ' selected' : ''}>ROUND ROBIN — ROTATE EACH TURN</option></select>
@@ -359,7 +383,7 @@
     d.querySelectorAll('.sw').forEach(el => el.onclick = () => {
       const k = el.dataset.sw, on = !el.classList.contains('on'); el.classList.toggle('on', on);
       if (k.startsWith('pin:')) { S.pinned[k.slice(4)] = on ? 1 : 0; if (!on && S.focus === k.slice(4)) S.focus = null; applyLayout(); }
-      else if (k === 'sysAccess') b.sysAccess = on; else if (k === 'actions') b.actions = on; else if (k === 'memory') b.memory = on;
+      else if (k === 'sysAccess') b.sysAccess = on; else if (k === 'actions') b.actions = on; else if (k === 'memory') b.memory = on; else if (k === 'stream') b.stream = on;
       else if (k === 'pool') b.pool.enabled = on; else if (k === 'voiceOn') v.voiceOn = on; else if (k === 'wake') { v.wake = on; if (on && !voice.micOn) voice.start(); }
       else if (k === 'bargeIn') voice.bargeIn = on; else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
       else if (k === 'particles') { S.particles = on; core.particles = on; } else if (k === 'idleMorph') S.idleMorph = on;

@@ -10,7 +10,7 @@ import asyncio, os, sys, threading
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import JSONHandler, PORTS, MODELS
+from samurai_common import JSONHandler, PORTS, MODELS, load_config
 
 PORT = PORTS["tts"]
 DEFAULT_VOICE = "en-US-AriaNeural"
@@ -78,7 +78,9 @@ def get_tts(h, q, body):
         raise ValueError("text required")
     voice = q.get("voice") or DEFAULT_VOICE
     rate = q.get("rate") or "+0%"
-    engine = q.get("engine") or ("kokoro" if voice.startswith(("af_", "am_", "bf_", "bm_")) else "edge")
+    engine = q.get("engine") or ("kokoro" if voice.startswith(("af_", "am_", "bf_", "bm_")) else load_config().get("voice", {}).get("tts_engine", "edge"))
+    if engine == "kokoro" and kokoro_engine() is None:
+        engine = "edge"
     try:
         audio, ctype = kokoro_synth(text, voice, rate) if engine == "kokoro" else edge_synth(text, voice, rate)
     except Exception as e:

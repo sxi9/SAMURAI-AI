@@ -296,6 +296,49 @@ def post_model(h, q, b):
     return {"ok": True, "did": "downloading"}
 
 
+KOKORO_FILES = {"kokoro-v1.0.onnx": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+                "voices-v1.0.bin": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"}
+
+
+def post_voice_extras(h, q, b):
+    """Install optional voice engines: {"what": "kokoro"} local TTS (~330 MB) · {"what": "wake"} VAD + openWakeWord."""
+    what = b.get("what")
+    if what not in ("kokoro", "wake"):
+        raise ValueError("what must be kokoro|wake")
+
+    def run():
+        STATE["status"] = "installing"
+        try:
+            from samurai_common import download_with_resume, load_config, save_config
+            if what == "kokoro":
+                set_status("pip install kokoro-onnx soundfile …")
+                if not pip_install("kokoro-onnx") or not pip_install("soundfile"):
+                    set_status("kokoro-onnx install failed — see the terminal"); return
+                d = os.path.join(MODELS, "kokoro"); os.makedirs(d, exist_ok=True)
+                for name, url in KOKORO_FILES.items():
+                    dest = os.path.join(d, name)
+                    if os.path.exists(dest) and os.path.getsize(dest) > 1_000_000:
+                        continue
+                    set_status(f"downloading {name} …")
+                    if not download_with_resume(url, dest, lambda s: set_status(f"{name}: {s}"), attempts=20):
+                        set_status(f"download of {name} failed"); return
+                cfg = load_config(); cfg.setdefault("voice", {})["tts_engine"] = "kokoro"; save_config(cfg)
+                set_status("local voice (Kokoro) installed — restarting TTS")
+                restart_and_report(BY_KEY["tts"], "restarted")
+            else:
+                set_status("pip install webrtcvad-wheels openwakeword …")
+                ok = pip_install("webrtcvad-wheels") and pip_install("openwakeword")
+                if not ok:
+                    set_status("wake word install failed — see the terminal"); return
+                cfg = load_config(); cfg.setdefault("voice", {})["wake_engine"] = "openwakeword"; save_config(cfg)
+                set_status("wake word engine installed — restarting speech")
+                restart_and_report(BY_KEY["speech"], "restarted")
+        finally:
+            STATE["status"] = "idle"
+    threading.Thread(target=run, daemon=True).start()
+    return {"ok": True, "did": f"installing {what}"}
+
+
 def post_open(h, q, b):
     webbrowser.open(UI_URL)
     return {"ok": True}
@@ -326,7 +369,8 @@ class Handler(JSONHandler):
               ("GET", "/panel/status"): get_status, ("POST", "/panel/control"): post_control,
               ("GET", "/panel/logs"): get_logs, ("GET", "/panel/doctor"): get_doctor,
               ("POST", "/panel/autostart"): post_autostart, ("POST", "/panel/watchdog"): post_watchdog,
-              ("POST", "/panel/model"): post_model, ("POST", "/panel/open"): post_open}
+              ("POST", "/panel/model"): post_model, ("POST", "/panel/open"): post_open,
+              ("POST", "/panel/voice"): post_voice_extras}
 
     def do_GET(self):
         if self.path.startswith("/fonts/"):

@@ -15,7 +15,7 @@ window.SAM = window.SAM || {};
       return new Promise((resolve, reject) => {
         const ws = new WebSocket(SPEECH_WS); ws.binaryType = 'arraybuffer';
         ws.onopen = () => { this.log('ok', 'speech server connected'); resolve(ws); };
-        ws.onmessage = ev => { try { const m = JSON.parse(ev.data); if (m.text) (m.final ? this.onFinal : this.onPartial)?.(m.text); else if (m.model) this.log(m.status === 'ok' ? 'ok' : 'warn', `stt model ${m.model} ${m.status}`); } catch (e) { } };
+        ws.onmessage = ev => { try { const m = JSON.parse(ev.data); if (m.text) (m.final ? this.onFinal : this.onPartial)?.(m.text); else if (m.wake) this.onWake && this.onWake(m); else if (m.model) this.log(m.status === 'ok' ? 'ok' : 'warn', `stt model ${m.model} ${m.status}`); else if (m.engine) this.log('ok', `speech server: vad ${m.vad ? 'on' : 'off'} · wake engine ${m.engine}`); } catch (e) { } };
         ws.onerror = () => reject(new Error('speech server offline'));
         ws.onclose = () => { if (this.micOn && this.wantRunning) { this.log('warn', 'speech server disconnected · reconnecting'); setTimeout(async () => { try { this.ws = await this.connect(); } catch (e) { this.log('warn', 'reconnect failed'); } }, 2000); } };
       });

@@ -13,5 +13,6 @@
                               { "name": "AIRPORT", "km": 31, "bearing": 225 } ] }
   },
   "agent": { "allow_bash": false },
+  "voice": { "vad": true, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge" },
   "autostart": false
 }

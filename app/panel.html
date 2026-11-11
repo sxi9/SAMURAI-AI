@@ -63,7 +63,7 @@ a{color:var(--cyan)}
   </div>
   <div class="card">
     <h2>DOCTOR</h2>
-    <div class="row"><button class="b" id="doctor">RUN CHECKS</button><button class="b v" id="doctorFix">CHECK + AUTO-FIX</button><button class="b" id="model">DOWNLOAD VOICE MODEL</button></div>
+    <div class="row"><button class="b" id="doctor">RUN CHECKS</button><button class="b v" id="doctorFix">CHECK + AUTO-FIX</button><button class="b" id="model">DOWNLOAD VOICE MODEL</button><button class="b v" id="kokoro">INSTALL LOCAL VOICE (KOKORO, 330 MB)</button><button class="b v" id="wake">INSTALL WAKE WORD + VAD</button><a class="b" href="http://localhost:8080/voice-test.html" target="_blank">MIC / SPEAKER TEST</a></div>
     <div class="chk" id="checks"><span class="muted">not run yet</span></div>
   </div>
   <div class="card wide">
@@ -125,6 +125,8 @@ $('swBash').onclick = () => $('swBash').classList.toggle('on');
 $('logKey').onchange = loadLog; $('refreshLog').onclick = loadLog;
 $('doctor').onclick = () => runDoctor(false); $('doctorFix').onclick = () => runDoctor(true);
 $('model').onclick = () => POST('/panel/model', {}).then(refresh);
+$('kokoro').onclick = () => POST('/panel/voice', { what: 'kokoro' }).then(refresh);
+$('wake').onclick = () => POST('/panel/voice', { what: 'wake' }).then(refresh);
 refresh(); setInterval(refresh, 3000); setInterval(loadLog, 5000); loadCfg();
 </script>
 </body>
