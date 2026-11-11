@@ -92,7 +92,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 
 ## Stage 9 — Walkthrough
 
-- [x] Recorded walkthrough video (docs/walkthrough.mp4, 2 min) + README gif (34 s)
+- [x] Recorded walkthrough video (docs/walkthrough.mp4, 2 min) + README gif (34 s) + voice walkthrough with sound (docs/walkthrough-voice.mp4, 2 min 43 s)
 - [x] docs/WALKTHROUGH.md with 14 captioned step screenshots
 
 ## Not verified in this build (needs a real desktop)

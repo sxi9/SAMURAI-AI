@@ -171,7 +171,7 @@
     const fg = q.match(/^forget (?:about |that )?(.{2,200})$/); if (fg) return { text: 'Forgotten.', effect: () => brain.fact('forget', fg[1]) };
     if (/^(what do you remember|what do you know about me)\??$/.test(q)) return { text: brain.facts.length ? 'I remember: ' + brain.facts.join('. ') : 'Nothing stored yet. Say "remember" followed by a fact.' };
     const am = q.match(/^(?:ask (?:all|everyone|every ai)|compare)[:,]?\s+(.{3,})$/); if (am) return { compare: am[1] };
-    if (/^(every (day|morning|evening|weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+|\w+ ?(minutes?|mins?|hours?))|remind me (at|on|in)\b|in \d+ (minutes?|mins?|hours?)|at [\w:. ]+ (say|remind|run))/.test(q)) return { text: null, actions: [{ type: 'schedule_add', arg: q }] };
+    if (/^(every (day|morning|evening|weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+|\w+ ?(minutes?|mins?|hours?))|remind me (at|on|in)\b|in (\d+|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|sixty|an?) ?(minutes?|mins?|hours?) |at [\w:. ]+ (say|remind|run))/.test(q)) return { text: null, actions: [{ type: 'schedule_add', arg: q.replace(/^in an? (minute|hour)/, 'in 1 $1') }] };
     if (/^(what('s| is) scheduled|list (my )?(schedules|reminders)|show (my )?(schedules|reminders))\??$/.test(q)) return { schedules: true };
     const rr = q.match(/^(?:run |start |activate )?(focus mode|good night|good morning|bedtime|movie mode|work mode)(?: routine)?$/); if (rr) return { text: null, actions: [{ type: 'routine_run', arg: rr[1] }] };
     const rn = q.match(/^run (?:the )?(.{2,30}?) routine$/); if (rn) return { text: null, actions: [{ type: 'routine_run', arg: rn[1] }] };

@@ -13,6 +13,15 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 1234
 def reply_for(user):
     u = (user or "").lower()
     focus, actions, shape = None, [], None
+    if "spoken briefing from these facts" in u:
+        facts = user.split(":", 1)[-1].strip().replace("\n", " ")
+        return {"reply": f"Good day. {facts[:420]}", "focus": "cal", "actions": [], "shape": None}
+    if "excerpts from" in u and "documents" in u:
+        if "net 30" in u:
+            text = "Your vendor contract says payment is due net 30 days after invoice, with a 2 percent penalty per month when late, and it renews automatically unless cancelled 60 days before the term ends."
+        else:
+            text = "I found that in your documents: " + user.split("\n", 2)[-1][:200]
+        return {"reply": text, "focus": "tty", "actions": [], "shape": None}
     if "weather" in u:
         focus, text = "wx", "It is 26 degrees and overcast in Bengaluru right now. The high today is 29. Carry a light jacket for the evening."
     elif "light" in u:

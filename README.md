@@ -4,7 +4,7 @@ A voice-driven assistant that runs on your own PC: an offline speech stack, a ci
 
 ![SAMURAI walkthrough](docs/walkthrough.gif)
 
-Half a minute of the recorded tour. The full two-minute recording is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step version with captions is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
+Half a minute of the recorded tour. **With sound**: [docs/walkthrough-voice.mp4](docs/walkthrough-voice.mp4) is a spoken walkthrough where ten commands are said into the microphone, recognised offline, and answered in SAMURAI's own voice, with a narrator. The silent captioned version is [docs/walkthrough.mp4](docs/walkthrough.mp4) and the step-by-step guide is [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
 
 ![SAMURAI HUD v3, labeled](docs/screenshot-labeled.png)
 
