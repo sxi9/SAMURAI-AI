@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -213,6 +213,8 @@
     if (/^(3d (on|core|mode)|go 3d|three d on|enable 3d)$/.test(q)) return { text: '3D core online.', effect: () => { S.gl = 'on'; save(); SAM.gl && !SAM.gl.on && SAM.gl.enable(S.glQuality); } };
     if (/^(3d off|2d (mode|core)|go 2d|disable 3d|flat mode)$/.test(q)) return { text: 'Back to the flat core.', effect: () => { S.gl = 'off'; save(); SAM.gl && SAM.gl.disable(); } };
     if (/^(presence (on|off)|(start|stop) watching( the)?( camera| for me)?|watch for me)$/.test(q)) { const on = !/off|stop/.test(q); return { text: on ? 'Watching for you.' : 'Presence off.', effect: () => { S.presence = on; save(); SAM.fx && SAM.fx.presence(on); } }; }
+    if (/^(big(ger)? text( mode)?|large text|text (bigger|larger)|zoom in text)$/.test(q)) return { text: 'Bigger text.', effect: () => { S.bigtext = true; document.documentElement.classList.add('bigtext'); save(); } };
+    if (/^(normal text|small(er)? text|text smaller|zoom out text)$/.test(q)) return { text: 'Normal text.', effect: () => { S.bigtext = false; document.documentElement.classList.remove('bigtext'); save(); } };
     if (/^(stay|stay still|stop moving|stop wandering|hold still|come back|come here|center|centre)$/.test(q)) return { text: 'Holding position.', effect: () => { S.wander = false; save(); } };
     if (/^(roam|rome|roman|wander|wonder|move around|explore|free roam|go explore|move as you like|go roam)$/.test(q)) return { text: 'Roaming.', effect: () => { S.wander = true; save(); } };
     if (/^proactive check$/.test(q)) return { proactive: true };
@@ -245,6 +247,9 @@
     if (/^(ring|call|ping|buzz|make .* ring|play (a )?sound on) (my )?(phone|mobile|cell|android)$|^ring it$/.test(q)) return { findPhone: 'ring' };
     if (/^(stop|silence|quiet) (the )?(ring|ringing|alarm|phone)$/.test(q)) return { text: 'Quiet.', effect: () => stopRing() };
     if (/^(sign in to google|google sign in|show (the )?browser window|open (the )?browser window)$/.test(q)) return { text: 'Opening the browser window. Sign in to Google there, then say "find my phone" again.', effect: () => fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'headed', arg: 'on' }) }).catch(() => { }) };
+    /* memory constellation */
+    const mq = q.match(/^(?:show|open) (?:my |the )?(?:memory|memories|constellation|what you remember)(?: (?:about|for|of) (.+))?$/) || q.match(/^(?:what do you remember about|memory search) (.+)$/);
+    if (mq) return { focus: 'mem', text: mq[1] ? `Memory, filtered on ${mq[1]}.` : 'Your memory, as stars.', effect: () => { widgets.data.mem.query = (mq[1] || '').toLowerCase(); widgets.memLoad(true); } };
     /* screen widget: live desktop, OCR, vision */
     if (/^(show|open|view|watch) (me )?(my |the )?(screen|desktop|display)( live)?$|^screen (view|live)$/.test(q)) return { focus: 'scr', text: null, effect: () => widgets.screenRefresh(true) };
     if (/^(read|ocr) (me )?(my |the )?(screen|display|text on (my|the) screen)( aloud| out loud)?$|^what does (my|the) screen say$/.test(q)) return { screenRead: true };
@@ -693,7 +698,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   voice.onLevel = l => { core.micLevel = l; };
   voice.onWake = () => { widgets.pushTty('wake word detected', '#2ee6ff'); voice.stopSpeaking('wake'); setMode('listening'); };
   voice.onMicState = on => { if (!on && S.mode === 'listening') setMode('idle'); if (on && S.mode === 'idle') setMode('listening'); $('pillMic').textContent = on ? 'MIC · OPEN' : 'MIC · ARMED'; };
-  widgets.onSay = t => say(t); widgets.onFocus = id => setFocus(id); widgets.onScreenVisible = () => S.focus === 'scr'; widgets.onCustomLoaded = () => applyLayout();
+  widgets.onSay = t => say(t); widgets.onMemVisible = () => S.focus === 'mem'; widgets.onFocus = id => setFocus(id); widgets.onScreenVisible = () => S.focus === 'scr'; widgets.onCustomLoaded = () => applyLayout();
     window.addEventListener('samurai-hotkey', () => { if (!voice.micOn) voice.start(); setMode('listening'); });
     widgets.onVideo = now => { if (now) { if (S.focus !== 'vid') setFocus('vid'); else applyLayout(); } else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };
@@ -769,6 +774,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       <div class="note">WebGL nebula, volumetric orb with lip-sync, up to 24,000 particles and bloom. Auto drops to low quality on a slow GPU.</div>
       <div class="row"><span>EFFECTS (ARCS, HOLOGRAM, WEATHER, DAY CYCLE)</span>${sw('fx', S.fx)}</div>
       <div class="row"><span>PRESENCE (CAMERA: GREET WHEN YOU ARRIVE)</span>${sw('presence', S.presence)}</div>
+      <div class="row"><span>BIG TEXT (25% LARGER, FOR TV OR WEAK EYES)</span>${sw('bigtext', !!S.bigtext)}</div>
       <div class="row"><span>PARALLAX DEPTH</span>${sw('parallax', S.parallax)}</div>
       <div class="row"><span>PARTICLE FIELD</span>${sw('particles', S.particles)}</div>
       <div class="row"><span>IDLE SHAPE CYCLE</span>${sw('idleMorph', S.idleMorph)}</div>
@@ -816,7 +822,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       else if (k === 'bargeIn') { voice.bargeIn = on; try { localStorage.setItem('samurai.bargeIn', on ? '1' : '0'); } catch (e) { } } else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
       else if (k === 'particles') { S.particles = on; core.particles = on && !(SAM.gl && SAM.gl.on); } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
       else if (k === 'fx') { S.fx = on; SAM.fx && SAM.fx.setEnabled(on); } else if (k === 'presence') { S.presence = on; SAM.fx && SAM.fx.presence(on); }
-      else if (k === 'governor') S.governor = on;
+      else if (k === 'governor') S.governor = on; else if (k === 'bigtext') { S.bigtext = on; document.documentElement.classList.toggle('bigtext', on); }
       else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });

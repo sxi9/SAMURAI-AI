@@ -481,3 +481,13 @@ option{background:#0b1022;color:var(--ice)}
 .appbar .btns{display:flex;height:100%}.appbar .btns span{display:grid;place-items:center;width:52px;height:100%;cursor:pointer;border-left:1px solid rgba(var(--cyan-rgb),.15);transition:background .2s}
 .appbar .btns span:hover{background:rgba(var(--cyan-rgb),.14);color:var(--ice)}.appbar .btns span.on{color:var(--cyan);text-shadow:0 0 8px var(--cyan)}.appbar .btns span:last-child:hover{background:rgba(255,61,110,.35);color:#fff}
 html.app .root{padding-top:28px;box-sizing:border-box}
+
+/* ---- big text mode: every size token scales 25% ---- */
+html.bigtext .card,html.bigtext .reply,html.bigtext .field input,html.bigtext .transcript,html.bigtext .tape,html.bigtext .drawer,html.bigtext .stateLabel,html.bigtext .stateSub,html.bigtext .toast,html.bigtext .clock,html.bigtext .pills{font-size:125%}
+html.bigtext .card .t{font-size:12px}html.bigtext .card .body{font-size:1.15em}html.bigtext .meter,html.bigtext .ev,html.bigtext .task .lb,html.bigtext .mail .fr span,html.bigtext .wx .big,html.bigtext .mus .ti,html.bigtext .tiles .tile{font-size:1.2em}
+html.bigtext .reply{font-size:26px}html.bigtext .field input{font-size:19px}html.bigtext .node{font-size:12px}
+.node:focus-visible,.ibtn:focus-visible{outline:2px solid var(--ice);outline-offset:3px}
+
+/* ---- memory constellation ---- */
+.memc .wview{cursor:default}.memc canvas{position:absolute;inset:0;width:100%;height:100%}
+.memtip{position:absolute;display:none;max-width:320px;background:rgba(5,6,13,.95);border:1px solid rgba(var(--cyan-rgb),.45);padding:8px 10px;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ice);pointer-events:none;z-index:5}

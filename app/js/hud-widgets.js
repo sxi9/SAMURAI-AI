@@ -19,6 +19,7 @@ window.SAM = window.SAM || {};
     { id: 'vid', side: 'R', x: 1320, y: 366, node: 12, code: 'VID', name: 'VIDEO (YOUTUBE · LOCAL · STREAMS)', title: 'VIDEO', big: true, pin: false },
     { id: 'web', side: 'L', x: 328, y: 366, node: 13, code: 'WEB', name: 'BROWSER (LIVE AGENT VIEW)', title: 'BROWSER', big: true, pin: false },
     { id: 'scr', side: 'L', x: 40, y: 366, node: 14, code: 'SCR', name: 'SCREEN (LIVE DESKTOP · READ · DESCRIBE)', title: 'SCREEN', big: true, pin: false },
+    { id: 'mem', side: 'R', x: 1608, y: 366, node: 15, code: 'MEM', name: 'MEMORY CONSTELLATION', title: 'MEMORY', big: true, pin: false },
   ];
   const ACTIONS = SAM.H + ':9300';
   const NODE = k => { const a = (-90 + k * (360 / W.length)) * Math.PI / 180; return [960 + 300 * Math.cos(a), 470 + 300 * Math.sin(a)]; };
@@ -38,6 +39,7 @@ window.SAM = window.SAM || {};
       video: { files: [], live: false, now: null, cinema: false },
       web: { url: '', title: '', live: false },
       screen: { live: false, monitor: 0, monitors: [], size: '', text: '' },
+      mem: { stars: [], links: [], query: '', loaded: 0 },
       custom: [],
       gallery: [], position: null, security: null, ticker: null,
       timer: { left: 300, total: 300, running: false }, tty: [{ t: 'samurai boot · ok', c: '#2ee6ff' }], camErr: false,
@@ -53,7 +55,7 @@ window.SAM = window.SAM || {};
     mount(layerL, layerR, nodesEl) {
       layerL.innerHTML = W.filter(w => w.side === 'L').map(w => this.shell(w)).join('');
       layerR.innerHTML = W.filter(w => w.side === 'R').map(w => this.shell(w)).join('');
-      nodesEl.innerHTML = W.map(w => { const [x, y] = NODE(w.node); return `<div class="node" data-id="${w.id}" title="${w.name}" style="left:${x - 23}px;top:${y - 23}px">${w.code}<i></i></div>`; }).join('');
+      nodesEl.innerHTML = W.map(w => { const [x, y] = NODE(w.node); return `<div class="node" data-id="${w.id}" role="button" tabindex="0" aria-label="Open ${w.name.toLowerCase()}" title="${w.name}" style="left:${x - 23}px;top:${y - 23}px">${w.code}<i></i></div>`; }).join('');
       document.querySelectorAll('.slot').forEach(s => { const w = W.find(x => x.id === s.dataset.id); s.style.left = w.x + 'px'; s.style.top = w.y + 'px'; });
       W.forEach(w => this.render(w.id));
       GET(ADDONS + '/video').then(r => { this.data.video.files = r.files || []; this.data.video.live = !!r.live; this.render('vid'); }).catch(() => { });
@@ -178,6 +180,19 @@ window.SAM = window.SAM || {};
             $('scrShot').addEventListener('click', e => { e.stopPropagation(); this.onAction && this.onAction('screenshot', ''); });
             GET(ACTIONS + '/screen/monitors').then(r => { s.monitors = r.monitors || []; if (s.monitors.length > 1) $('scrMon').innerHTML = s.monitors.map(m => `<option value="${m.i}">MONITOR ${m.i + 1} · ${m.w}×${m.h}</option>`).join(''); }).catch(() => { });
           }
+          break;
+        }
+        case 'mem': {
+          const m = d.mem; this.tag(id, m.stars.length ? `${m.stars.length} STARS` : 'MEMORY', 'v');
+          if (!b.firstChild) {
+            b.innerHTML = `<div class="web memc"><div class="wbar"><input id="memQ" type="text" placeholder="search your memory · facts, journal, tasks, conversations" spellcheck="false"><div id="memGo">FIND</div><div id="memReload">⟳</div></div>
+              <div class="wview" id="memView"><canvas id="memCv"></canvas><div class="wempty" id="memEmpty">EVERYTHING SAMURAI REMEMBERS, AS STARS · SAY "SHOW MY MEMORY" · "REMEMBER THAT …" · "NOTE: …"</div><div class="memtip" id="memTip"></div></div><div class="wtitle" id="memTitle">—</div></div>`;
+            $('memQ').addEventListener('click', e => e.stopPropagation()); $('memQ').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { m.query = $('memQ').value.trim().toLowerCase(); this.memDraw(); } });
+            $('memGo').addEventListener('click', e => { e.stopPropagation(); m.query = $('memQ').value.trim().toLowerCase(); this.memDraw(); }); $('memReload').addEventListener('click', e => { e.stopPropagation(); this.memLoad(true); });
+            const cv = $('memCv'); cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height; const hit = m.stars.find(s => Math.hypot(s.x - x, s.y - y) < 14); const tip = $('memTip'); if (hit) { tip.textContent = hit.text; tip.style.display = 'block'; tip.style.left = Math.min(r.width - 320, (e.clientX - r.left) + 12) + 'px'; tip.style.top = (e.clientY - r.top) + 12 + 'px'; } else tip.style.display = 'none'; });
+            cv.addEventListener('click', e => { e.stopPropagation(); const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height; const hit = m.stars.find(s => Math.hypot(s.x - x, s.y - y) < 14); if (hit && this.onSay) this.onSay(hit.text.slice(0, 300)); });
+          }
+          if (!m.loaded) this.memLoad();
           break;
         }
         case 'home': {
@@ -356,6 +371,35 @@ window.SAM = window.SAM || {};
         if (t === 'no page') { this.data.web.live = false; } else { this.data.web.live = true; this.data.web.title = t; this.data.web.url = u; const old = img.src; img.src = URL.createObjectURL(blob); if (old.startsWith('blob:')) URL.revokeObjectURL(old); }
         const tt = $('webTitle'); if (tt) tt.textContent = this.data.web.title || this.data.web.url || '—'; $('webEmpty') && $('webEmpty').classList.toggle('hidden', !!this.data.web.live); this.tag('web', this.data.web.live ? '<i></i>LIVE' : 'AGENT IDLE', this.data.web.live ? 'r' : '');
       } catch (e) { }
+    },
+    /* ---------- memory constellation: facts, journal, tasks and conversation topics as stars, linked by shared words ---------- */
+    async memLoad(force) {
+      const m = this.data.mem; if (m.loaded && !force) return; m.loaded = Date.now();
+      const STOP = new Set('the a an and or of to in on at for with is are was it my me i you your this that what how do does did be as by from about just like not so if then than there here have has had can could would should will'.split(' '));
+      const words = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !STOP.has(w));
+      let facts = [], hist = [], journal = [], tasks = this.data.tasks || [];
+      try { const r = await GET(ADDONS + '/memory?history=60'); facts = r.facts || []; hist = r.history || []; } catch (e) { }
+      try { const r = await GET(ADDONS + '/journal?n=40'); journal = r.entries || []; } catch (e) { }
+      const items = [...facts.map(t => ({ kind: 'fact', text: t })), ...journal.map(j => ({ kind: 'journal', text: j.text, t: j.t })), ...tasks.map(t => ({ kind: 'task', text: t.label, done: t.done })),
+        ...hist.filter(h => h.role === 'user').slice(-30).map(h => ({ kind: 'talk', text: h.content, t: h.t }))];
+      const W2 = 1240, H2 = 560, cx = W2 / 2, cy = H2 / 2; const stars = items.map((it, i) => { const a = i * 2.399963, r = 60 + Math.sqrt(i / Math.max(1, items.length)) * 240; return { ...it, words: words(it.text), x: cx + Math.cos(a) * r * 1.9, y: cy + Math.sin(a) * r * .95, seed: Math.random() }; });
+      const links = [];
+      for (let i = 0; i < stars.length; i++) for (let j = i + 1; j < stars.length; j++) { const shared = stars[i].words.filter(w => stars[j].words.includes(w)); if (shared.length) links.push([i, j, shared.length]); }
+      m.stars = stars; m.links = links; this.tag('mem', stars.length ? `${stars.length} STARS` : 'EMPTY', 'v'); $('memEmpty') && $('memEmpty').classList.toggle('hidden', !!stars.length);
+      $('memTitle') && ($('memTitle').textContent = `${facts.length} facts · ${journal.length} journal · ${tasks.length} tasks · ${hist.filter(h => h.role === 'user').length} conversations · ${links.length} links`);
+      this.memDraw();
+    },
+    memDraw() {
+      const cv = $('memCv'), m = this.data.mem; if (!cv) return; const W2 = cv.width = 1240, H2 = cv.height = 560, x = cv.getContext('2d'), t = performance.now() / 1000;
+      x.clearRect(0, 0, W2, H2); const col = { fact: SAM.core.THEME.c, journal: SAM.core.THEME.v, task: '255,184,77', talk: SAM.core.THEME.ice };
+      const q = m.query; const lit = s => !q || s.text.toLowerCase().includes(q);
+      for (const [i, j, n] of m.links) { const a = m.stars[i], b = m.stars[j]; x.strokeStyle = `rgba(${SAM.core.THEME.c},${(lit(a) && lit(b) ? .22 : .05) * Math.min(1, n / 2)})`; x.lineWidth = n > 1 ? 1.4 : .8; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y); x.stroke(); }
+      for (const s of m.stars) { const on = lit(s), r = s.kind === 'fact' ? 5 : s.kind === 'task' && !s.done ? 4.5 : 3.5, tw = .5 + .5 * Math.sin(t * 2 + s.seed * 9);
+        x.fillStyle = `rgba(${col[s.kind]},${on ? .25 * tw : .04})`; x.beginPath(); x.arc(s.x, s.y, r * 3.2, 0, 6.283); x.fill();
+        x.fillStyle = `rgba(${col[s.kind]},${on ? .95 : .18})`; x.beginPath(); x.arc(s.x, s.y, r, 0, 6.283); x.fill();
+        if (on && (s.kind === 'fact' || q)) { x.fillStyle = `rgba(${SAM.core.THEME.ice},.85)`; x.font = '11px "IBM Plex Mono", monospace'; x.fillText(s.text.slice(0, 34), s.x + 9, s.y + 4); } }
+      x.font = '10px "IBM Plex Mono", monospace'; let lx = 14; for (const [k, c] of Object.entries(col)) { x.fillStyle = `rgb(${c})`; x.beginPath(); x.arc(lx, H2 - 14, 4, 0, 6.283); x.fill(); x.fillStyle = 'rgba(217,248,255,.7)'; x.fillText(k.toUpperCase(), lx + 9, H2 - 10); lx += 90; }
+      if (this.onMemVisible && this.onMemVisible()) requestAnimationFrame(() => this.memDraw());
     },
     /* ---------- live screen: JPEG frames from the action server while the SCREEN panel is open ---------- */
     async screenRefresh(force) {
