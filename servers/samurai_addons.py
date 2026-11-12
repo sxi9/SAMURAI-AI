@@ -24,8 +24,11 @@ from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT,
                             load_config, save_config, http_json, run_hidden)
 import samurai_automation as auto
 import samurai_connect as connect
+import samurai_findmy as findmy
 
 PORT = PORTS["addons"]
+if "--port" in sys.argv:
+    PORT = int(sys.argv[sys.argv.index("--port") + 1])
 TASKS_PATH = os.path.join(DATA, "tasks.json")
 MEMORY_PATH = os.path.join(DATA, "memory.json")
 HOME_PATH = os.path.join(DATA, "home_state.json")
@@ -660,6 +663,7 @@ class Handler(JSONHandler):
         ("GET", "/addons/status"): get_status,
         **auto.ROUTES,
         **connect.ROUTES,
+        **findmy.ROUTES,
     }
 
 

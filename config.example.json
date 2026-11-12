@@ -15,7 +15,8 @@
   },
   "agent": { "allow_bash": false },
   "actions": { "apps": {}, "commands": {}, "deny": [], "no_confirm": [] },
-  "browser": { "headless": true },
+  "browser": { "headless": true, "profile_dir": "" },
+  "findmy": { "google": true },
   "voice": { "vad": true, "wake_engine": "text", "oww_model": "hey_jarvis", "wake_window": 8, "tts_engine": "edge" },
   "autostart": false,
   "connect": {
