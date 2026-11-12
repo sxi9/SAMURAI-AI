@@ -22,7 +22,7 @@ for pkg in ("cryptography", "qrcode", "faster_whisper", "ctranslate2", "huggingf
         datas += d; binaries += b; hiddenimports += h
 hiddenimports += collect_submodules("servers") if False else []
 hiddenimports += ["samurai_common", "samurai_automation", "samurai_autostart", "samurai_panel", "samurai_telemetry", "samurai_tts_server",
-                  "samurai_speech_server", "samurai_action_server", "samurai_agent_server", "samurai_addons", "samurai_browser", "samurai_window", "samurai_update", "samurai_forge", "samurai_tune", "samurai_connect", "samurai_findmy", "samurai_mcp", "samurai_meter", "mock_llm",
+                  "samurai_speech_server", "samurai_action_server", "samurai_agent_server", "samurai_addons", "samurai_browser", "samurai_window", "samurai_update", "samurai_forge", "samurai_tune", "samurai_connect", "samurai_findmy", "samurai_mcp", "samurai_meter", "samurai_senses", "samurai_home2", "samurai_market", "mock_llm",
                   "imaplib", "smtplib", "email.message", "plistlib", "http.server", "socketserver", "asyncio", "multiprocessing"]
 
 a = Analysis(["samurai_launcher.py"], pathex=["servers", "tests"], binaries=binaries, datas=datas, hiddenimports=hiddenimports,

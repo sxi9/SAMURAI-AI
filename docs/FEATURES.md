@@ -24,6 +24,16 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Memory: "remember that …", "forget …", conversation history, and automatic recall of related past conversations
 - Mock provider for trying everything with no account
 
+## New in 1.6 — brains, voice, senses, platform
+
+- Streaming replies from headless Claude Code; Claude Code can use SAMURAI as tools (MCP): actions, browser, documents, journal, calendar, memory. Panel: GIVE CLAUDE CODE SAMURAI'S TOOLS
+- Cost meter per provider with a monthly budget: "what did I spend", "set my budget to 20 dollars"; spoken warning at 80 %
+- Missions: "start a mission: research X and write a report" runs Claude Code for hours in workspace/ with a scratchpad and tells you when it is done; "missions", "stop the mission"
+- Local vision: "what is on my screen" works offline with llava or moondream on Ollama
+- Voice: local voice servers (Kokoro-FastAPI, Orpheus, XTTS, Chatterbox, Fish, F5) as the "local" engine; styles ("speak calm", "whisper", "excited", or follow the mood); live two-way voice over OpenAI Realtime ("full duplex on"); your own wake phrase ("change the wake word to hey sam"); voice identity ("enrol my voice as Sam", "only obey enrolled voices on"); meeting mode ("meeting mode on" transcribes, "off" gives a summary with action items and files it in the journal)
+- Senses: quiet during calls, games and full screen, and a "while you were busy" catch-up after; notifications read aloud ("read my notifications", "read notifications aloud on"); face recognition ("remember my face as Sam", "who am I"); hand gestures with the camera ("gestures on": open palm pauses, fist mutes, thumbs up confirms, point to talk, swipe to skip)
+- Platform: "download <link>", "my downloads", torrents through qBittorrent; "watch the price of <link>" with a spoken alert on a drop; Hue, Govee and Kasa lights direct ("list my devices", "turn on the desk lamp", "scene movie"); "sync my settings to <folder>"; rooms ("this is the kitchen", "hand off to the office"); plugin store ("plugin store", "install plugin countdown"); lyrics and album art in the music widget ("lyrics")
+
 ## The HUD
 - 3D core (WebGL, Three.js): a nebula shader background that stirs when it listens and turns red on alert, up to 24,000 particles morphing through every shape, a volumetric glass orb that lip-syncs to the voice, bloom; quality auto / low / medium / high, falls back to the 2D canvas; "3d on" / "3d off"
 - Effects layer: energy arcs from the orb to the widget it is driving, hologram materialise when a card appears, rain or snow from the live forecast, lightning in storms, alert tears and glitch, a CPU heartbeat line, day-cycle tint, the orb chasing the mouse, eyes that glance at what they act on

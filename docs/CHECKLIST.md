@@ -155,6 +155,16 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Windows installer script (Inno Setup, built in CI), self-installing update with staged swap (25 checks against a fake release), companion PWA manifest + service worker, forge from the packaged build via a data/src overlay
 - [ ] Not verifiable here: compiling the installer, a real Windows update swap, the PWA install prompt, a real Spotify or CalDAV account
 
+## Stage 15 — Everything left on the roadmap that fits (v1.6.0)
+
+- [x] Brains: streaming headless Claude (NDJSON), MCP server so Claude Code can use SAMURAI's actions / browser / documents / journal / calendar / memory as tools, per-provider cost meter with a monthly budget and spoken warning, local vision models on Ollama, missions (hours-long Claude Code tasks in workspace/ with a scratchpad, reported through the events feed); 67 checks incl. one real stream through the signed-in CLI
+- [x] Voice: local OpenAI-compatible TTS engine, voice styles (also from the mood), OpenAI Realtime full duplex (key stays on the PC), custom wake phrase, voice identity (enrol / only obey enrolled), meeting mode with a summary into the journal
+- [x] Senses: activity awareness (quiet during calls, games and full screen; held events replayed after), Windows / Linux notifications read aloud, face recognition (enrol / who), MediaPipe hand gestures mapped to pause / mute / confirm / listen / skip, mic kill switch backed by the system mute; 93 checks
+- [x] Platform: downloads and qBittorrent, price watch through the browser agent, Hue / Govee / Kasa direct with tiles in HOME, settings sync folder, rooms (several HUDs, one brain, hand-off), plugin marketplace with a catalog and panel / voice install, lyrics (LRC + lrclib) and embedded album art in MUSIC
+- [x] Look: holographic desk and wall layouts, 3D face avatar, glass / wireframe / paper skins and fonts, depth blur, icon morphs, widget pop-out, privacy light
+- [x] HUD wiring verified in the browser: every new phrase routes, quiet mode holds and replays an event, gesture and face events act, settings rows, panel card for Claude tools / meter / missions
+- [ ] Not verifiable here: real Hue / Govee / Kasa devices, WinRT toasts, a camera for gestures and faces, OpenAI Realtime audio, a local voice server, resemblyzer, Claude Code calling the MCP tools inside a live session
+
 ## Not verified in this build (needs a real desktop)
 
 - Premium voice engines with real keys (request shaping tested against a fake backend); browser SpeechRecognition on a phone; Siri / Google voices

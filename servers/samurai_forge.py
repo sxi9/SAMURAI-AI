@@ -8,7 +8,7 @@ POST /forge/discard           -> drops every uncommitted change the forge made
 
 Needs the source install (a git checkout, not the packaged exe) and the Claude Code CLI signed in. The forge never pushes and
 never touches config.json, data/ or secrets; the user says "apply" before anything goes live."""
-import json, os, shutil, subprocess, sys, threading, time
+import glob, json, os, shutil, subprocess, sys, threading, time
 
 from samurai_common import ROOT, LOGS, FROZEN, venv_python
 
@@ -45,7 +45,10 @@ def available():
 
 def changed_files():
     out = git("status", "--porcelain", "--", "app", "servers", "plugins", "tests", "docs", "samurai_launcher.py", "install.py", "requirements.txt")
-    return [line[2:].strip() for line in out.splitlines() if line.strip()]
+    files = [line[2:].strip() for line in out.splitlines() if line.strip()]
+    # plugins installed from the store live next to the built-in ones (plugins/<name>.py + plugins/<name>_pkg/); they are not forge work
+    store = {os.path.basename(d)[:-4] for d in glob.glob(os.path.join(WORK, "plugins", "*_pkg")) if os.path.exists(os.path.join(d, "plugin.json"))}
+    return [f for f in files if not any(f.startswith(f"plugins/{n}_pkg") or f == f"plugins/{n}.py" for n in store)]
 
 
 def get_status(h, q, b):

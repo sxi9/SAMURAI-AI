@@ -1,6 +1,6 @@
 # SAMURAI roadmap — everything that could still be added
 
-Numbered so you can say "build 3, 12 and 40". Legend: `[ ]` not started · `[x]` done (as of v1.2.0).
+Numbered so you can say "build 3, 12 and 40". Legend: `[ ]` not started · `[x]` done (as of v1.6.0).
 Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it needs a graphics card for real time.
 
 ## A. Claude and brains
@@ -9,25 +9,25 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] A2 (S) Claude session health on the HUD pill (logged in, expired, rate limited) with a spoken warning · (status on the panel; HUD pill pending)
 - [x] A3 (S) Claude panel: a ring node that opens claude.ai in an embedded browser window for manual chat (cannot drive SAMURAI; the site refuses iframes and scraping it breaks the terms) · (opens the real site in the agent browser window; manual chat only)
 - [x] A4 (S) Gemini CLI login button, same as A1
-- [ ] A5 (M) Streaming for headless Claude Code (today the JSON answer arrives whole)
-- [ ] A6 (M) Tool calling through Claude Code's own MCP servers: let Claude use SAMURAI's actions, browser agent and documents as tools inside one session
-- [ ] A7 (M) Per-provider cost and token meter, monthly budget with a spoken warning
-- [ ] A8 (M) Local vision model (Ollama llava / moondream) so "what is on my screen" works offline
-- [ ] A9 (L) Agent loop with a scratchpad: multi-hour tasks that keep working while you are away and report when done
+- [x] A5 (M) Streaming for headless Claude Code (today the JSON answer arrives whole) · (NDJSON stream from headless Claude; Gemini CLI whole)
+- [x] A6 (M) Tool calling through Claude Code's own MCP servers: let Claude use SAMURAI's actions, browser agent and documents as tools inside one session · (servers/samurai_mcp.py; panel button registers it with Claude Code)
+- [x] A7 (M) Per-provider cost and token meter, monthly budget with a spoken warning
+- [x] A8 (M) Local vision model (Ollama llava / moondream) so "what is on my screen" works offline · (Ollama llava / moondream picked automatically)
+- [x] A9 (L) Agent loop with a scratchpad: multi-hour tasks that keep working while you are away and report when done · (missions in workspace/ with a NOTES.md scratchpad, 6 h cap)
 
 ## B. Voice
 
 - [x] B1 (S) Premium online voices behind the TTS sidecar: ElevenLabs, OpenAI gpt-4o-mini-tts (nova, shimmer), Cartesia Sonic, Azure HD (Ava, Emma); voice picker with a sample button
 - [x] B2 (S) More Edge voices surfaced by default: en-US-AvaMultilingual, en-US-Emma, en-GB-Sonia, en-AU-Natasha, en-IN-Neerja
-- [ ] B3 (M, GPU) Local natural voices: Chatterbox (emotion control), Orpheus (laughs, sighs), XTTS v2 (clone a voice from a 10-second sample), Fish Speech, F5-TTS
-- [ ] B4 (S) Voice styles: whisper, excited, calm, per mood, where the engine supports it
-- [ ] B5 (M) Full duplex speech-to-speech: OpenAI Realtime, Gemini Live, or Moshi locally; natural interruptions and back-channel ("mm-hm")
-- [ ] B6 (M) Trained "samurai" wake-word model from your own recordings (openWakeWord training script)
-- [ ] B7 (M) Voice identity: only obey enrolled voices; greet the right person
+- [x] B3 (M, GPU) Local natural voices: Chatterbox (emotion control), Orpheus (laughs, sighs), XTTS v2 (clone a voice from a 10-second sample), Fish Speech, F5-TTS · (any local OpenAI-compatible voice server: Kokoro-FastAPI, Orpheus, XTTS, Chatterbox, Fish, F5; the models themselves need a GPU)
+- [x] B4 (S) Voice styles: whisper, excited, calm, per mood, where the engine supports it
+- [x] B5 (M) Full duplex speech-to-speech: OpenAI Realtime, Gemini Live, or Moshi locally; natural interruptions and back-channel ("mm-hm") · (OpenAI Realtime over WebRTC; Gemini Live and Moshi still open)
+- [x] B6 (M) Trained "samurai" wake-word model from your own recordings (openWakeWord training script) · (custom wake phrase through the recogniser grammar; a trained model is still open)
+- [x] B7 (M) Voice identity: only obey enrolled voices; greet the right person · (resemblyzer voice prints, optional)
 - [x] B8 (S) Large Vosk model as default on capable machines; Whisper option (faster-whisper) for better accuracy · (Whisper; large Vosk still manual)
 - [ ] B9 (S) Global push-to-talk hotkey that works in any app
 - [x] B10 (S) Live translation: speak one language, reply in another; subtitles on the HUD · (via the brain; no live subtitles yet)
-- [ ] B11 (M) Meeting mode: transcribe the room, summarise, pull out action items
+- [x] B11 (M) Meeting mode: transcribe the room, summarise, pull out action items
 
 ## C. Media inside the HUD
 
@@ -35,7 +35,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] C2 (S) Local video files and folders in the same widget
 - [x] C3 (S) HLS and Twitch live streams
 - [x] C4 (M) Real Spotify control through the Web API: play anything, album art, queue
-- [ ] C5 (S) Album art and lyrics for the local library (tags, LRC files)
+- [x] C5 (S) Album art and lyrics for the local library (tags, LRC files)
 - [x] C6 (S) Internet radio and podcasts
 - [x] C7 (S) Read a PDF, an article or the clipboard aloud; "summarise this page"
 - [x] C8 (M) Map widget with Leaflet: your location, routes, traffic, "how long to the office" · (Leaflet + OSM, geocoding)
@@ -45,12 +45,12 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 ## D. Senses
 
 - [x] D1 (M) Presence: greet you when the camera sees you, pause and lock when you leave
-- [ ] D2 (M) Face recognition for per-person profiles and greetings
-- [ ] D3 (M) Hand gestures via webcam (MediaPipe): volume, next, pause, summon a widget
+- [x] D2 (M) Face recognition for per-person profiles and greetings · (OpenCV LBPH, optional opencv-contrib)
+- [x] D3 (M) Hand gestures via webcam (MediaPipe): volume, next, pause, summon a widget · (MediaPipe hands, vendored)
 - [x] D4 (S) Screen OCR: read any text on screen, copy it, translate it · (tesseract OCR + SCREEN panel)
-- [ ] D5 (M) Activity awareness: knows which app you are in and adapts (quiet during calls, no interruptions while gaming)
+- [x] D5 (M) Activity awareness: knows which app you are in and adapts (quiet during calls, no interruptions while gaming)
 - [x] D6 (S) Clipboard history and "what did I copy earlier" · (clipboard read/write actions exist; no history list)
-- [ ] D7 (M) Windows notifications read aloud, with reply by voice
+- [x] D7 (M) Windows notifications read aloud, with reply by voice · (WinRT / D-Bus toasts read aloud, reply by voice pending)
 - [x] D8 (S) Microphone always-on with a privacy light on the HUD and a hardware-style kill switch
 
 ## E. Tasks and connections
@@ -62,13 +62,13 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] E5 (S) Wi-Fi, Bluetooth, VPN on and off; "connect my headphones"
 - [x] E6 (S) Wake-on-LAN and SSH to other machines: "turn on the server", "run the backup on the NAS"
 - [x] E7 (S) File search across drives (everything-style index) and "open the file I worked on yesterday"
-- [ ] E8 (S) Download manager and torrent client control
+- [x] E8 (S) Download manager and torrent client control · (built-in downloader + qBittorrent Web UI)
 - [x] E9 (S) Game launcher: Steam library, "launch Elden Ring", FPS overlay
 - [x] E10 (S) System cleanup and updates: temp files, package updates, driver check, with confirmation
 - [x] E11 (M) Notes and journal by voice, searchable, daily summary
 - [x] E12 (S) Pomodoro and focus sessions with app blocking
-- [ ] E13 (M) Shopping and orders: price watch, "order more coffee" through a confirmed browser flow
-- [ ] E14 (M) Smart home beyond Home Assistant: Hue, Tuya, Tapo, Govee direct; scenes by voice
+- [x] E13 (M) Shopping and orders: price watch, "order more coffee" through a confirmed browser flow · (price watch through the browser agent; ordering stays a manual confirmed browser flow)
+- [x] E14 (M) Smart home beyond Home Assistant: Hue, Tuya, Tapo, Govee direct; scenes by voice · (Hue, Govee, Kasa / Tapo direct; Tuya still open)
 - [x] E15 (L) Android companion app (Capacitor) with wake word, instead of the phone web page · (installable companion PWA; a native app is still open)
 - [x] E16 (S) Kiosk mode for a wall tablet: full screen, auto-start, dim at night
 
@@ -107,11 +107,11 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 
 - [x] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage · (Inno Setup installer built in CI; not code-signed)
 - [x] G2 (S) Auto-update from GitHub releases with a changelog spoken on first boot · (staged swap, keeps config)
-- [ ] G3 (S) Settings sync across machines through a folder or Git
-- [ ] G4 (M) Multi-room: several HUDs on the LAN, one brain, hand-off between rooms
+- [x] G3 (S) Settings sync across machines through a folder or Git · (folder sync, newer wins)
+- [x] G4 (M) Multi-room: several HUDs on the LAN, one brain, hand-off between rooms · (rooms register, events carry a room, hand-off by voice)
 - [x] G5 (S) Backup and restore of memory, config and routines
 - [x] G6 (S) Crash reporter into the control panel, with one-click log bundle
-- [ ] G7 (M) Plugin marketplace page that installs plugins from a Git URL
+- [x] G7 (M) Plugin marketplace page that installs plugins from a Git URL
 - [x] G8 (S) Accessibility: screen-reader labels, high-contrast theme, bigger text mode
 
 ## Suggested order
