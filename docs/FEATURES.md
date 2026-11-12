@@ -29,6 +29,13 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Effects layer: energy arcs from the orb to the widget it is driving, hologram materialise when a card appears, rain or snow from the live forecast, lightning in storms, alert tears and glitch, a CPU heartbeat line, day-cycle tint, the orb chasing the mouse, eyes that glance at what they act on
 - Looks: "cinema look" (letterbox, grain, warm vignette) and "retro look" (CRT scanlines and fringing)
 - Holographic globe in the position widget (wireframe Earth, your marker, a satellite)
+- Layouts: focus, full, ambient, holographic desk (pinned widgets on a curved 3D wall you drag to rotate) and wall mode (big clock, orb alone, photos drifting behind) for a TV or projector
+- 3D face avatar as an alternative to the orb: glowing eyes that look where the orb looks, brows that follow the personality, a mouth that lip-syncs, blinks; "show your face" / "orb mode"
+- Skins and fonts: glass, wireframe, paper; Michroma, system, monospace or serif; depth blur behind cards
+- Icon morphs: the particles form a cloud, a pulse line, a house, a pin, a clock, a note or an envelope for a moment before that widget opens
+- Pop-out: "pop out the weather" floats any widget in its own small always-on-top window (Document Picture-in-Picture)
+- Mic kill switch with a privacy light: the mic pill glows amber when open and red when it hears you; "mute the mic" stops the stream, blocks restarts and mutes the system microphone
+- "Open claude" / "open chatgpt" / "open gemini" shows the real site in the agent's browser window for manual chat (no automation of those sites)
 - Memory constellation: every fact, journal entry, task and recent conversation as a star, linked by shared words, searchable ("show my memory about dentist"), click a star to hear it
 - Big-text mode ("big text") and keyboard-reachable controls with screen-reader labels
 - Orb avatar with eyes and a waveform ring for idle, listening, thinking, speaking and alert

@@ -7,7 +7,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 
 - [x] A1 (S) "Log in to Claude" button in the control panel: runs the Claude Code login, shows whether the session is valid, which plan, and when it expires
 - [x] A2 (S) Claude session health on the HUD pill (logged in, expired, rate limited) with a spoken warning · (status on the panel; HUD pill pending)
-- [ ] A3 (S) Claude panel: a ring node that opens claude.ai in an embedded browser window for manual chat (cannot drive SAMURAI; the site refuses iframes and scraping it breaks the terms)
+- [x] A3 (S) Claude panel: a ring node that opens claude.ai in an embedded browser window for manual chat (cannot drive SAMURAI; the site refuses iframes and scraping it breaks the terms) · (opens the real site in the agent browser window; manual chat only)
 - [x] A4 (S) Gemini CLI login button, same as A1
 - [ ] A5 (M) Streaming for headless Claude Code (today the JSON answer arrives whole)
 - [ ] A6 (M) Tool calling through Claude Code's own MCP servers: let Claude use SAMURAI's actions, browser agent and documents as tools inside one session
@@ -39,8 +39,8 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] C6 (S) Internet radio and podcasts
 - [x] C7 (S) Read a PDF, an article or the clipboard aloud; "summarise this page"
 - [x] C8 (M) Map widget with Leaflet: your location, routes, traffic, "how long to the office" · (Leaflet + OSM, geocoding)
-- [ ] C9 (S) Photo slideshow from the gallery in ambient mode
-- [ ] C10 (S) Picture-in-picture: any widget can float small over other apps (browser PiP for video)
+- [x] C9 (S) Photo slideshow from the gallery in ambient mode
+- [x] C10 (S) Picture-in-picture: any widget can float small over other apps (browser PiP for video) · (Document Picture-in-Picture; Chrome 116+)
 
 ## D. Senses
 
@@ -51,7 +51,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [ ] D5 (M) Activity awareness: knows which app you are in and adapts (quiet during calls, no interruptions while gaming)
 - [x] D6 (S) Clipboard history and "what did I copy earlier" · (clipboard read/write actions exist; no history list)
 - [ ] D7 (M) Windows notifications read aloud, with reply by voice
-- [ ] D8 (S) Microphone always-on with a privacy light on the HUD and a hardware-style kill switch
+- [x] D8 (S) Microphone always-on with a privacy light on the HUD and a hardware-style kill switch
 
 ## E. Tasks and connections
 
@@ -77,25 +77,25 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] F1 (L) Volumetric orb in Three.js: glass sphere with refraction, inner plasma shader, fresnel rim, 50,000-particle point cloud, 3D shape morphs with depth of field, slow orbiting camera
 - [x] F2 (M) Reactive nebula background: GPU noise or fluid shader that stirs when listening, brightens when speaking, turns red and turbulent on alert
 - [x] F3 (S) Voice visualiser: real spectrum of the reply audio as rings around the orb; lip-sync via the audio analyser
-- [ ] F4 (L) 3D head option: Live2D or VRM avatar with eye tracking toward the mouse or your face, blinking, mood expressions
+- [x] F4 (L) 3D head option: Live2D or VRM avatar with eye tracking toward the mouse or your face, blinking, mood expressions · (procedural Three.js head; Live2D/VRM models still open)
 - [x] F5 (M) Hologram materialise: widgets assemble from scanlines and particles, dissolve when docked
-- [ ] F6 (M) Shape-to-widget morphs: the particles form a cloud before weather opens, a heartbeat line before system, a note before music
+- [x] F6 (M) Shape-to-widget morphs: the particles form a cloud before weather opens, a heartbeat line before system, a note before music
 - [x] F7 (S) Energy arcs between the orb and the widget it is driving; a flash when an action runs
 - [x] F8 (S) Camera moves: dolly and parallax from the mouse and the phone gyroscope; slow drift in ambient · (mouse parallax; gyroscope pending)
-- [ ] F9 (M) Depth layers with real blur: foreground glass, mid widgets, deep background
+- [x] F9 (M) Depth layers with real blur: foreground glass, mid widgets, deep background
 - [x] F10 (S) Chromatic aberration and glitch on alert; CRT bloom "retro" theme; film grain and lens flares "cinema" theme
 - [x] F11 (M) Day cycle: palette and background follow the real clock and the weather feed; rain or snow particles when forecast
 - [x] F12 (S) Audio-reactive everything: ring, ticker glow and corner brackets pulse with music, not only the orb
 - [x] F13 (M) 3D Earth globe for the position widget: textured globe, your location, satellites, the day-night line, spins on voice
-- [ ] F14 (L) Holographic desk: a 3D room in ambient mode with widgets as floating panels
+- [x] F14 (L) Holographic desk: a 3D room in ambient mode with widgets as floating panels · (CSS 3D curved wall, drag to rotate)
 - [x] F15 (M) Data constellations: memories and tasks as stars connected by topic, searchable by voice
-- [ ] F16 (S) Wall or projector mode: 4K ambient scene with the orb alone, as a living wallpaper
+- [x] F16 (S) Wall or projector mode: 4K ambient scene with the orb alone, as a living wallpaper
 - [x] F17 (S) Typewriter reply text with a cursor glow, sound-synced
 - [x] F18 (S) Heartbeat line behind the system widget that follows real CPU load
 - [x] F19 (S) Eyes narrow on hard questions, widen on alerts, look at the widget being read · (glance at the widget being driven)
 - [x] F20 (S) Boot sequence with a diagnostic scroll, a power hum and a "systems online" flash
 - [x] F21 (M) Desktop overlay: Electron shell, transparent and always on top, so the orb floats over any app · (chromeless pywebview window; overlay transparency pending)
-- [ ] F22 (S) Widget themes: glass, wireframe, paper; custom fonts
+- [x] F22 (S) Widget themes: glass, wireframe, paper; custom fonts
 - [x] F23 (S) Idle behaviours: the orb yawns, stretches, chases the mouse, hides behind a widget
 
 ## G. Platform and polish
