@@ -1,0 +1,9 @@
+{
+  "name": "clipboard_history",
+  "version": "1.0.0",
+  "description": "Keeps the last 20 things you copied (polls the clipboard every 2 s); 'what did I copy', 'paste the third clip'.",
+  "entry": "clipboard_history.py",
+  "tools": ["clip_history", "clip_recall"],
+  "author": "SAMURAI",
+  "homepage": "https://github.com/sxi9/SAMURAI-AI/tree/main/plugins/catalog/clipboard_history"
+}

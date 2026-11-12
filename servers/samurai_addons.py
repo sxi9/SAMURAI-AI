@@ -27,6 +27,9 @@ import samurai_connect as connect
 import samurai_findmy as findmy
 import samurai_spotify as spotify
 import samurai_calendar as calendar
+import samurai_senses as senses
+import samurai_home2 as home2
+import samurai_market as market
 
 PORT = PORTS["addons"]
 if "--port" in sys.argv:
@@ -708,6 +711,9 @@ class Handler(JSONHandler):
         **findmy.ROUTES,
         **spotify.ROUTES,
         **calendar.ROUTES,
+        **senses.ROUTES,
+        **home2.ROUTES,
+        **market.ROUTES,
     }
 
 
@@ -716,5 +722,7 @@ if __name__ == "__main__":
     os.makedirs(gallery_dir(), exist_ok=True)
     auto.start_threads(lambda: get_agenda(None, {}, None).get("events", []))
     connect.start_threads()
+    senses.start_threads()
+    market.start_threads()
     print(f"[SAMURAI] Add-ons sidecar on http://localhost:{PORT}/  (config: {os.path.join(ROOT, 'config.json')})")
     maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

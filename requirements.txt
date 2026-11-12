@@ -9,3 +9,6 @@ mss>=9          # live screen view for the SCREEN widget
 pillow>=10      # screen frames
 pytesseract>=0.3   # screen OCR (needs the tesseract binary)
 # optional (installed separately by install.py, skipped when it fails): pywebview>=5 for the chromeless app window, keyboard for its Ctrl+Alt+S hotkey
+mutagen>=1.47     # embedded album art + tags for GET /art (add-ons)
+# optional senses extras, install by hand when you want them: opencv-contrib-python-headless (face recognition, POST /faces/*),
+#   winsdk (Windows notification toasts, GET /notifications), python-kasa (Kasa/Tapo lights, /home2), dbus-python (Linux toasts)

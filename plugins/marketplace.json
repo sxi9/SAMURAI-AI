@@ -1,0 +1,21 @@
+{
+  "_": "Curated SAMURAI plugin list. GET /plugins/market lists it; POST /plugins/install {url} installs one (a folder in this repo, a zip URL, or a git URL). A package is a folder with plugin.json {name, version, entry, tools} plus the entry .py file (PLUGIN = {...}, see plugins/example_tools.py).",
+  "plugins": [
+    {
+      "name": "countdown",
+      "version": "1.0.0",
+      "description": "Days until a date: 'days until 25 december'.",
+      "tools": ["days_until"],
+      "url": "plugins/catalog/countdown",
+      "author": "SAMURAI"
+    },
+    {
+      "name": "clipboard_history",
+      "version": "1.0.0",
+      "description": "Remembers the last 20 things you copied; 'what did I copy', 'paste clip 3'.",
+      "tools": ["clip_history", "clip_recall"],
+      "url": "plugins/catalog/clipboard_history",
+      "author": "SAMURAI"
+    }
+  ]
+}

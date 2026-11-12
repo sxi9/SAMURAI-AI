@@ -25,5 +25,8 @@
     "telegram_token": "", "telegram_chats": [], "discord_webhook": "", "slack_webhook": "", "steam_dir": ""
   },
   "spotify": { "client_id": "" },
-  "calendar": { "target": "ics", "caldav_url": "", "caldav_user": "", "caldav_password": "" }
+  "calendar": { "target": "ics", "caldav_url": "", "caldav_user": "", "caldav_password": "" },
+  "senses": { "quiet_apps": [], "read_notifications": false },
+  "home2": { "hue_bridge": "", "hue_user": "", "govee_key": "", "kasa_discover": false, "kasa_hosts": [] },
+  "market": { "download_dir": "", "qbittorrent_url": "", "qbittorrent_user": "", "qbittorrent_password": "" }
 }

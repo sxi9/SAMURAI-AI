@@ -480,6 +480,8 @@ def do_action(atype, arg, confirm=False):
         volume(delta=-int(arg or 10)); return "Volume down"
     if atype == "volume_set":
         volume(level=max(0, min(100, int(arg or 50)))); return f"Volume set to {arg}%"
+    if atype == "mic_mute":
+        return {"ok": True, "did": mic_mute(arg)}
     if atype == "mute":
         volume(mute="toggle"); return "Mute toggled"
     if atype in ("media_play_pause", "media_next", "media_prev", "media_stop"):
@@ -633,10 +635,67 @@ def get_screen_text(h, q, body):
         return {"ok": False, "error": str(e)[:120], "installed": True}
 
 
+# ---------- microphone kill switch (the HUD shows a privacy light) ----------
+MIC = {"muted": None}
+
+
+def mic_state():
+    try:
+        if IS_WIN:
+            if shutil.which("nircmd"):
+                return MIC["muted"]
+            out = ps("if (Get-Command Get-AudioDevice -ErrorAction SilentlyContinue) { (Get-AudioDevice -RecordingMute) } else { 'unsupported' }")
+            return None if "unsupported" in out else out.strip().lower() == "true"
+        if IS_MAC:
+            return int(sh(["osascript", "-e", "input volume of (get volume settings)"]).strip() or 0) == 0
+        if shutil.which("pactl"):
+            return "yes" in sh(["pactl", "get-source-mute", "@DEFAULT_SOURCE@"]).lower()
+        if shutil.which("amixer"):
+            return "[off]" in sh(["amixer", "get", "Capture"])
+    except Exception:
+        pass
+    return MIC["muted"]
+
+
+def mic_mute(arg):
+    arg = str(arg or "toggle").lower()
+    if arg == "toggle":
+        cur = mic_state(); want = (not cur) if cur is not None else True
+    else:
+        want = arg in ("on", "mute", "true", "1")
+    if IS_WIN:
+        if shutil.which("nircmd"):
+            sh(["nircmd", "mutesysvolume", "1" if want else "0", "default_record"])
+        else:
+            out = ps("if (Get-Command Set-AudioDevice -ErrorAction SilentlyContinue) { Set-AudioDevice -RecordingMute $%s | Out-Null; 'ok' } else { 'unsupported' }" % ("true" if want else "false"))
+            if "unsupported" in out:
+                raise ValueError("microphone mute needs nircmd (nirsoft.net) or the AudioDeviceCmdlets PowerShell module on Windows")
+    elif IS_MAC:
+        sh(["osascript", "-e", f"set volume input volume {0 if want else 80}"])
+    elif shutil.which("pactl"):
+        sh(["pactl", "set-source-mute", "@DEFAULT_SOURCE@", "1" if want else "0"])
+    elif shutil.which("amixer"):
+        sh(["amixer", "set", "Capture", "nocap" if want else "cap"])
+    else:
+        raise ValueError("no mixer tool found (pactl or amixer) to mute the microphone")
+    MIC["muted"] = want
+    return f"microphone {'muted' if want else 'live'}"
+
+
+def get_mic(h, q, body):
+    m = mic_state()
+    return {"ok": True, "muted": m, "known": m is not None}
+
+
+def post_plugins_reload(h, q, body):
+    load_plugins()
+    return {"ok": True, "tools": sorted(PLUGINS.keys()), "did": f"{len(PLUGINS)} plugin tool(s) loaded"}
+
+
 def get_actions(h, q, body):
     return {"ok": True, "os": sys.platform, "apps": sorted(APPS), "hotkeys": sorted(HOTKEYS),
             "actions": ["open_url", "web_search", "play_music", "open_app", "open_path", "volume_up", "volume_down",
-                        "volume_set", "mute", "media_play_pause", "media_next", "media_prev", "media_stop",
+                        "volume_set", "mute", "mic_mute", "media_play_pause", "media_next", "media_prev", "media_stop",
                         "brightness", "screenshot", "camera_frame", "clipboard_get", "clipboard_set", "type_text", "hotkey", "lock",
                         "mouse_click", "mouse_move", "mouse_double", "mouse_right", "scroll", *sorted(CONNECT_ACTIONS)],
             "needs_confirm": sorted(POWER_ACTIONS), "deny": load_config().get("actions", {}).get("deny", []),
@@ -645,7 +704,7 @@ def get_actions(h, q, body):
 
 class Handler(JSONHandler):
     TAG = "SAMURAI-ACT"
-    ROUTES = {("POST", "/action"): post_action, ("GET", "/actions"): get_actions, ("GET", "/audit"): get_audit, ("GET", "/file"): get_file,
+    ROUTES = {("POST", "/action"): post_action, ("GET", "/actions"): get_actions, ("GET", "/mic"): get_mic, ("POST", "/plugins/reload"): post_plugins_reload, ("GET", "/audit"): get_audit, ("GET", "/file"): get_file,
               ("GET", "/screen/view"): get_screen_view, ("GET", "/screen/monitors"): get_screen_monitors, ("GET", "/screen/text"): get_screen_text}
 
 
