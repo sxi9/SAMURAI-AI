@@ -77,6 +77,8 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Plan mode: "plan: get me ready for deep work" turns a goal into steps and runs them
 
 ## Sight and hands
+- SCREEN panel: a live view of your desktop inside the HUD (any monitor), READ (OCR with tesseract, spoken), DESCRIBE (vision brain), SHOT; "show my screen", "read my screen", "what is on my screen"
+- Find my phone: "ring my phone" makes the phone with the companion page open ring, flash and vibrate, pushes an alarm through ntfy, and presses Play Sound on Google Find My Device through the agent's browser (sign in once in the browser window); "find my phone" shows the Google map live in the HUD under a TRACKING overlay
 - Presence: the camera notices when you arrive after being away and greets you; optional lock when you leave
 - Vision: "what is on my screen", "look at my screen and tell me the error", "what do you see" (webcam)
 - Browser agent: a real Chromium the brain drives: open, read, links, click, type, find, back, screenshot
@@ -85,6 +87,10 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Send email over SMTP with confirmation
 
 ## Runs itself
+- Forge: "forge: add a widget that shows my pomodoro streak" makes SAMURAI rebuild its own code with Claude Code headless (source install), shows the summary, and installs it on "apply the forge" (syntax check, commit on a forge branch, restart); "discard the forge" drops it
+- Custom widgets by voice: "create a widget that shows my task count" — the brain designs a sandboxed widget, it is stored and mounted in the ring with live data; "delete widget …"
+- Chromeless app window: `SAMURAI.exe --window` or the panel's OPEN AS APP WINDOW opens the HUD in its own frameless window (pywebview) with drag bar, pin on top, minimize, fullscreen and a Ctrl+Alt+S hotkey; the browser option stays
+- Illustrated step-by-step install guide: docs/INSTALL.md
 - Auto-tune: the control panel reads your CPU, RAM, GPUs, battery, cameras, network adapters, disk and installed tools, then sets the 3D quality, Whisper model, Kokoro advice, startup profile, half-duplex mic, presence camera and phone address for that machine; runs by itself on first start
 - Browser GPU check: the HUD reports which GPU the browser really uses; on a two-GPU laptop it warns when the browser sits on the integrated one
 - Governor: on battery or above 85 °C the 3D core drops to low; above 90 % memory it switches to the 2D core and effects off; everything comes back after a quiet minute

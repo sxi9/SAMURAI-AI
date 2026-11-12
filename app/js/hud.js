@@ -902,7 +902,28 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     if (!probing[key]) { probing[key] = (async () => { log('info', `starting ${key} service…`); try { await fetch(PANEL + '/panel/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start', key }) }); } catch (e) { } for (let i = 0; i < 30; i++) { await new Promise(r => setTimeout(r, 1000)); if (await up()) return true; } return false; })().finally(() => { setTimeout(() => { probing[key] = null; }, 2000); }); }
     return probing[key];
   }
+  /* ---------- chromeless app window (pywebview): slim bar with drag, pin, minimize, fullscreen, close ---------- */
+  const APP_WINDOW = new URLSearchParams(location.search).get('app') === '1';
+  function appWindow() {
+    document.documentElement.classList.add('app');
+    const bar = document.createElement('div'); bar.id = 'appbar'; bar.className = 'appbar';
+    bar.innerHTML = `<div class="drag" id="appDrag"><i></i>SAMURAI</div><div class="btns"><span id="appPin" title="always on top">PIN</span><span id="appMin" title="minimize">MIN</span><span id="appFull" title="fullscreen">FULL</span><span id="appClose" title="close">✕</span></div>`;
+    document.body.appendChild(bar);
+    const api = () => window.pywebview && window.pywebview.api;
+    let drag = null;
+    $('appDrag').addEventListener('mousedown', e => { drag = { x: e.screenX, y: e.screenY }; e.preventDefault(); });
+    window.addEventListener('mousemove', e => { if (!drag || !api()) return; const dx = e.screenX - drag.x, dy = e.screenY - drag.y; if (dx || dy) { api().move(dx, dy); drag = { x: e.screenX, y: e.screenY }; } });
+    window.addEventListener('mouseup', () => { drag = null; });
+    const refresh = async () => { try { const st = await api().get_state(); $('appPin').classList.toggle('on', !!st.on_top); $('appFull').classList.toggle('on', !!st.fullscreen); } catch (e) { } };
+    $('appPin').onclick = async () => { if (api()) { const on = await api().toggle_on_top(); $('appPin').classList.toggle('on', !!on); } };
+    $('appMin').onclick = () => api() && api().minimize();
+    $('appFull').onclick = async () => { if (api()) { const on = await api().fullscreen(); $('appFull').classList.toggle('on', !!on); } };
+    $('appClose').onclick = () => api() ? api().close() : window.close();
+    if (api()) refresh(); else window.addEventListener('pywebviewready', refresh);
+    window.addEventListener('samurai-hotkey', () => { $('cmd').focus(); });
+  }
   function init() {
+    if (APP_WINDOW) appWindow();
     loadTune(); setInterval(governor, 10000);
     if (COMPANION) { companionEvents(); voice.cfg.sttEngine = voice.phoneCapable ? 'phone' : voice.cfg.sttEngine; if (!voice.cfg.companion || voice.cfg.companion === 'off') voice.cfg.companion = 'phone'; document.documentElement.dataset.companion = '1'; }
     else voice.relay.pollLoop(async c => { const quiet = c.speak_on === 'phone', was = voice.cfg.voiceOn; if (quiet) voice.cfg.voiceOn = false; widgets.pushTty(`phone · ${c.text}`, '#ffb84d'); console.log('relay · from phone: ' + c.text); let text = ''; try { text = await submit(c.text); } finally { if (quiet) voice.cfg.voiceOn = was; } setTimeout(() => { $('transcript').textContent = `from your phone: "${c.text}"`; $('transcript').classList.add('on'); }, 60); return text || S.lastReply || ''; });

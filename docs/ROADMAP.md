@@ -47,7 +47,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] D1 (M) Presence: greet you when the camera sees you, pause and lock when you leave
 - [ ] D2 (M) Face recognition for per-person profiles and greetings
 - [ ] D3 (M) Hand gestures via webcam (MediaPipe): volume, next, pause, summon a widget
-- [ ] D4 (S) Screen OCR: read any text on screen, copy it, translate it
+- [x] D4 (S) Screen OCR: read any text on screen, copy it, translate it · (tesseract OCR + SCREEN panel)
 - [ ] D5 (M) Activity awareness: knows which app you are in and adapts (quiet during calls, no interruptions while gaming)
 - [x] D6 (S) Clipboard history and "what did I copy earlier" · (clipboard read/write actions exist; no history list)
 - [ ] D7 (M) Windows notifications read aloud, with reply by voice
@@ -94,15 +94,18 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] F18 (S) Heartbeat line behind the system widget that follows real CPU load
 - [x] F19 (S) Eyes narrow on hard questions, widen on alerts, look at the widget being read · (glance at the widget being driven)
 - [x] F20 (S) Boot sequence with a diagnostic scroll, a power hum and a "systems online" flash
-- [ ] F21 (M) Desktop overlay: Electron shell, transparent and always on top, so the orb floats over any app
+- [x] F21 (M) Desktop overlay: Electron shell, transparent and always on top, so the orb floats over any app · (chromeless pywebview window; overlay transparency pending)
 - [ ] F22 (S) Widget themes: glass, wireframe, paper; custom fonts
 - [x] F23 (S) Idle behaviours: the orb yawns, stretches, chases the mouse, hides behind a widget
 
 ## G. Platform and polish
 
+- [x] G-1 (L) Forge: SAMURAI rebuilds its own code on request (Claude Code headless, review, apply, restart) and designs its own widgets by voice (v1.4.0)
+- [x] G-2 (M) Find my phone: companion alarm, ntfy push, Google Find My Device through the agent browser, tracking map overlay (v1.4.0)
+
 - [x] G0 (M) Auto-tune: hardware profile, recommended settings applied on first start, browser GPU check, battery / heat / memory governor, essentials startup profile (v1.3.0)
 
-- [ ] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage
+- [x] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage · (installer exe pending; illustrated INSTALL.md done)
 - [x] G2 (S) Auto-update from GitHub releases with a changelog spoken on first boot
 - [ ] G3 (S) Settings sync across machines through a folder or Git
 - [ ] G4 (M) Multi-room: several HUDs on the LAN, one brain, hand-off between rooms

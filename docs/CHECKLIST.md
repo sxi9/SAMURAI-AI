@@ -137,6 +137,15 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Essentials profile with on-demand start of the browser agent and headless agents (verified: browser came up in 3 s from a command)
 - [x] Disk guard on downloads, physical-first phone links, doctor checks, panel auto-tune card, tests/tune_test.py (19 checks)
 
+## Stage 13 — Self-building, screen, phone, app window (v1.4.0)
+
+- [x] SCREEN widget: live JPEG view from the action server (mss), monitor select, OCR via tesseract, vision fallback
+- [x] Custom widgets designed by the brain, stored in data/widgets, mounted as sandboxed frames with a live snapshot bridge (verified with the mock brain: create, show, delete)
+- [x] Forge: Claude Code headless edits the source, syntax checks, commit on forge/<date>, restart; voice + panel card (status / apply / discard paths verified; a real run needs a signed-in Claude Code)
+- [x] Find my phone: companion-page alarm (verified: the phone page rang), ntfy priority push, Google Find My Device through the persistent-profile browser (sign-in path verified; the signed-in device list could not be tested here), tracking overlay
+- [x] Chromeless app window (pywebview) with drag bar, pin, minimize, fullscreen, hotkey; tests/window_test.py 16/16 with a fake pywebview; a real window needs a display
+- [x] docs/INSTALL.md with eight labeled screenshots
+
 ## Not verified in this build (needs a real desktop)
 
 - Premium voice engines with real keys (request shaping tested against a fake backend); browser SpeechRecognition on a phone; Siri / Google voices

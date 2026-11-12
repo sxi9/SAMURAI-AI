@@ -474,3 +474,10 @@ option{background:#0b1022;color:var(--ice)}
 .ringov{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(255,61,110,.85);animation:ringflash .5s steps(2) infinite;font-family:var(--disp)}
 .ringov>div{text-align:center;color:#fff}.ringov b{display:block;font-size:22px;letter-spacing:.2em;margin-bottom:14px}.ringov span{display:block;font-family:var(--mono);font-size:13px;margin-bottom:24px}.ringov .sbtn{display:inline-block;padding:16px 40px;font-size:16px;background:#fff;color:#ff3d6e;border:none}
 @keyframes ringflash{0%{background:rgba(255,61,110,.85)}100%{background:rgba(5,6,13,.95)}}
+
+/* ---- chromeless app window bar ---- */
+.appbar{position:fixed;left:0;right:0;top:0;height:28px;z-index:2147483600;display:flex;align-items:center;background:rgba(5,6,13,.92);border-bottom:1px solid rgba(var(--cyan-rgb),.25);font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--muted);user-select:none}
+.appbar .drag{flex:1;height:100%;display:flex;align-items:center;gap:10px;padding-left:12px;cursor:move;color:var(--ice)}.appbar .drag i{width:10px;height:10px;border:1px solid var(--cyan);transform:rotate(45deg);box-shadow:0 0 8px rgba(var(--cyan-rgb),.6)}
+.appbar .btns{display:flex;height:100%}.appbar .btns span{display:grid;place-items:center;width:52px;height:100%;cursor:pointer;border-left:1px solid rgba(var(--cyan-rgb),.15);transition:background .2s}
+.appbar .btns span:hover{background:rgba(var(--cyan-rgb),.14);color:var(--ice)}.appbar .btns span.on{color:var(--cyan);text-shadow:0 0 8px var(--cyan)}.appbar .btns span:last-child:hover{background:rgba(255,61,110,.35);color:#fff}
+html.app .root{padding-top:28px;box-sizing:border-box}
