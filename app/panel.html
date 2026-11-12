@@ -58,6 +58,14 @@ a{color:var(--cyan)}
     <div class="status" id="status">…</div>
     <table id="svc"></table>
   </div>
+  <div class="card wide">
+    <h2>AUTO-TUNE · SIZE SAMURAI TO THIS PC</h2>
+    <div class="row"><button class="b big v" id="tuneApply">AUTO-TUNE NOW</button><button class="b" id="tuneDetect">DETECT ONLY</button>
+      <span class="muted" style="margin-left:auto">STARTUP PROFILE</span><select id="svcProfile"><option value="full">FULL · EVERY SERVICE AT BOOT</option><option value="essentials">ESSENTIALS · BROWSER + AGENTS ON DEMAND</option></select></div>
+    <div class="muted" id="tuneWarn" style="color:var(--red);margin:4px 0"></div>
+    <div class="chk" id="tuneProfile"><span class="muted">not detected yet</span></div>
+    <div class="muted" id="tuneWhy" style="margin-top:8px;line-height:1.7"></div>
+  </div>
   <div class="card">
     <h2>LOGS</h2>
     <div class="row"><select id="logKey"></select><button class="b sm" id="refreshLog">REFRESH</button></div>
@@ -125,6 +133,23 @@ async function refresh() {
     if (!$('logKey').options.length) { $('logKey').innerHTML = d.services.map(s => `<option value="${s.key}">${s.name}</option>`).join(''); loadLog(); }
   } catch (e) { $('status').textContent = 'panel service unreachable'; }
 }
+async function loadTune(apply) {
+  $('tuneProfile').innerHTML = '<span class="muted">detecting…</span>';
+  try {
+    const d = apply ? await POST('/tune', { apply: true }) : await J('/tune');
+    const t = apply ? await J('/tune') : d, p = t.profile, r = t.recommendation;
+    const rows = [['OS', p.os], ['CPU', `${p.cpu.name} · ${p.cpu.cores} cores / ${p.cpu.threads} threads`], ['RAM', `${p.ram_gb} GB (${p.ram_free_gb} GB free)`], ['GPU', p.gpus.map(g => `${g.name} [${g.kind}${g.vram_gb ? ', ' + g.vram_gb + ' GB' : ''}]`).join(' · ') || 'none found'],
+      ['BROWSER GPU', t.browser.renderer ? `${t.browser.renderer} · ${t.browser.fps || '?'} fps on ${t.browser.quality}` : 'open the HUD once'], ['DISK FREE', `${p.disk_free_gb} GB`], ['BATTERY', p.battery ? `${p.battery.percent}% ${p.battery.plugged ? 'plugged in' : 'on battery'}` : 'none (desktop)'],
+      ['CAMERAS', p.cameras.map(c => c.name + (c.virtual ? ' (virtual)' : '')).join(' · ') || 'none'], ['NETWORK', p.networks.map(n => `${n.name} ${n.ip} [${n.kind}]`).join(' · ') || 'none'], ['TOOLS', Object.entries(p.tools).filter(([k, v]) => v).map(([k]) => k).join(', ') || 'none'],
+      ['RECOMMENDED', `3D ${r.gl_quality}${r.gl === 'off' ? ' (2D core)' : ''} · Whisper ${r.whisper_model}${r.whisper_ok ? '' : ' (not recommended)'} · Kokoro ${r.kokoro_ok ? 'ok' : 'skip'} · local LLM: ${r.local_llm} · brain: ${r.brain} · ${r.services_profile} profile`],
+      ['APPLIED', t.applied ? new Date(t.applied * 1000).toLocaleString() : 'not yet']];
+    $('tuneProfile').innerHTML = rows.map(([k, v]) => `<span class="ok">${k}</span><span class="muted">${v}</span>`).join('');
+    $('tuneWhy').innerHTML = t.why.map(w => '▸ ' + w).join('<br>'); $('tuneWarn').textContent = (t.warnings || []).join(' · ');
+    $('svcProfile').value = t.current.services_profile || 'full';
+  } catch (e) { $('tuneProfile').innerHTML = '<span class="bad">detection failed</span>'; }
+}
+$('tuneApply').onclick = () => loadTune(true); $('tuneDetect').onclick = () => loadTune(false);
+$('svcProfile').onchange = e => POST('/tune', { apply: true, overrides: { services_profile: e.target.value } }).then(() => loadTune(false));
 async function loadLog() { try { const d = await J('/panel/logs?key=' + $('logKey').value); $('log').textContent = d.log || '(empty)'; $('log').scrollTop = 1e9; } catch (e) { } }
 async function runDoctor(fix) {
   $('checks').innerHTML = '<span class="muted">running…</span>';
@@ -200,6 +225,7 @@ $('model').onclick = () => POST('/panel/model', {}).then(refresh);
 $('kokoro').onclick = () => POST('/panel/voice', { what: 'kokoro' }).then(refresh);
 $('wake').onclick = () => POST('/panel/voice', { what: 'wake' }).then(refresh);
 refresh(); setInterval(refresh, 3000); setInterval(loadLog, 5000); loadCfg();
+loadTune(false);
 </script>
 </body>
 </html>

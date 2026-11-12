@@ -118,7 +118,13 @@
       const C = this.cam;
       if (!on) { C.on = false; clearInterval(C.timer); if (C.stream) C.stream.getTracks().forEach(t => t.stop()); C.stream = null; return; }
       if (C.on) return; C.on = true;
-      navigator.mediaDevices.getUserMedia({ video: { width: 160, height: 120 }, audio: false }).then(stream => {
+      const VIRTUAL = /Iriun|DroidCam|Snap Camera|OBS|Virtual|NDI|XSplit|ManyCam|EpocCam|Camo/i, want = (SAM.hud.S.presenceCam || '').toLowerCase();
+      navigator.mediaDevices.enumerateDevices().catch(() => []).then(devs => {
+        const cams = devs.filter(d => d.kind === 'videoinput'); let pick = cams.find(d => want && d.label.toLowerCase().includes(want)) || cams.find(d => d.label && !VIRTUAL.test(d.label)) || cams[0];
+        const video = pick && pick.deviceId ? { deviceId: { exact: pick.deviceId }, width: 160, height: 120 } : { width: 160, height: 120 };
+        if (pick && pick.label) SAM.hud.log('info', 'presence · camera: ' + pick.label.slice(0, 40));
+        return navigator.mediaDevices.getUserMedia({ video, audio: false });
+      }).then(stream => {
         C.stream = stream; C.video = document.createElement('video'); C.video.srcObject = stream; C.video.muted = true; C.video.play().catch(() => { });
         C.cv = document.createElement('canvas'); C.cv.width = 40; C.cv.height = 30; const x = C.cv.getContext('2d', { willReadFrequently: true });
         C.timer = setInterval(() => {

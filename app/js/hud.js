@@ -11,7 +11,7 @@
   const S = {
     mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, w.pin === false ? 0 : 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
-    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', fx: true, presence: false, theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', glUser: false, fx: true, presence: false, presenceCam: '', governor: true, tune: null, gpuWarning: '', theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
   };
   const stage = $('stage'), root = $('root');
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -596,6 +596,7 @@
     const d = $('drawer'), b = brain.cfg, v = voice.cfg, p = brain.P(b.provider), cfgU = widgets.config || {};
     if (!voiceList) voiceList = await voice.voices();
     if (!ttsEngines) ttsEngines = await voice.engines();
+    let cams = []; try { cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput' && d.label).map(d => ({ label: d.label, id: d.deviceId })); } catch (e) { }
     const sw = (id, on) => `<div class="sw${on ? ' on' : ''}" data-sw="${id}"><i></i></div>`;
     const provOpts = Object.entries(brain.PROVIDERS).map(([id, x]) => `<option value="${id}"${id === b.provider ? ' selected' : ''}>${x.label}${x.free ? ' · FREE' : ''}${brain.configured(id) ? '' : (x.nokey ? '' : ' (NO KEY)')}</option>`).join('');
     const localModels = (brain.localModels || []).slice(0, 40);
@@ -645,6 +646,10 @@
       <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
       <div class="note">Focus shows six widgets; the other six wait in the ring. Full shows all twelve.</div>
       <div class="row"><span>PROACTIVE CHECK-INS (EVERY 30 MIN)</span>${sw('proactive', !!S.proactive)}</div>
+      <h4>AUTO-TUNE · THIS MACHINE</h4>
+      <div class="note" id="tuneNote">${S.tune ? `${esc(S.tune.profile.cpu.name || 'CPU')} · ${S.tune.profile.ram_gb} GB · ${esc((S.tune.profile.gpus || []).map(g => g.name).join(', ') || 'no GPU')}<br>${S.tune.why.map(esc).join('<br>')}${S.gpuWarning ? `<br><b style="color:var(--red)">⚠ ${esc(S.gpuWarning)}</b>` : ''}` : 'Open the control panel and click AUTO-TUNE to size the 3D core, voices and startup profile to this PC.'}</div>
+      <div class="row"><span>GOVERNOR (LOWER 3D ON BATTERY · HEAT · LOW MEMORY)</span>${sw('governor', S.governor)}</div>
+      <select id="optCam"><option value="">PRESENCE CAMERA: AUTO (FIRST REAL CAMERA)</option>${(cams || []).map(c => `<option value="${esc(c.label)}"${S.presenceCam === c.label ? ' selected' : ''}>PRESENCE CAMERA: ${esc(c.label.toUpperCase().slice(0, 40))}</option>`).join('')}</select>
       <h4>3D CORE</h4>
       <div class="lbtns"><div class="sbtn gl${S.gl === 'auto' ? ' on' : ''}" data-g="auto">AUTO</div><div class="sbtn gl${S.gl === 'on' ? ' on' : ''}" data-g="on">ON</div><div class="sbtn gl${S.gl === 'off' ? ' on' : ''}" data-g="off">OFF (2D)</div></div>
       <div class="lbtns"><div class="sbtn glq${S.glQuality === 'low' ? ' on' : ''}" data-q="low">LOW</div><div class="sbtn glq${S.glQuality === 'medium' ? ' on' : ''}" data-q="medium">MEDIUM</div><div class="sbtn glq${S.glQuality === 'high' ? ' on' : ''}" data-q="high">HIGH</div></div>
@@ -672,12 +677,13 @@
     ['chat', 'work', 'research', 'vision'].forEach(role => { $('role_' + role).onchange = e => { b.roles[role] = e.target.value; save(); }; });
     document.querySelectorAll('.themes .sw').forEach(el => el.onclick = () => { applyTheme(el.dataset.t); save(); });
     document.querySelectorAll('.sbtn.gl').forEach(el => el.onclick = () => { S.gl = el.dataset.g; save(); document.querySelectorAll('.sbtn.gl').forEach(b => b.classList.toggle('on', b === el)); if (!SAM.gl) return; if (S.gl === 'off') SAM.gl.disable(); else if (!SAM.gl.on) SAM.gl.enable(S.glQuality); });
-    document.querySelectorAll('.sbtn.glq').forEach(el => el.onclick = () => { S.glQuality = el.dataset.q; save(); document.querySelectorAll('.sbtn.glq').forEach(b => b.classList.toggle('on', b === el)); if (SAM.gl && SAM.gl.on) SAM.gl.setQuality(S.glQuality); });
+    document.querySelectorAll('.sbtn.glq').forEach(el => el.onclick = () => { S.glQuality = el.dataset.q; S.glUser = true; save(); document.querySelectorAll('.sbtn.glq').forEach(b => b.classList.toggle('on', b === el)); if (SAM.gl && SAM.gl.on) SAM.gl.setQuality(S.glQuality); });
     const colPick = () => { S.custom = { a: $('optColA').value, b: $('optColB').value }; applyTheme('custom'); save(); };
     $('optColA').oninput = colPick; $('optColB').oninput = colPick;
     $('optPool').onchange = e => { b.pool.order = e.target.value.split(/[,\s]+/).map(x => x.trim().toLowerCase()).filter(x => brain.PROVIDERS[x]); e.target.value = b.pool.order.join(', '); save(); };
     $('optVoice').onchange = e => { v.neuralVoice = e.target.value; const ent = (voiceList || []).find(x => x.id === v.neuralVoice); if (ent && ent.engine) v.tts = ent.engine; save(); };
     $('optTtsEngine').onchange = e => { v.tts = e.target.value; save(); };
+    $('optCam').onchange = e => { S.presenceCam = e.target.value; save(); if (S.presence && SAM.fx) { SAM.fx.presence(false); SAM.fx.presence(true); } };
     $('optStt2').onchange = e => { v.sttEngine = e.target.value; save(); if (voice.micOn) { voice.stop(); setTimeout(() => voice.start(), 300); } };
     $('optCompanion').onchange = e => { v.companion = e.target.value; save(); };
     $('optRate').oninput = e => { v.rate = +e.target.value; $('rateVal').textContent = v.rate.toFixed(1); save(); };
@@ -694,9 +700,10 @@
       if (k.startsWith('pin:')) { S.pinned[k.slice(4)] = on ? 1 : 0; if (!on && S.focus === k.slice(4)) S.focus = null; applyLayout(); }
       else if (k === 'sysAccess') b.sysAccess = on; else if (k === 'actions') b.actions = on; else if (k === 'memory') b.memory = on; else if (k === 'stream') b.stream = on;
       else if (k === 'pool') b.pool.enabled = on; else if (k === 'voiceOn') v.voiceOn = on; else if (k === 'wake') { v.wake = on; if (on && !voice.micOn) voice.start(); }
-      else if (k === 'bargeIn') voice.bargeIn = on; else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
+      else if (k === 'bargeIn') { voice.bargeIn = on; try { localStorage.setItem('samurai.bargeIn', on ? '1' : '0'); } catch (e) { } } else if (k === 'parallax') { S.parallax = on; if (!on) ['layerL', 'layerR', 'layerC', 'bg'].forEach(i => $(i).style.transform = ''); }
       else if (k === 'particles') { S.particles = on; core.particles = on && !(SAM.gl && SAM.gl.on); } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
       else if (k === 'fx') { S.fx = on; SAM.fx && SAM.fx.setEnabled(on); } else if (k === 'presence') { S.presence = on; SAM.fx && SAM.fx.presence(on); }
+      else if (k === 'governor') S.governor = on;
       else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });
@@ -740,7 +747,50 @@
   }
 
   /* ---------- wiring ---------- */
+  /* ---------- auto-tune: defaults from the control panel's hardware profile (only where the user has not chosen) ---------- */
+  const PANEL = SAM.H + ':9000';
+  async function loadTune() {
+    try {
+      const t = await (await fetch(PANEL + '/tune')).json(); if (!t.ok) return; S.tune = t; const rec = t.recommendation || {};
+      if (!S.glUser && rec.gl_quality) S.glQuality = rec.gl_quality;
+      if (S.gl === 'auto' && rec.gl === 'off') S.gl = 'off';
+      if (rec.half_duplex && localStorage.getItem('samurai.bargeIn') === null) voice.bargeIn = false;
+      if (!S.presenceCam && rec.presence_camera) S.presenceCam = rec.presence_camera;
+      (t.warnings || []).forEach(w => log('warn', 'auto-tune · ' + w));
+      if (SAM.gl && SAM.gl.on && SAM.gl.quality !== S.glQuality && !S.glUser) SAM.gl.setQuality(S.glQuality);
+    } catch (e) { }
+  }
+  /* ---------- governor: lower the load on battery, heat or low memory; restore when it clears ---------- */
+  const GOV = { level: 0, pending: 0, pendingWant: -1, saved: null };
+  function governor() {
+    if (!S.governor || !SAM.gl) return;
+    const tel = widgets.data.tel || {}, onBattery = tel.battery && tel.battery.plugged === false, hot = (tel.temp || 0) > 85, lowMem = (tel.mem || 0) > 90;
+    const want = lowMem ? 2 : (hot || onBattery) ? 1 : 0, now = Date.now();
+    if (want === GOV.level) { GOV.pending = 0; return; }
+    if (want < GOV.level) {                                            // hysteresis: one quiet minute before restoring
+      if (!GOV.pending || GOV.pendingWant !== want) { GOV.pending = now; GOV.pendingWant = want; return; }
+      if (now - GOV.pending < 60000) return;
+    }
+    GOV.pending = 0;
+    const reason = lowMem ? 'memory above 90%' : hot ? `CPU at ${tel.temp}°` : 'on battery';
+    if (want > GOV.level && !GOV.saved) GOV.saved = { gl: S.gl, q: S.glQuality, fx: S.fx };
+    if (want === 2) { if (SAM.gl.on) SAM.gl.disable(); SAM.fx && SAM.fx.setEnabled(false); log('warn', `governor · ${reason}: 2D core, effects off`); }
+    else if (want === 1) { if (S.gl !== 'off') { if (!SAM.gl.on) SAM.gl.enable('low'); else if (SAM.gl.quality !== 'low') SAM.gl.setQuality('low'); } SAM.fx && SAM.fx.setEnabled(S.fx); log('info', `governor · ${reason}: 3D on low`); }
+    else if (GOV.saved) { if (GOV.saved.gl !== 'off') { if (!SAM.gl.on) SAM.gl.enable(GOV.saved.q); else SAM.gl.setQuality(GOV.saved.q); } SAM.fx && SAM.fx.setEnabled(GOV.saved.fx); log('ok', 'governor · back to normal'); GOV.saved = null; }
+    GOV.level = want;
+  }
+  /* ---------- essentials profile: start a sidecar on demand and wait for it ---------- */
+  const SERVICE_PROBE = { browser: SAM.H + ':9600/browser/status', agent: SAM.H + ':9400/', tts: SAM.H + ':9200/', speech: SAM.H + ':9100/' };
+  const probing = {};
+  async function ensureService(key) {
+    const url = SERVICE_PROBE[key]; if (!url) return true;
+    const up = async () => { try { const ctl = new AbortController(); setTimeout(() => ctl.abort(), 1500); await fetch(url, { signal: ctl.signal }); return true; } catch (e) { return false; } };
+    if (await up()) return true;
+    if (!probing[key]) { probing[key] = (async () => { log('info', `starting ${key} service…`); try { await fetch(PANEL + '/panel/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start', key }) }); } catch (e) { } for (let i = 0; i < 30; i++) { await new Promise(r => setTimeout(r, 1000)); if (await up()) return true; } return false; })().finally(() => { setTimeout(() => { probing[key] = null; }, 2000); }); }
+    return probing[key];
+  }
   function init() {
+    loadTune(); setInterval(governor, 10000);
     if (COMPANION) { voice.cfg.sttEngine = voice.phoneCapable ? 'phone' : voice.cfg.sttEngine; if (!voice.cfg.companion || voice.cfg.companion === 'off') voice.cfg.companion = 'phone'; document.documentElement.dataset.companion = '1'; }
     else voice.relay.pollLoop(async c => { const quiet = c.speak_on === 'phone', was = voice.cfg.voiceOn; if (quiet) voice.cfg.voiceOn = false; widgets.pushTty(`phone · ${c.text}`, '#ffb84d'); console.log('relay · from phone: ' + c.text); let text = ''; try { text = await submit(c.text); } finally { if (quiet) voice.cfg.voiceOn = was; } setTimeout(() => { $('transcript').textContent = `from your phone: "${c.text}"`; $('transcript').classList.add('on'); }, 60); return text || S.lastReply || ''; });
     load(); core.particles = S.particles;
@@ -774,6 +824,6 @@
     if (voice.cfg.wake) T(() => voice.start(), 4000);
     boot();
   }
-  SAM.hud = { S, WD, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask, quickRoute, log };
+  SAM.hud = { S, WD, submit, say, setMode, boot, setFocus, toggleDrawer, applyLayout, showAlert, __run: runAction, applyTheme, desktopTask, quickRoute, log, ensureService, loadTune };
   init();
 })(window.SAM);

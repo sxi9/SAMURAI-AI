@@ -68,6 +68,8 @@ const gl = {
       this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .6, .4, .4); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
     } else this.composer = null;
     this.on = true; this.ready = true; document.getElementById('stage').classList.add('gl'); SAM.core.particles = false;
+    try { const c = r.getContext(), dbg = c.getExtension('WEBGL_debug_renderer_info'); this.renderer_name = dbg ? c.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : (c.getParameter(c.RENDERER) || ''); this.vendor_name = dbg ? c.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : ''; } catch (e) { this.renderer_name = ''; }
+    setTimeout(() => this.report(), 7000);
     let skip = false;                                                       // below high quality the GL layer renders every other frame (30 fps): half the GPU cost, no visible loss
     const loop = ts => { if (!this.on) return; skip = !skip && this.quality !== 'high'; if (!skip) this.frame(ts); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop);
     return true;
@@ -190,6 +192,13 @@ const gl = {
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   },
   pulse() { this.glitch = 1; },
+  async report() {                                                     // tell the control panel which GPU the browser really uses, and how it performs
+    if (!this.on) return;
+    try {
+      const r = await (await fetch(SAM.H + ':9000/tune/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ renderer: this.renderer_name, vendor: this.vendor_name, fps: Math.round(this.fps), quality: this.quality }) })).json();
+      const hud = SAM.hud; if (hud) { hud.S.gpuWarning = r.warning || ''; if (r.warning) hud.log('warn', 'gpu · ' + r.warning); else hud.log('ok', `gpu · ${this.renderer_name.slice(0, 50)} · ${Math.round(this.fps)} fps`); }
+    } catch (e) { }
+  },
 
   /* holographic globe for the position widget: wireframe sphere, graticule, your marker; renders only while visible */
   globe(canvas, lat, lon) {

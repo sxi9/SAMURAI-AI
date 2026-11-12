@@ -100,6 +100,8 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 
 ## G. Platform and polish
 
+- [x] G0 (M) Auto-tune: hardware profile, recommended settings applied on first start, browser GPU check, battery / heat / memory governor, essentials startup profile (v1.3.0)
+
 - [ ] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage
 - [x] G2 (S) Auto-update from GitHub releases with a changelog spoken on first boot
 - [ ] G3 (S) Settings sync across machines through a folder or Git

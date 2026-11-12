@@ -17,6 +17,7 @@ from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, APP, LOGS, MODE
                             load_config, save_config, port_up, any_valid_model, ensure_model, CONFIG_PATH, CONFIG_EXAMPLE, VERSION,
                             lan_ips, scheme, tls_enabled, ensure_cert, tls_paths, maybe_wrap_tls, http_json)
 import samurai_autostart as autostart
+import samurai_tune as tune
 
 PORT = PORTS["panel"]
 if "--port" in sys.argv:
@@ -141,15 +142,18 @@ def restart_and_report(svc, action, fallback=None):
 def bring_up_all(open_ui=True):
     STATE["status"] = "starting"
     try:
+        if tune.first_run():
+            set_status("auto-tune applied for this machine")
         speech = BY_KEY["speech"]
         set_status("checking voice stack…")
         ok, msg = ensure_model(set_status)
         set_status(msg)
-        for svc in SERVICES:
+        wanted = wanted_services()
+        for svc in wanted:
             start(svc)
         deadline = time.time() + 150
         while time.time() < deadline:
-            broken = [s for s in SERVICES if health(s)[0] != "ok"]
+            broken = [s for s in wanted if health(s)[0] != "ok"]
             if not broken:
                 break
             dead = [s for s in broken if not (procs.get(s["key"]) and procs[s["key"]].poll() is None)]
@@ -159,12 +163,20 @@ def bring_up_all(open_ui=True):
             if dead:
                 break
             time.sleep(2)
-        up = sum(1 for s in SERVICES if health(s)[0] == "ok")
-        set_status(f"{up}/{len(SERVICES)} services online")
+        up = sum(1 for s in wanted if health(s)[0] == "ok")
+        set_status(f"{up}/{len(wanted)} services online" + ("" if len(wanted) == len(SERVICES) else f" (essentials profile, {len(SERVICES) - len(wanted)} on demand)"))
         if open_ui and health(BY_KEY["ui"])[0] == "ok":
             webbrowser.open(UI_URL)
     finally:
         STATE["status"] = "idle"
+
+
+ON_DEMAND = ("agent", "browser")                      # the essentials profile starts these only when the HUD asks for them
+
+
+def wanted_services():
+    prof = load_config().get("services", {}).get("profile", "full")
+    return [s for s in SERVICES if prof != "essentials" or s["key"] not in ON_DEMAND]
 
 
 def watchdog():
@@ -192,6 +204,16 @@ def doctor(fix=False):
 
     v = sys.version_info
     add("Python", v >= (3, 9), f"{v.major}.{v.minor}.{v.micro}" + ("" if v >= (3, 9) else " — need 3.9+"))
+    try:
+        tp = tune.profile(); rec = tune.recommend(tp)[0]
+        add("Free disk", tp["disk_free_gb"] >= 2, f"{tp['disk_free_gb']} GB free" + ("" if tp["disk_free_gb"] >= 2 else " — models need up to 2 GB"))
+        add("Memory", tp["ram_gb"] >= 8, f"{tp['ram_gb']} GB" + ("" if tp["ram_gb"] >= 8 else " — tight: skip Kokoro and Whisper"))
+        add("GPU", bool(tp["gpus"]) and all(g["kind"] != "virtual" for g in tp["gpus"]), ", ".join(g["name"] for g in tp["gpus"]) or "none found")
+        bw = tune.browser_warning(tp, tune._browser)
+        add("Browser GPU", not bw, bw or (tune._browser.get("renderer", "")[:60] or "open the HUD once to measure"))
+        add("Auto-tune", bool(load_config().get("tune", {}).get("applied_at")), f"3D {rec['gl_quality']}, Whisper {rec['whisper_model']}, {rec['services_profile']} profile" if load_config().get("tune", {}).get("applied_at") else "not applied yet — click AUTO-TUNE")
+    except Exception as e:
+        add("Auto-tune", False, f"profile failed: {str(e)[:60]}")
     py = venv_python()
     from samurai_common import FROZEN
     if FROZEN:
@@ -297,7 +319,18 @@ def post_watchdog(h, q, b):
     return {"ok": True, "watchdog": STATE["watchdog"]}
 
 
+MODEL_NEED_GB = {"vosk-model-small-en-us-0.15": 0.2, "vosk-model-en-us-0.22": 4.0, "kokoro": 0.6, "whisper": 0.5, "wake": 0.3}
+
+
+def disk_guard(what):
+    need = MODEL_NEED_GB.get(what, 0.5); free = tune.free_gb()
+    if free < need + 0.5:
+        raise ValueError(f"not enough disk space: {free:.1f} GB free, {what} needs about {need} GB plus headroom")
+
+
 def post_model(h, q, b):
+    disk_guard(b.get("name") or "vosk-model-small-en-us-0.15")
+
     def run():
         STATE["status"] = "model"
         try:
@@ -318,6 +351,7 @@ def post_voice_extras(h, q, b):
     what = b.get("what")
     if what not in ("kokoro", "wake", "whisper"):
         raise ValueError("what must be kokoro|wake|whisper")
+    disk_guard(what)
 
     def run():
         STATE["status"] = "installing"
@@ -386,7 +420,7 @@ def post_lan(h, q, b):
         finally:
             STATE["status"] = "idle"
     threading.Thread(target=restart_all, daemon=True).start()
-    ips = lan_ips(); sch = "https" if lan.get("https") else "http"
+    ips = ordered_ips(); sch = "https" if lan.get("https") else "http"
     return {"ok": True, "enabled": lan["enabled"], "https": bool(lan.get("https")), "token": lan.get("token", ""), "ips": ips, "cert": cert_msg,
             "links": [f"{sch}://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}" for ip in ips] if lan["enabled"] else []}
 
@@ -397,7 +431,21 @@ def phone_links(cfg=None):
     if not lan.get("enabled"):
         return []
     sch = "https" if lan.get("https") else "http"
-    return [f"{sch}://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}&companion=1" for ip in lan_ips()]
+    return [f"{sch}://{ip}:{PORTS['ui']}/jarvis-interface.html?token={lan.get('token', '')}&companion=1" for ip in ordered_ips()]
+
+
+def ordered_ips():
+    """LAN addresses with the physical adapter first (Wi-Fi / Ethernet), then VPN, then virtual adapters."""
+    ips = list(lan_ips())
+    try:
+        nets = tune.network_info(); known = {n["ip"]: i for i, n in enumerate(nets)}
+        ips.sort(key=lambda ip: known.get(ip, 99))
+        pref = load_config().get("lan", {}).get("preferred_ip")
+        if pref in ips:
+            ips.remove(pref); ips.insert(0, pref)
+    except Exception:
+        pass
+    return ips
 
 
 def get_phone(h, q, b):
@@ -698,6 +746,7 @@ class Handler(JSONHandler):
               ("POST", "/remote/command"): post_remote_command, ("GET", "/remote/next"): get_remote_next,
               ("POST", "/remote/reply"): post_remote_reply, ("GET", "/remote/reply"): get_remote_reply,
               ("GET", "/auth/status"): get_auth_status, ("POST", "/auth/login"): post_auth_login, ("POST", "/auth/logout"): post_auth_logout,
+              **tune.ROUTES,
               ("POST", "/auth/input"): post_auth_input,
               ("GET", "/backup"): get_backup, ("GET", "/update"): get_update, ("GET", "/logs/bundle"): get_log_bundle, ("GET", "/version"): get_version}
 

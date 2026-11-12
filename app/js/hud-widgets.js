@@ -321,6 +321,7 @@ window.SAM = window.SAM || {};
     /* ---------- browser widget: the agent's real page, streamed as JPEG frames while the widget is open ---------- */
     async browse(url) {
       this.data.web.live = true; this.data.web.url = url; this.render('web'); this.webRefresh(true);
+      if (SAM.hud && SAM.hud.ensureService && !(await SAM.hud.ensureService('browser'))) { this.data.web.live = false; this.data.web.title = 'browser agent could not start'; this.render('web'); return; }
       try { const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 40000);          // the first open launches Chromium, give it time
         const r = await (await fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'open', arg: url }), signal: ctl.signal })).json(); clearTimeout(to);
         this.data.web.title = r.title || ''; this.data.web.url = r.url || url; this.data.web.live = !!r.ok; }

@@ -269,6 +269,7 @@ window.SAM = window.SAM || {};
     async agentRun(agent, prompt, mode, history, model) {
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), mode === 'chat' ? 130000 : 620000);
       try {
+        if (SAM.hud && SAM.hud.ensureService) await SAM.hud.ensureService('agent');      // essentials profile: the agent sidecar starts on demand
         const r = await fetch(AGENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal, body: JSON.stringify({ provider: agent, prompt, mode, session_id: this.sessions[agent] || null, model: model || '', history }) });
         const d = await r.json(); if (!d.ok) throw new Error(d.error || 'HTTP ' + r.status);
         if (d.session_id) this.sessions[agent] = d.session_id;

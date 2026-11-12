@@ -85,6 +85,11 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Send email over SMTP with confirmation
 
 ## Runs itself
+- Auto-tune: the control panel reads your CPU, RAM, GPUs, battery, cameras, network adapters, disk and installed tools, then sets the 3D quality, Whisper model, Kokoro advice, startup profile, half-duplex mic, presence camera and phone address for that machine; runs by itself on first start
+- Browser GPU check: the HUD reports which GPU the browser really uses; on a two-GPU laptop it warns when the browser sits on the integrated one
+- Governor: on battery or above 85 °C the 3D core drops to low; above 90 % memory it switches to the 2D core and effects off; everything comes back after a quiet minute
+- Essentials startup profile for small machines: the browser agent and the headless agents start on demand when a command needs them
+- Disk-space guard before every model download; doctor shows free disk, memory, GPU, browser GPU and tune status
 - Sign in to Claude (your claude.ai subscription through Claude Code) and Gemini from the control panel; session status shown
 - Connections: push to your phone (ntfy, Pushover), Telegram bridge (chat with SAMURAI from your phone), Discord and Slack webhooks, wake-on-LAN and SSH to your other machines, Wi-Fi / Bluetooth / VPN on and off
 - Journal by voice ("note: …", "read my journal"), focus sessions with a spoken break, file search across your drives, read any text, PDF or Word file aloud, Steam game launcher, disk cleanup that reports first and asks before deleting

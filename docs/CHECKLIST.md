@@ -128,6 +128,15 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Walkthrough v6 at 1080p covering the 3D core, video, browser, music, looks, alert, journal, focus, cleanup and the phone relay (docs/walkthrough-ultimate.mp4)
 - [ ] Not built yet: gestures (MediaPipe), screen OCR, Google Calendar / Gmail write, Spotify Web API, map tiles, Live2D / VRM head, holographic desk, memory constellations, Android app, installer exe, multi-room, plugin marketplace
 
+## Stage 12 — Auto-tune (v1.3.0)
+
+- [x] Hardware profile: CPU, RAM, GPUs (integrated / discrete / virtual), battery, disk, cameras (virtual ones flagged), network adapters (physical first), tools
+- [x] Recommendation + apply: 3D quality, Whisper model, Kokoro advice, local-LLM size, brain, startup profile, half-duplex, presence camera, LAN address; applied automatically on first start
+- [x] HUD takes tune defaults where the user has not chosen; reports the browser's real GPU and fps; two-GPU and software-rendering warnings
+- [x] Governor: battery / heat / memory → lower 3D, 2D fallback, restore after a quiet minute (verified in the browser)
+- [x] Essentials profile with on-demand start of the browser agent and headless agents (verified: browser came up in 3 s from a command)
+- [x] Disk guard on downloads, physical-first phone links, doctor checks, panel auto-tune card, tests/tune_test.py (19 checks)
+
 ## Not verified in this build (needs a real desktop)
 
 - Premium voice engines with real keys (request shaping tested against a fake backend); browser SpeechRecognition on a phone; Siri / Google voices
