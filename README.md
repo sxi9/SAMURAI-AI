@@ -133,7 +133,7 @@ The first checks every route and the origin lock. The second synthesises a phras
 
 ## Files
 
-**Installing, step by step with screenshots: [docs/INSTALL.md](docs/INSTALL.md)** (Windows exe, source on any OS, the chromeless app window, phone pairing, updating, troubleshooting). `README.txt` has the plain-text version of this guide. `docs/CHECKLIST.md` tracks what was built and `docs/ROADMAP.md` lists everything that could still be added, numbered. `app/legacy-interface.html` is the previous interface. `samurai_dashboard.py` is the older tkinter dashboard for Windows; the browser control panel replaces it.
+**Every feature in labeled screenshots: [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).** **Installing, step by step with screenshots: [docs/INSTALL.md](docs/INSTALL.md)** (Windows exe, source on any OS, the chromeless app window, phone pairing, updating, troubleshooting). `README.txt` has the plain-text version of this guide. `docs/CHECKLIST.md` tracks what was built and `docs/ROADMAP.md` lists everything that could still be added, numbered. `app/legacy-interface.html` is the previous interface. `samurai_dashboard.py` is the older tkinter dashboard for Windows; the browser control panel replaces it.
 
 ## How this was built
 
