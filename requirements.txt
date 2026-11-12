@@ -12,3 +12,5 @@ pytesseract>=0.3   # screen OCR (needs the tesseract binary)
 mutagen>=1.47     # embedded album art + tags for GET /art (add-ons)
 # optional senses extras, install by hand when you want them: opencv-contrib-python-headless (face recognition, POST /faces/*),
 #   winsdk (Windows notification toasts, GET /notifications), python-kasa (Kasa/Tapo lights, /home2), dbus-python (Linux toasts)
+# optional, by hand: resemblyzer (voice identity: "ENROLL:<name>" / WHO on the speech server; pulls torch, ~1 GB) · a local voice server for the
+#   "local" TTS engine (Kokoro-FastAPI, Orpheus-FastAPI, openedai-speech / XTTS, Chatterbox, Fish Speech, F5-TTS) set in voice.local_tts_url

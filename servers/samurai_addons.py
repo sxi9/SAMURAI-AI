@@ -30,6 +30,7 @@ import samurai_calendar as calendar
 import samurai_senses as senses
 import samurai_home2 as home2
 import samurai_market as market
+import samurai_meter as meter
 
 PORT = PORTS["addons"]
 if "--port" in sys.argv:
@@ -87,7 +88,7 @@ def get_config(h, q, b):
 
 def post_config(h, q, b):
     cfg = load_config()
-    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan", "connect", "ui", "services", "spotify", "calendar", "findmy", "presence", "senses", "home2", "market"):
+    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan", "connect", "ui", "services", "spotify", "calendar", "findmy", "presence", "senses", "home2", "market", "meter"):
         if key in b:
             if isinstance(b[key], dict) and isinstance(cfg.get(key), dict):
                 for k2, v2 in b[key].items():
@@ -714,6 +715,7 @@ class Handler(JSONHandler):
         **senses.ROUTES,
         **home2.ROUTES,
         **market.ROUTES,
+        **meter.ROUTES,
     }
 
 

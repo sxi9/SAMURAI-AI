@@ -7,10 +7,15 @@ Engines (query `engine=`; default from config voice.tts_engine, else picked from
   openai      OpenAI gpt-4o-mini-tts (key: voice.keys.openai)
   cartesia    Cartesia Sonic, very fast and realistic (key: voice.keys.cartesia)
   azure       Azure Speech HD voices (key: voice.keys.azure + voice.keys.azure_region)
+  local       any local server that speaks the OpenAI /v1/audio/speech API (config voice.local_tts_url, voice.local_tts_voice):
+              Chatterbox, Orpheus (orpheus-fastapi), XTTS v2 (xtts-api-server / openedai-speech), Fish Speech, F5-TTS, Kokoro-FastAPI, LocalAI
 
-GET /tts?text=hello&voice=en-US-AriaNeural&rate=+0%[&engine=…]  ->  audio (mp3, or wav from kokoro)
+GET /tts?text=hello&voice=en-US-AriaNeural&rate=+0%[&engine=…][&style=…]  ->  audio (mp3, or wav from kokoro / local)
+     style: neutral | calm | excited | whisper | sad | cheerful | serious (openai instructions, azure express-as, elevenlabs settings, edge pitch/rate)
 GET /voices[?engine=…][&all=1]                                   ->  voices for the settings drawer (female, natural first)
-GET /engines                                                     ->  which engines are available / configured
+GET /engines                                                     ->  which engines are available / configured (+ styles, local url)
+POST /realtime/session {voice?, instructions?}                   ->  {"client_secret": "ek_…", "expires_at", "model", "voice"}: an ephemeral
+                                                                     OpenAI Realtime key for the browser's WebRTC speech-to-speech (key: voice.keys.openai)
 Run: python samurai_tts_server.py [--port N]   (port 9200)
 """
 import asyncio, json, os, sys, threading, urllib.error, urllib.request
@@ -39,15 +44,31 @@ PREMIUM = {
 }
 NOTES = {"edge": "online Microsoft voices, free", "kokoro": "fully local (panel: install local voice)", "elevenlabs": "most natural, paid; key in settings",
          "openai": "OpenAI gpt-4o-mini-tts, paid; key in settings", "cartesia": "Cartesia Sonic, fast and realistic; key in settings",
-         "azure": "Azure Speech HD voices; key + region in settings"}
+         "azure": "Azure Speech HD voices; key + region in settings",
+         "local": "your own local voice server (Chatterbox, Orpheus, XTTS, Fish Speech, F5-TTS) behind an OpenAI-style /v1/audio/speech URL in settings"}
+# voice styles (B4): how each engine expresses them. edge: (rate offset %, pitch) · azure: express-as style · openai: instructions · elevenlabs: (stability, style)
+STYLES = {
+    "neutral":  {"edge": (0, "+0Hz"),  "azure": None,          "openai": "Speak naturally, warm and clear, like a calm personal assistant.", "eleven": (0.45, 0.3)},
+    "calm":     {"edge": (-8, "-2Hz"), "azure": "calm",        "openai": "Speak slowly and softly, calm and reassuring, with gentle pauses.", "eleven": (0.7, 0.1)},
+    "excited":  {"edge": (12, "+6Hz"), "azure": "excited",     "openai": "Speak with bright, upbeat energy and enthusiasm, a little faster than usual.", "eleven": (0.3, 0.7)},
+    "whisper":  {"edge": (-12, "-4Hz"), "azure": "whispering", "openai": "Whisper the whole reply, quietly and intimately, as if not to wake anyone.", "eleven": (0.8, 0.0)},
+    "sad":      {"edge": (-10, "-4Hz"), "azure": "sad",        "openai": "Speak slowly with a soft, subdued, slightly sad tone.", "eleven": (0.6, 0.2)},
+    "cheerful": {"edge": (6, "+4Hz"),  "azure": "cheerful",    "openai": "Speak in a cheerful, friendly, smiling tone.", "eleven": (0.4, 0.5)},
+    "serious":  {"edge": (-4, "+0Hz"), "azure": "serious",     "openai": "Speak in a crisp, serious, professional tone with no playfulness.", "eleven": (0.6, 0.15)},
+}
 # SAMURAI_TTS_FAKE=http://127.0.0.1:port routes every paid engine to a local server (tests)
 FAKE = os.environ.get("SAMURAI_TTS_FAKE")
 _voice_cache = {"t": 0, "data": None}
 _kokoro = {"checked": False, "engine": None, "voice": "af_heart"}
+_style = threading.local()                                    # the style of the request being synthesised (set by get_tts)
 
 
 def vcfg():
     return load_config().get("voice", {})
+
+
+def style():
+    return STYLES.get(getattr(_style, "name", "neutral")) or STYLES["neutral"]
 
 
 def key_for(engine):
@@ -78,9 +99,13 @@ def post_bytes(url, data, headers, timeout=30):
 def edge_synth(text, voice, rate):
     import edge_tts
 
+    off, pitch = style()["edge"]
+    if off:
+        rate = f"{rate_pct(rate) + off:+d}%"
+
     async def run():
         chunks = []
-        async for chunk in edge_tts.Communicate(text, voice, rate=rate).stream():
+        async for chunk in edge_tts.Communicate(text, voice, rate=rate, pitch=pitch).stream():
             if chunk["type"] == "audio":
                 chunks.append(chunk["data"])
         return b"".join(chunks)
@@ -126,8 +151,9 @@ def elevenlabs_synth(text, voice, rate):
     key = key_for("elevenlabs")
     vid = voice if len(voice) > 12 and not voice.startswith("en-") else PREMIUM["elevenlabs"][0][0]
     base = FAKE or "https://api.elevenlabs.io"
+    stab, sty = style()["eleven"]
     body = {"text": text, "model_id": "eleven_turbo_v2_5",
-            "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.3, "use_speaker_boost": True, "speed": max(0.7, min(1.2, 1 + rate_pct(rate) / 100))}}
+            "voice_settings": {"stability": stab, "similarity_boost": 0.8, "style": sty, "use_speaker_boost": True, "speed": max(0.7, min(1.2, 1 + rate_pct(rate) / 100))}}
     data = post_bytes(f"{base}/v1/text-to-speech/{vid}?output_format=mp3_44100_128", json.dumps(body).encode(),
                       {"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"})
     return data, "audio/mpeg"
@@ -138,9 +164,36 @@ def openai_synth(text, voice, rate):
     v = voice if voice in {v for v, _ in PREMIUM["openai"]} else "nova"
     base = FAKE or "https://api.openai.com"
     body = {"model": "gpt-4o-mini-tts", "input": text, "voice": v, "response_format": "mp3", "speed": max(0.5, min(2.0, 1 + rate_pct(rate) / 100)),
-            "instructions": "Speak naturally, warm and clear, like a calm personal assistant."}
+            "instructions": style()["openai"]}
     data = post_bytes(f"{base}/v1/audio/speech", json.dumps(body).encode(), {"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     return data, "audio/mpeg"
+
+
+def local_url():
+    return (vcfg().get("local_tts_url") or "").rstrip("/")
+
+
+def local_synth(text, voice, rate):
+    """Any local server with the OpenAI speech API: Chatterbox, Orpheus-FastAPI, openedai-speech / XTTS, Fish Speech, F5-TTS, Kokoro-FastAPI, LocalAI."""
+    base = local_url()
+    if not base:
+        raise RuntimeError("local: set voice.local_tts_url in settings (e.g. http://127.0.0.1:8880 for Kokoro-FastAPI / Orpheus / XTTS servers)")
+    v = voice if voice and not voice.startswith("en-") and voice not in {x for x, _ in PREMIUM["openai"]} else (vcfg().get("local_tts_voice") or "default")
+    body = {"model": vcfg().get("local_tts_model") or "tts-1", "input": text, "voice": v, "response_format": "mp3",
+            "speed": max(0.5, min(2.0, 1 + rate_pct(rate) / 100)), "instructions": style()["openai"]}
+    headers = {"Content-Type": "application/json"}
+    if vcfg().get("local_tts_key"):
+        headers["Authorization"] = "Bearer " + vcfg()["local_tts_key"]
+    url = base + ("" if base.endswith("/audio/speech") else "/v1/audio/speech")
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            ctype = (r.headers.get("Content-Type") or "audio/mpeg").split(";")[0]
+            return r.read(), ("audio/wav" if "wav" in ctype else "audio/mpeg")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"local voice server HTTP {e.code}: {e.read(200).decode('utf-8', 'replace')[:160]}")
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"local voice server not reachable at {base} ({e.reason})")
 
 
 def cartesia_synth(text, voice, rate):
@@ -163,13 +216,18 @@ def azure_synth(text, voice, rate):
     base = FAKE or f"https://{region}.tts.speech.microsoft.com"
     from xml.sax.saxutils import escape
     pct = rate_pct(rate)
-    ssml = (f"<speak version='1.0' xml:lang='en-US'><voice name='{v}'><prosody rate='{pct:+d}%'>{escape(text)}</prosody></voice></speak>").encode("utf-8")
+    inner = f"<prosody rate='{pct:+d}%'>{escape(text)}</prosody>"
+    if style()["azure"]:
+        inner = f"<mstts:express-as style='{style()['azure']}'>{inner}</mstts:express-as>"
+    ssml = (f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>"
+            f"<voice name='{v}'>{inner}</voice></speak>").encode("utf-8")
     data = post_bytes(f"{base}/cognitiveservices/v1", ssml, {"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml",
                                                               "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3", "User-Agent": "SAMURAI"})
     return data, "audio/mpeg"
 
 
-ENGINES = {"edge": edge_synth, "kokoro": kokoro_synth, "elevenlabs": elevenlabs_synth, "openai": openai_synth, "cartesia": cartesia_synth, "azure": azure_synth}
+ENGINES = {"edge": edge_synth, "kokoro": kokoro_synth, "elevenlabs": elevenlabs_synth, "openai": openai_synth, "cartesia": cartesia_synth, "azure": azure_synth,
+           "local": local_synth}
 
 
 def guess_engine(voice):
@@ -186,6 +244,8 @@ def engine_ready(engine):
         return True
     if engine == "kokoro":
         return kokoro_engine() is not None
+    if engine == "local":
+        return bool(local_url())
     return bool((vcfg().get("keys") or {}).get(engine))
 
 
@@ -202,6 +262,7 @@ def get_tts(h, q, body):
     if engine != "edge" and not engine_ready(engine):
         print(f"[SAMURAI-TTS] {engine} not configured — using edge")
         engine, voice = "edge", (voice if voice.startswith("en-") else DEFAULT_VOICE)
+    _style.name = (q.get("style") or "neutral").lower() if (q.get("style") or "neutral").lower() in STYLES else "neutral"
     try:
         audio, ctype = ENGINES[engine](text, voice, rate)
         if not audio:
@@ -209,8 +270,27 @@ def get_tts(h, q, body):
     except Exception as e:
         print(f"[SAMURAI-TTS] {engine} error: {e}")
         return 502, {"ok": False, "engine": engine, "error": f"{engine}: {e}"}
-    h.send_bytes(audio, ctype, extra={"Cache-Control": "no-store", "X-Engine": engine})
+    h.send_bytes(audio, ctype, extra={"Cache-Control": "no-store", "X-Engine": engine, "X-Style": _style.name})
     return None
+
+
+def post_realtime_session(h, q, body):
+    """Mints a short-lived OpenAI Realtime client secret so the HUD can open a WebRTC speech-to-speech session (B5).
+    The real key never leaves this machine; the browser gets a token that expires in about a minute."""
+    key = key_for("openai")
+    base = FAKE or "https://api.openai.com"
+    voice = (body.get("voice") or vcfg().get("realtime_voice") or "shimmer")[:30]
+    model = vcfg().get("realtime_model") or "gpt-4o-mini-realtime-preview"
+    session = {"model": model, "voice": voice, "modalities": ["audio", "text"],
+               "instructions": (body.get("instructions") or "You are SAMURAI, a Jarvis-style voice assistant. Speak briefly, warmly and naturally.")[:4000],
+               "input_audio_transcription": {"model": "whisper-1"}, "turn_detection": {"type": "server_vad", "silence_duration_ms": 600}}
+    raw = post_bytes(f"{base}/v1/realtime/sessions", json.dumps(session).encode(), {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, timeout=20)
+    d = json.loads(raw or b"{}")
+    secret = (d.get("client_secret") or {})
+    if not secret.get("value"):
+        raise ValueError("no client secret in the Realtime answer: " + raw[:200].decode("utf-8", "replace"))
+    return {"ok": True, "client_secret": secret["value"], "expires_at": secret.get("expires_at"), "model": d.get("model") or model, "voice": voice,
+            "url": f"{base}/v1/realtime?model={model}"}
 
 
 def get_voices(h, q, body):
@@ -222,6 +302,8 @@ def get_voices(h, q, body):
     for eng, lst in PREMIUM.items():
         if want in (None, eng) and (want == eng or engine_ready(eng)):
             out += [{"id": v, "label": f"{l} · {eng.upper()}", "engine": eng} for v, l in lst]
+    if want in (None, "local") and engine_ready("local"):
+        out += [{"id": vcfg().get("local_tts_voice") or "default", "label": "YOUR LOCAL VOICE SERVER", "engine": "local"}]
     if want in (None, "edge"):
         out += [{"id": v, "label": l, "engine": "edge"} for v, l in CURATED]
     if q.get("all") and want in (None, "edge"):
@@ -238,7 +320,8 @@ def get_voices(h, q, body):
 
 
 def get_engines(h, q, body):
-    out = {"ok": True, "default": vcfg().get("tts_engine", "edge"), "notes": NOTES}
+    out = {"ok": True, "default": vcfg().get("tts_engine", "edge"), "notes": NOTES, "styles": list(STYLES), "local_url": local_url(),
+           "realtime": bool((vcfg().get("keys") or {}).get("openai"))}
     for eng in ENGINES:
         out[eng] = engine_ready(eng)
     return out
@@ -246,7 +329,7 @@ def get_engines(h, q, body):
 
 class Handler(JSONHandler):
     TAG = "SAMURAI-TTS"
-    ROUTES = {("GET", "/tts"): get_tts, ("GET", "/voices"): get_voices, ("GET", "/engines"): get_engines}
+    ROUTES = {("GET", "/tts"): get_tts, ("GET", "/voices"): get_voices, ("GET", "/engines"): get_engines, ("POST", "/realtime/session"): post_realtime_session}
 
 
 if __name__ == "__main__":
