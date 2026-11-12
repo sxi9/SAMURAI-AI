@@ -25,6 +25,7 @@ window.SAM = window.SAM || {};
     custom:      { label: 'CUSTOM — OPENAI-COMPATIBLE', kind: 'openai', url: '', model: '', models: true, note: 'Any server that speaks the OpenAI chat API: base URL ending in /v1, key if needed, model name.' },
   };
   const WIDGET_IDS = ['sys', 'cal', 'task', 'msg', 'tty', 'tmr', 'wx', 'mus', 'home', 'map', 'cam', 'pix'];
+  const EMOTIONS = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'thinking', 'love', 'confused', 'excited'];   // the face the avatar makes while it speaks (SAM.face)
   const ACTION_SPEC = `Action types you may emit (use only when the user clearly wants it):
 - open_app {arg: app name}, open_url {arg: url}, web_search {arg: terms}, play_music {arg: song or artist}, open_path {arg: folder or file}
 - volume_up, volume_down, volume_set {arg: 0-100}, mute, media_play_pause, media_next, media_prev, brightness {arg: 5-100}, screenshot, lock, clipboard_set {arg: text}, type_text {arg: text}, hotkey {arg: e.g. copy, paste, save, new tab}
@@ -88,7 +89,8 @@ window.SAM = window.SAM || {};
       const c = this.cfg, u = this.user;
       let p = `You are SAMURAI, a Jarvis-style voice assistant running on ${u.name}'s computer (node ${u.node}${u.label ? ', ' + u.label : ''}). Address the user as ${u.name}. `;
       p += (this.MOODS[c.mood] || this.MOODS.balanced) + ` Humor level ${c.humor}/10. Replies are spoken aloud: plain text, no markdown, no emojis, 1-3 short sentences unless asked for detail.\n\n`;
-      p += `Respond with ONLY a JSON object, no prose around it, with "reply" as the FIRST key:\n{"reply": "<what to say>", "focus": <one of ${JSON.stringify(WIDGET_IDS)} or null>, "actions": [{"type": "<type>", "arg": "<arg>"}], "shape": <shape name or null>}\n`;
+      p += `Respond with ONLY a JSON object, no prose around it, with "reply" as the FIRST key:\n{"reply": "<what to say>", "focus": <one of ${JSON.stringify(WIDGET_IDS)} or null>, "actions": [{"type": "<type>", "arg": "<arg>"}], "shape": <shape name or null>, "emotion": <one of ${JSON.stringify(EMOTIONS)}>}\n`;
+      p += `"emotion" (optional) is the face you make while saying the reply: happy for good news, sad for bad news or apologies, surprised, excited, confused when unsure, angry for threats, thinking for musings, love rarely; default neutral.\n`;
       p += `"focus" brings a HUD widget to the front: sys=system stats, cal=agenda, task=tasks, msg=inbox, tty=terminal, tmr=timers, wx=weather, mus=music, home=smart home, map=position, cam=camera, pix=gallery. Use it when the answer relates to one.\n`;
       p += c.actions ? ACTION_SPEC + (this.extraActions.length ? '\n- plugin tools: ' + this.extraActions.map(x => `${x.type} (${x.description})`).join('; ') : '') + '\n' : 'Actions are disabled by the user: always return "actions": [].\n';
       if (this.facts.length) p += `\nThings to remember about the user:\n- ${this.facts.join('\n- ')}\n`;
@@ -99,8 +101,8 @@ window.SAM = window.SAM || {};
       let t = (text || '').trim();
       const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) t = fence[1].trim();
       const a = t.indexOf('{'), b = t.lastIndexOf('}');
-      if (a >= 0 && b > a) { try { const o = JSON.parse(t.slice(a, b + 1)); if (o && typeof o === 'object' && ('reply' in o || 'actions' in o)) return { reply: String(o.reply || '').trim(), focus: WIDGET_IDS.includes(o.focus) ? o.focus : null, actions: Array.isArray(o.actions) ? o.actions.filter(x => x && x.type) : [], shape: o.shape || null }; } catch (e) { } }
-      const r = replySoFar(t); return { reply: (r.json ? r.text : t).trim(), focus: null, actions: [], shape: null };
+      if (a >= 0 && b > a) { try { const o = JSON.parse(t.slice(a, b + 1)); if (o && typeof o === 'object' && ('reply' in o || 'actions' in o)) return { reply: String(o.reply || '').trim(), focus: WIDGET_IDS.includes(o.focus) ? o.focus : null, actions: Array.isArray(o.actions) ? o.actions.filter(x => x && x.type) : [], shape: o.shape || null, emotion: EMOTIONS.includes(o.emotion) ? o.emotion : null }; } catch (e) { } }
+      const r = replySoFar(t); return { reply: (r.json ? r.text : t).trim(), focus: null, actions: [], shape: null, emotion: null };
     },
     recent(n = 12) { return this.history.slice(-n).map(m => ({ role: m.role, content: m.content })); },
 
@@ -151,7 +153,7 @@ window.SAM = window.SAM || {};
       }
       if (p.kind === 'agent') {
         const mode = this.agentMode(q);
-        return await this.agentRun(p.agent, (sys.includes('LIVE DATA') ? sys.slice(sys.indexOf('LIVE DATA')) + '\n\n' : '') + `Reply in the JSON format: {"reply": "...", "focus": null, "actions": [], "shape": null}. ` + q, mode, this.recent(6), p.model, onDelta);
+        return await this.agentRun(p.agent, (sys.includes('LIVE DATA') ? sys.slice(sys.indexOf('LIVE DATA')) + '\n\n' : '') + `Reply in the JSON format: {"reply": "...", "focus": null, "actions": [], "shape": null, "emotion": "neutral"}. ` + q, mode, this.recent(6), p.model, onDelta);
       }
       throw new Error('unknown provider kind');
     },

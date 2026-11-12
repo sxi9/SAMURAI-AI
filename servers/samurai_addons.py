@@ -20,7 +20,7 @@ import json, os, re, sys, threading, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
+from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT, APP, DATA, IS_WIN, IS_MAC, NOWIN,
                             load_config, save_config, http_json, run_hidden)
 import samurai_automation as auto
 import samurai_connect as connect
@@ -566,6 +566,33 @@ def get_gallery_file(h, q, b):
     return None
 
 
+# ----------------------------------------------------------------------------- avatars (VRM files the HUD can wear)
+AVATARS_DIR = os.path.join(APP, "avatars")                                # the bundled models
+OVERLAY_AVATARS = os.path.join(DATA, "src", "app", "avatars")              # the forge overlay's folder: the one the UI server serves when a rebuild is in place
+
+
+def avatar_dirs():
+    """Where the HUD finds VRM files: the overlay's app/avatars (when the UI server serves the overlay, which falls back to the
+    bundled folder for files it lacks) and the bundled app/avatars. Dropping a file into either makes it show up."""
+    dirs = [AVATARS_DIR]
+    if getattr(sys, "frozen", False) and os.path.exists(os.path.join(DATA, "src", "servers", "samurai_common.py")) and os.path.isdir(OVERLAY_AVATARS):
+        dirs.insert(0, OVERLAY_AVATARS)
+    return dirs
+
+
+def get_avatars(h, q, b):
+    """VRM models in app/avatars (bundled, plus the forge overlay's folder when active). The UI server (:8080) serves them
+    statically, so the url is relative to the HUD's origin."""
+    names = set()
+    for d in avatar_dirs():
+        try:
+            names.update(f for f in os.listdir(d) if f.lower().endswith(".vrm"))
+        except OSError:
+            pass
+    pretty = lambda n: re.sub(r"[_\-]+", " ", n[:-4]).strip() or n
+    return {"ok": True, "avatars": [{"name": pretty(n), "file": n, "url": "/avatars/" + urllib.parse.quote(n)} for n in sorted(names)], "dir": avatar_dirs()[0]}
+
+
 # ----------------------------------------------------------------------------- position
 def get_position(h, q, b):
     cfg = load_config()
@@ -703,7 +730,7 @@ class Handler(JSONHandler):
         ("GET", "/home"): get_home, ("POST", "/home"): post_home,
         ("GET", "/music"): get_music, ("GET", "/music/file"): get_music_file, ("POST", "/music"): post_music,
         ("GET", "/gallery"): get_gallery, ("GET", "/gallery/file"): get_gallery_file,
-        ("GET", "/position"): get_position,
+        ("GET", "/position"): get_position, ("GET", "/avatars"): get_avatars,
         ("GET", "/security"): get_security, ("POST", "/security/block"): post_block,
         ("GET", "/memory"): get_memory, ("POST", "/memory"): post_memory, ("GET", "/memory/search"): get_memory_search,
         ("GET", "/addons/status"): get_status,

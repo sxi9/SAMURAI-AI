@@ -506,7 +506,19 @@ html.bigtext .reply{font-size:26px}html.bigtext .field input{font-size:19px}html
 .stage.wall .clockbox{transform:translate(-560px,470px) scale(3.4);transform-origin:right top}.stage.wall .clock{text-shadow:0 0 30px rgba(var(--cyan-rgb),.6)}
 .stage.wall .orbAnchor{transform:scale(1.5)!important}.stage.wall .console{opacity:.6}
 .stage.desk .layer{perspective:1500px;transform-style:preserve-3d}.stage.desk .fly{transition:transform 1.1s var(--ease),opacity .6s}.stage.desk #nodes{opacity:.35}
-.stage.face .orb,.stage.face .eyes{opacity:0}
+.stage.bot .orb,.stage.bot .eyes,.stage.vrm .orb,.stage.vrm .eyes{opacity:0}
+/* robot face (pinu-bot): a display-panel head over the orb's spot, inside the wander anchor so it drifts with the orb */
+#bot{position:absolute;left:-190px;top:-128px;width:380px;height:256px;display:none;pointer-events:none}
+.stage.bot #bot{display:block}
+#bot .head{position:absolute;left:0;top:0;width:380px;height:256px;border-radius:78px/66px;overflow:hidden;background:#050d12;
+  box-shadow:0 0 0 2px rgba(var(--cyan-rgb),.85),0 0 22px 3px rgba(var(--cyan-rgb),.55),0 0 70px 14px rgba(var(--cyan-rgb),.25),inset 0 0 36px rgba(var(--cyan-rgb),.18);transition:box-shadow .4s}
+#bot .head canvas{display:block;width:380px;height:256px}
+#bot .shoulders{position:absolute;left:50%;top:204px;width:560px;height:130px;transform:translateX(-50%);border-radius:280px 280px 0 0;
+  background:linear-gradient(180deg,rgba(var(--cyan-rgb),.10),rgba(var(--violet-rgb),.02));box-shadow:0 -1px 0 rgba(var(--cyan-rgb),.55),0 -18px 40px rgba(var(--cyan-rgb),.16)}
+.stage[data-mode=alert] #bot .head{box-shadow:0 0 0 2px rgba(255,61,110,.85),0 0 22px 3px rgba(255,61,110,.55),0 0 70px 14px rgba(255,61,110,.25),inset 0 0 36px rgba(255,61,110,.18)}
+.stage[data-mode=thinking] #bot .head{box-shadow:0 0 0 2px rgba(var(--violet-rgb),.85),0 0 22px 3px rgba(var(--violet-rgb),.5),0 0 70px 14px rgba(var(--violet-rgb),.22),inset 0 0 36px rgba(var(--violet-rgb),.16)}
+.stage.vrm .ringListen,.stage.vrm .ringThink{opacity:.55}
+.stage.vrm.gl #core{opacity:.3}   /* the 2D tick ring sits above the WebGL layer: faint while the bust is there */
 .slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 2.4s ease;filter:saturate(.7) brightness(.8);pointer-events:none}
 /* ---- skins ---- */
 .skin-wireframe .card{background:transparent;backdrop-filter:none;border:1px solid rgba(var(--cyan-rgb),.55);box-shadow:inset 0 0 0 1px rgba(var(--cyan-rgb),.08)}.skin-wireframe .card .ch{border-bottom:1px dashed rgba(var(--cyan-rgb),.35);padding-bottom:6px}

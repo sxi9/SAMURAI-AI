@@ -31,6 +31,9 @@ gallery/*
 build/
 dist/
 
+# screenshots written by tests/face_shots.js when run without an output folder
+tests/face-shots/
+
 .claude/worktrees/
 
 # plugins installed from the store (panel / "install plugin …"); the catalog in plugins/catalog is tracked

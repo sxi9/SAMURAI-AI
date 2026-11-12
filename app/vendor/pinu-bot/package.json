@@ -1,0 +1,76 @@
+{
+  "name": "pinu-bot",
+  "version": "0.3.0",
+  "description": "A small TypeScript library for orchestrating expressive robot screen faces on HTML5 canvas.",
+  "author": "Paul Berry",
+  "homepage": "https://www.pinubot.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pauljohnberry/pinu-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pauljohnberry/pinu-bot/issues"
+  },
+  "packageManager": "bun@1.3.11",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "./scripts/run-bun.sh run build && ./scripts/run-bun.sh run scripts/dev-server.ts",
+    "stress": "./scripts/run-bun.sh run build && ./scripts/run-bun.sh run scripts/dev-server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "biome format .",
+    "format:write": "biome format --write .",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "check:code": "biome check .",
+    "check:code:fix": "biome check --write .",
+    "test": "./scripts/run-bun.sh test test/*.test.ts",
+    "test:visual": "playwright test",
+    "check": "./scripts/check.sh",
+    "pack:dry-run": "npm pack --dry-run --cache .npm-cache",
+    "prepack": "tsc -p tsconfig.json"
+  },
+  "keywords": [
+    "canvas",
+    "robot",
+    "robot-face",
+    "robot-ui",
+    "ui",
+    "animation",
+    "emotion",
+    "face",
+    "canvas2d",
+    "html5-canvas",
+    "typescript"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@playwright/test": "^1.58.2",
+    "bun-types": "^1.3.11",
+    "typescript": "^5.6.3"
+  }
+}

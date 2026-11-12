@@ -14,7 +14,7 @@ def reply_for(user):
     if "Design a small HUD widget" in user:
         return {"focus": None, "actions": [], "shape": None, "reply": ('{"name": "Task Count", "code": "TCT", "html": "<div style=\\"padding:24px;font-family:monospace;color:#d9f8ff\\"><div style=\\"font-size:12px;letter-spacing:.3em;color:#a07cff\\">OPEN TASKS</div><div id=n style=\\"font-size:120px;color:#2ee6ff;line-height:1.1\\">0</div><div id=l style=\\"font-size:14px;opacity:.8\\"></div><script>window.addEventListener(\\"message\\",e=>{const s=e.data&&e.data.snapshot;if(!s)return;const t=(s.tasks||[]).filter(x=>!x.done);document.getElementById(\\"n\\").textContent=t.length;document.getElementById(\\"l\\").textContent=t.map(x=>x.label).join(\\" · \\")});</script></div>"}')}
     u = (user or "").lower()
-    focus, actions, shape = None, [], None
+    focus, actions, shape, emotion = None, [], None, "neutral"
     if "spoken briefing from these facts" in u:
         facts = user.split(":", 1)[-1].strip().replace("\n", " ")
         return {"reply": f"Good day. {facts[:420]}", "focus": "cal", "actions": [], "shape": None}
@@ -33,10 +33,14 @@ def reply_for(user):
     elif "light" in u:
         focus, actions, text = "home", [{"type": "home_set", "arg": "lights off" if "off" in u else "lights on"}], "Lights handled. Anything else?"
     elif "heart" in u:
-        shape, text = "heart", "One heart, coming up. Try not to melt."
+        shape, text, emotion = "heart", "One heart, coming up. Try not to melt.", "love"
+    elif "bad news" in u or "sad" in u:
+        text, emotion = "I am sorry to say the backup drive did not answer tonight. I will try again in an hour.", "sad"
+    elif "good news" in u or "happy" in u:
+        text, emotion = "Good news: every service is up and the build passed on the first try.", "happy"
     else:
         focus, text = "sys", "All systems nominal. CPU is calm, memory is fine, and nothing is on fire. What do you need next?"
-    return {"reply": text, "focus": focus, "actions": actions, "shape": shape}
+    return {"reply": text, "focus": focus, "actions": actions, "shape": shape, "emotion": emotion}   # "emotion" is the face the avatar makes (SAM.face)
 
 
 class H(BaseHTTPRequestHandler):
