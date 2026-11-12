@@ -126,16 +126,16 @@ window.SAM = window.SAM || {};
         if (p.json) body.response_format = { type: 'json_object' };
         const r = await fetch(url, { method: 'POST', headers: hdr, signal, body: JSON.stringify(body) });
         if (!r.ok) await fail(r);
-        if (!stream) { const d = await r.json(); if (d.error) throw new Error(d.error.message || JSON.stringify(d.error)); return d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content; }
-        await readStream(r, line => { if (!line.startsWith('data:')) return; const s = line.slice(5).trim(); if (s === '[DONE]') return; try { const d = JSON.parse(s); push(d.choices && d.choices[0] && d.choices[0].delta && d.choices[0].delta.content); } catch (e) { } });
+        if (!stream) { const d = await r.json(); if (d.error) throw new Error(d.error.message || JSON.stringify(d.error)); this.lastUsage = d.usage || null; return d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content; }
+        await readStream(r, line => { if (!line.startsWith('data:')) return; const s = line.slice(5).trim(); if (s === '[DONE]') return; try { const d = JSON.parse(s); if (d.usage) this.lastUsage = d.usage; push(d.choices && d.choices[0] && d.choices[0].delta && d.choices[0].delta.content); } catch (e) { } });
         return raw;
       }
       if (p.kind === 'anthropic') {
         const r = await fetch(p.url + '/messages', { method: 'POST', signal, headers: { ...hdr, 'x-api-key': p.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: p.model, max_tokens: 500, system: sys, messages: msgs, stream }) });
         if (!r.ok) await fail(r);
-        if (!stream) { const d = await r.json(); if (d.stop_reason === 'refusal') throw new Error('Claude declined that request'); const tb = (d.content || []).find(b => b.type === 'text'); return tb && tb.text; }
+        if (!stream) { const d = await r.json(); if (d.stop_reason === 'refusal') throw new Error('Claude declined that request'); this.lastUsage = d.usage || null; const tb = (d.content || []).find(b => b.type === 'text'); return tb && tb.text; }
         let refusal = false;
-        await readStream(r, line => { if (!line.startsWith('data:')) return; try { const d = JSON.parse(line.slice(5)); if (d.type === 'content_block_delta' && d.delta && d.delta.type === 'text_delta') push(d.delta.text); if (d.type === 'message_delta' && d.delta && d.delta.stop_reason === 'refusal') refusal = true; if (d.type === 'error') throw new Error(d.error && d.error.message); } catch (e) { if (e.message && !/JSON/.test(e.message)) throw e; } });
+        await readStream(r, line => { if (!line.startsWith('data:')) return; try { const d = JSON.parse(line.slice(5)); if (d.type === 'content_block_delta' && d.delta && d.delta.type === 'text_delta') push(d.delta.text); if (d.type === 'message_start' && d.message && d.message.usage) this.lastUsage = { input_tokens: d.message.usage.input_tokens || 0 }; if (d.type === 'message_delta') { if (d.usage) this.lastUsage = { ...(this.lastUsage || {}), output_tokens: d.usage.output_tokens || 0 }; if (d.delta && d.delta.stop_reason === 'refusal') refusal = true; } if (d.type === 'error') throw new Error(d.error && d.error.message); } catch (e) { if (e.message && !/JSON/.test(e.message)) throw e; } });
         if (refusal && !raw) throw new Error('Claude declined that request');
         return raw;
       }
@@ -151,7 +151,7 @@ window.SAM = window.SAM || {};
       }
       if (p.kind === 'agent') {
         const mode = this.agentMode(q);
-        return await this.agentRun(p.agent, (sys.includes('LIVE DATA') ? sys.slice(sys.indexOf('LIVE DATA')) + '\n\n' : '') + `Reply in the JSON format: {"reply": "...", "focus": null, "actions": [], "shape": null}. ` + q, mode, this.recent(6), p.model);
+        return await this.agentRun(p.agent, (sys.includes('LIVE DATA') ? sys.slice(sys.indexOf('LIVE DATA')) + '\n\n' : '') + `Reply in the JSON format: {"reply": "...", "focus": null, "actions": [], "shape": null}. ` + q, mode, this.recent(6), p.model, onDelta);
       }
       throw new Error('unknown provider kind');
     },
@@ -184,6 +184,8 @@ window.SAM = window.SAM || {};
           this.lastRaw = String(raw); const out = this.parse(raw); out.provider = id;
           if (!out.reply) throw new Error('no reply text');
           this.remember(q, out.reply);
+          if (PROVIDERS[id].kind !== 'agent') this.meter(id, this.P(id).model, this.lastUsage || { input_tokens: Math.round((sys.length + q.length) / 4), output_tokens: Math.round(String(raw).length / 4) }, null, 'chat');
+          this.lastUsage = null;
           return out;
         } catch (e) {
           clearTimeout(to);
@@ -198,7 +200,7 @@ window.SAM = window.SAM || {};
     visionProviders() { return Object.keys(PROVIDERS).filter(id => ['openai', 'anthropic', 'gemini', 'ollama'].includes(PROVIDERS[id].kind) && this.configured(id)); },
     async askVision(question, b64, mime) {
       const roles = this.cfg.roles || {}, ids = [roles.vision, this.cfg.provider, ...this.visionProviders()].filter((x, i, a) => x && PROVIDERS[x] && this.configured(x) && ['openai', 'anthropic', 'gemini', 'ollama'].includes(PROVIDERS[x].kind) && a.indexOf(x) === i);
-      if (!ids.length) throw new Error('no vision-capable provider configured (OpenAI, Claude, Gemini or an Ollama vision model)');
+      if (!ids.length) throw new Error('no vision-capable provider configured (OpenAI, Claude, Gemini or an Ollama vision model such as llava or moondream)');
       const sys = `You are SAMURAI, a voice assistant. Describe or answer about the image in 1-3 spoken sentences, plain text, no markdown.`;
       let lastErr;
       for (const id of ids) {
@@ -217,9 +219,10 @@ window.SAM = window.SAM || {};
             const r = await fetch(`${p.url}/models/${encodeURIComponent(p.model)}:generateContent?key=${encodeURIComponent(p.key)}`, { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: question }] }] }) });
             const d = await r.json(); if (d.error) throw new Error(d.error.message); return ((d.candidates || [])[0]?.content?.parts || []).map(x => x.text || '').join('').trim();
           }
-          if (p.kind === 'ollama') {
-            const r = await fetch(p.url + '/api/chat', { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ model: p.model, stream: false, messages: [{ role: 'system', content: sys }, { role: 'user', content: question, images: [b64] }] }) });
-            const d = await r.json(); if (d.error) throw new Error(d.error); return (d.message && d.message.content || '').trim();
+          if (p.kind === 'ollama') {                  // a local vision model: the configured one if it can see, else the first llava / moondream style model Ollama has (A8)
+            const model = this.VISION_MODELS.test(p.model) ? p.model : (this.localVisionModel() || p.model);
+            const r = await fetch(p.url + '/api/chat', { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ model, stream: false, messages: [{ role: 'system', content: sys }, { role: 'user', content: question, images: [b64] }] }) });
+            const d = await r.json(); if (d.error) throw new Error(/image|vision|multimodal/i.test(d.error) ? `${model} cannot see images: ollama pull moondream (or llava)` : d.error); return (d.message && d.message.content || '').trim();
           }
         } catch (e) { lastErr = e; this.log('warn', `vision ${id} · ${String(e.message).slice(0, 60)}`); } finally { clearTimeout(to); }
       }
@@ -268,17 +271,72 @@ window.SAM = window.SAM || {};
       if (this.cfg.actions && /\b(create|write|edit|build|make a (file|script)|generate|fix|refactor|rename|convert|analy[sz]e|summari[sz]e|workspace|script|code|file|folder)\b/i.test(q)) return 'work';
       return 'chat';
     },
-    async agentRun(agent, prompt, mode, history, model) {
+    /* onDelta(rawSoFar) streams Claude Code's answer through POST /agent/stream (one JSON object per line); gemini answers whole. */
+    async agentRun(agent, prompt, mode, history, model, onDelta) {
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), mode === 'chat' ? 130000 : 620000);
+      const body = JSON.stringify({ provider: agent, prompt, mode, session_id: this.sessions[agent] || null, model: model || '', history });
       try {
         if (SAM.hud && SAM.hud.ensureService) await SAM.hud.ensureService('agent');      // essentials profile: the agent sidecar starts on demand
-        const r = await fetch(AGENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal, body: JSON.stringify({ provider: agent, prompt, mode, session_id: this.sessions[agent] || null, model: model || '', history }) });
+        if (onDelta && this.cfg.stream && agent === 'claude') {
+          const r = await fetch(AGENT_URL + '/stream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal, body });
+          if (!r.ok) { let d = {}; try { d = await r.json(); } catch (e) { } throw new Error(d.error || 'HTTP ' + r.status); }
+          let raw = '', fin = null, err = null;
+          await readStream(r, line => { let d; try { d = JSON.parse(line); } catch (e) { return; } if (d.delta) { raw += d.delta; onDelta(raw); } else if (d.done) fin = d; else if (d.error) err = d.error; });
+          if (err) throw new Error(err);
+          if (!fin) throw new Error('stream ended early');
+          if (fin.session_id) this.sessions[agent] = fin.session_id;
+          this.meter('claudecode', fin.model, fin.usage, fin.cost_usd, mode);
+          this.log('ok', `${agent} ${mode} · ${fin.seconds}s · streamed`); return fin.text || raw;
+        }
+        const r = await fetch(AGENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal, body });
         const d = await r.json(); if (!d.ok) throw new Error(d.error || 'HTTP ' + r.status);
         if (d.session_id) this.sessions[agent] = d.session_id;
+        this.meter(agent === 'claude' ? 'claudecode' : 'geminicli', model, null, null, mode);
         this.log('ok', `${agent} ${mode} · ${d.seconds}s`); return d.text;
       } finally { clearTimeout(to); }
     },
     preferredAgent() { const s = this.agentStatus; return s && s.claude && s.claude.found ? 'claude' : (s && s.gemini && s.gemini.found ? 'gemini' : null); },
+
+    /* ---------- cost meter (:9500/meter): fire and forget; `budget` holds the latest monthly summary, hud.js may speak budget.spoken when warning flips ---------- */
+    budget: null, onBudget: null,
+    meter(provider, model, usage, costUsd, kind) {
+      try {
+        const u = usage || {}, inTok = (u.input_tokens || u.prompt_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), outTok = u.output_tokens || u.completion_tokens || 0;
+        fetch(ADDONS + '/meter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, model: model || '', input: inTok, output: outTok, cost_usd: costUsd == null ? undefined : costUsd, kind: kind || 'chat' }) })
+          .then(r => r.json()).then(d => { if (d && d.month) { const was = this.budget; this.budget = d.month; if (this.onBudget && (!was || was.warning !== d.month.warning || was.over_budget !== d.month.over_budget)) this.onBudget(d.month); } }).catch(() => { });
+      } catch (e) { }
+    },
+    async usage(period) { try { return await (await fetch(`${ADDONS}/meter?period=${period || 'month'}`)).json(); } catch (e) { return null; } },
+
+    /* ---------- missions (:9400/mission): long Claude Code tasks that report back through the events feed ---------- */
+    async mission(goal, model) {
+      if (SAM.hud && SAM.hud.ensureService) await SAM.hud.ensureService('agent');
+      const d = await (await fetch(SAM.H + ':9400/mission', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goal, model: model || '' }) })).json();
+      if (!d.ok) throw new Error(d.error || 'mission refused'); return d;
+    },
+    async missions() { try { return (await (await fetch(SAM.H + ':9400/mission')).json()).missions || []; } catch (e) { return []; } },
+    async missionStop(id) { const d = await (await fetch(SAM.H + ':9400/mission/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id || '' }) })).json(); if (!d.ok) throw new Error(d.error || 'no mission'); return d; },
+
+    /* ---------- meeting summary: plain text, no JSON contract ---------- */
+    async summarise(text, what) {
+      const sys = `You are SAMURAI. Summarise the following ${what || 'meeting transcript'} for the user in plain spoken text, no markdown: two to five sentences, then the action items as short sentences starting with "Action:".`;
+      const ids = this.order('summarise this'); let lastErr;
+      for (const id of ids) {
+        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 120000);
+        try { const raw = await this.callProvider(id, text.slice(-24000), sys, ctl.signal); const p = this.parse(raw); return (p.reply || String(raw)).trim(); }
+        catch (e) { lastErr = e; } finally { clearTimeout(to); }
+      }
+      throw lastErr || new Error('no provider');
+    },
+
+    /* ---------- local vision: an Ollama model that accepts images (llava, moondream, llama3.2-vision, minicpm-v, gemma3, qwen2.5vl) ---------- */
+    VISION_MODELS: /llava|moondream|vision|minicpm-v|bakllava|gemma3|qwen2\.5vl|qwen3-vl|pixtral|granite3\.2-vision/i,
+    visionCapable(id) {
+      const p = this.P(id || this.cfg.provider);
+      if (p.kind === 'ollama') return this.VISION_MODELS.test(p.model) || this.localModels.some(m => this.VISION_MODELS.test(m));
+      return ['openai', 'anthropic', 'gemini'].includes(p.kind) && this.configured(p.id);
+    },
+    localVisionModel() { const p = this.P(this.cfg.provider); if (p.kind === 'ollama' && this.VISION_MODELS.test(p.model)) return p.model; return this.localModels.find(m => this.VISION_MODELS.test(m)) || null; },
   };
   SAM.brain = brain;
 })(window.SAM);

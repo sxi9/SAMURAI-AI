@@ -27,6 +27,7 @@ import samurai_connect as connect
 import samurai_findmy as findmy
 import samurai_spotify as spotify
 import samurai_calendar as calendar
+import samurai_meter as meter
 
 PORT = PORTS["addons"]
 if "--port" in sys.argv:
@@ -708,6 +709,7 @@ class Handler(JSONHandler):
         **findmy.ROUTES,
         **spotify.ROUTES,
         **calendar.ROUTES,
+        **meter.ROUTES,
     }
 
 
