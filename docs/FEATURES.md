@@ -38,6 +38,9 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Fourteen widgets: System, Agenda, Tasks, Inbox, Terminal, Timers, Weather, Music, Home, Position, Camera feed, Holo gallery, Video, Browser
 - Video in the HUD: "play video <name>" from your library folder, "watch <anything> on youtube" (no API key), direct mp4 / HLS streams, cinema mode that dims the HUD, picture-in-picture
 - Browser in the HUD: the agent's real Chromium streamed live into a widget; click, scroll and type on it, or let the brain drive it ("browse wikipedia.org", "browse for …")
+- Spotify: link your account once (PKCE, your own client id), then "play daft punk on spotify", "pause spotify", "spotify volume 30", "shuffle on", "play on the kitchen speaker"; the Music widget shows the track, art, progress and device
+- Map panel: the POSITION widget opens as a real map (Leaflet, OpenStreetMap tiles, dark look) with you, your phone's last Google position and any place you ask for: "where is the airport", "show the map"
+- Calendar writes: "add dentist to my calendar tomorrow at 3pm for 45 minutes", "schedule standup friday 15:30", "what's next on my calendar"; writes to your ICS file or a CalDAV calendar (Nextcloud, Fastmail, iCloud app password)
 - Radio and podcasts in the Music widget ("play radio", "play jazz radio", "play the latest podcast"), with your own station list and RSS feeds
 - Orbital ring of twelve nodes: click to summon, unpin to dock
 - Focus layout (six widgets, calmer default), full layout (twelve), ambient (core only)
@@ -93,6 +96,10 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Custom widgets by voice: "create a widget that shows my task count" — the brain designs a sandboxed widget, it is stored and mounted in the ring with live data; "delete widget …"
 - Chromeless app window: `SAMURAI.exe --window` or the panel's OPEN AS APP WINDOW opens the HUD in its own frameless window (pywebview) with drag bar, pin on top, minimize, fullscreen and a Ctrl+Alt+S hotkey; the browser option stays
 - Illustrated step-by-step install guide: docs/INSTALL.md
+- Windows installer: SAMURAI-setup-<version>.exe (per-user, Start Menu, optional desktop shortcut and start with Windows, uninstaller that can keep your data)
+- Self-installing update: UPDATE + INSTALL in the panel downloads the latest release, stages it, swaps the files on restart (keeps config and data); source installs pull with git
+- Companion page installs to the phone's home screen as an app (manifest + service worker)
+- Forge from the packaged build: PREPARE SOURCES copies the bundled source to data/src with git; applied forges run from that overlay on the next start
 - Auto-tune: the control panel reads your CPU, RAM, GPUs, battery, cameras, network adapters, disk and installed tools, then sets the 3D quality, Whisper model, Kokoro advice, startup profile, half-duplex mic, presence camera and phone address for that machine; runs by itself on first start
 - Browser GPU check: the HUD reports which GPU the browser really uses; on a two-GPU laptop it warns when the browser sits on the integrated one
 - Governor: on battery or above 85 °C the 3D core drops to low; above 90 % memory it switches to the 2D core and effects off; everything comes back after a quiet minute

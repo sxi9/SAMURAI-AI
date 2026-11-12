@@ -14,6 +14,9 @@ Every screenshot below was taken from the real build. The numbered badges match 
 
 ## A. Windows: the exe
 
+From v1.5.0 there is also `SAMURAI-setup-<version>.exe` on the release page: a normal installer (per-user, no admin) with Start Menu entries and an optional "start with Windows" box. The zip below still works if you prefer a portable folder.
+
+
 ### 1. Download
 
 Open the latest release page: **https://github.com/sxi9/SAMURAI-AI/releases/latest**. Scroll to **Assets** and click `SAMURAI-windows-x64.zip`.

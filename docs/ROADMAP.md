@@ -34,11 +34,11 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] C1 (S) Video widget: YouTube embed with voice control (play, pause, skip, volume, search), cinema mode that dims the rest of the HUD
 - [x] C2 (S) Local video files and folders in the same widget
 - [x] C3 (S) HLS and Twitch live streams
-- [ ] C4 (M) Real Spotify control through the Web API: play anything, album art, queue
+- [x] C4 (M) Real Spotify control through the Web API: play anything, album art, queue
 - [ ] C5 (S) Album art and lyrics for the local library (tags, LRC files)
 - [x] C6 (S) Internet radio and podcasts
 - [x] C7 (S) Read a PDF, an article or the clipboard aloud; "summarise this page"
-- [ ] C8 (M) Map widget with Leaflet: your location, routes, traffic, "how long to the office"
+- [x] C8 (M) Map widget with Leaflet: your location, routes, traffic, "how long to the office" · (Leaflet + OSM, geocoding)
 - [ ] C9 (S) Photo slideshow from the gallery in ambient mode
 - [ ] C10 (S) Picture-in-picture: any widget can float small over other apps (browser PiP for video)
 
@@ -55,7 +55,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 
 ## E. Tasks and connections
 
-- [ ] E1 (M) Google Calendar and Gmail write access: create events, send replies by voice
+- [x] E1 (M) Google Calendar and Gmail write access: create events, send replies by voice · (calendar writes via ICS / CalDAV; Gmail and Google Calendar OAuth still open)
 - [ ] E2 (M) WhatsApp or Telegram bridge: read and send messages, phone notifications to the HUD
 - [x] E3 (S) ntfy or Pushover: push alerts to your phone when you are away
 - [x] E4 (S) Discord and Slack presence and messages · (webhooks out; no inbound)
@@ -69,7 +69,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] E12 (S) Pomodoro and focus sessions with app blocking
 - [ ] E13 (M) Shopping and orders: price watch, "order more coffee" through a confirmed browser flow
 - [ ] E14 (M) Smart home beyond Home Assistant: Hue, Tuya, Tapo, Govee direct; scenes by voice
-- [ ] E15 (L) Android companion app (Capacitor) with wake word, instead of the phone web page
+- [x] E15 (L) Android companion app (Capacitor) with wake word, instead of the phone web page · (installable companion PWA; a native app is still open)
 - [x] E16 (S) Kiosk mode for a wall tablet: full screen, auto-start, dim at night
 
 ## F. Avatar and look (the "incredible visual" list)
@@ -105,8 +105,8 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 
 - [x] G0 (M) Auto-tune: hardware profile, recommended settings applied on first start, browser GPU check, battery / heat / memory governor, essentials startup profile (v1.3.0)
 
-- [x] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage · (installer exe pending; illustrated INSTALL.md done)
-- [x] G2 (S) Auto-update from GitHub releases with a changelog spoken on first boot
+- [x] G1 (S) Installer exe (NSIS or Inno) instead of a zip; macOS .app and Linux AppImage · (Inno Setup installer built in CI; not code-signed)
+- [x] G2 (S) Auto-update from GitHub releases with a changelog spoken on first boot · (staged swap, keeps config)
 - [ ] G3 (S) Settings sync across machines through a folder or Git
 - [ ] G4 (M) Multi-room: several HUDs on the LAN, one brain, hand-off between rooms
 - [x] G5 (S) Backup and restore of memory, config and routines

@@ -146,6 +146,15 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified · `[-
 - [x] Chromeless app window (pywebview) with drag bar, pin, minimize, fullscreen, hotkey; tests/window_test.py 16/16 with a fake pywebview; a real window needs a display
 - [x] docs/INSTALL.md with eight labeled screenshots
 
+## Stage 14 — Spotify, map, calendar, installer, self-update (v1.5.0)
+
+- [x] Spotify Web API with PKCE: auth, callback, status, play / pause / next / prev / volume / search / shuffle / repeat / transfer; Music widget shows it; 51 checks against a fake API (no real account here)
+- [x] Calendar writes to ICS or CalDAV with a natural-time parser (14 cases), /calendar/next; verified end to end on the ICS file
+- [x] Map panel: Leaflet + OpenStreetMap with you / phone / searched place; Nominatim geocoding with cache and rate limit (verified live)
+- [x] Memory constellation panel, big-text mode, accessibility labels
+- [x] Windows installer script (Inno Setup, built in CI), self-installing update with staged swap (25 checks against a fake release), companion PWA manifest + service worker, forge from the packaged build via a data/src overlay
+- [ ] Not verifiable here: compiling the installer, a real Windows update swap, the PWA install prompt, a real Spotify or CalDAV account
+
 ## Not verified in this build (needs a real desktop)
 
 - Premium voice engines with real keys (request shaping tested against a fake backend); browser SpeechRecognition on a phone; Siri / Google voices
