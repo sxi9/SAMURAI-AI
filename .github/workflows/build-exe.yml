@@ -49,11 +49,23 @@ jobs:
         with:
           name: SAMURAI-windows-x64
           path: SAMURAI-windows-x64.zip
+      - name: Installer (Inno Setup, per-user, no admin)
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$v" "/DSourceDir=..\dist\SAMURAI" installer\samurai.iss
+          Get-ChildItem SAMURAI-setup-*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SAMURAI-setup
+          path: SAMURAI-setup-*.exe
       - name: Release (tag push or dispatch with release_tag)
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          files: SAMURAI-windows-x64.zip
+          files: |
+            SAMURAI-windows-x64.zip
+            SAMURAI-setup-*.exe
           body_path: docs/FEATURES.md
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           name: SAMURAI ${{ inputs.release_tag || github.ref_name }}

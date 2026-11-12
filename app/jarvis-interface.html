@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SAMURAI HUD</title>
+<link rel="manifest" href="companion.webmanifest"><meta name="theme-color" content="#05060d"><link rel="icon" href="icons/icon-192.png">
+<script>if (new URLSearchParams(location.search).get('companion') === '1' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });</script>
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="css/hud.css">
