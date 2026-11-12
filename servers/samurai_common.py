@@ -62,7 +62,9 @@ DEFAULT_CONFIG = {
               "keys": {"elevenlabs": "", "openai": "", "cartesia": "", "azure": "", "azure_region": "eastus"}},
     "actions": {"apps": {}, "commands": {}, "deny": [], "no_confirm": []},
     "browser": {"headless": True, "profile_dir": ""},                  # persistent profile (data/browser-profile): sign in once
-    "findmy": {"google": True},                                        # "find my phone": ring companion pages + ntfy, and Google Find My Device via the browser agent
+    "findmy": {"google": True},
+    "spotify": {"client_id": ""},                                      # developer.spotify.com app, redirect http://127.0.0.1:9500/spotify/callback (servers/samurai_spotify.py)
+    "calendar": {"target": "ics", "caldav_url": "", "caldav_user": "", "caldav_password": ""},   # where "add to my calendar" writes: the agenda .ics file, or a CalDAV collection
     "lan": {"enabled": False, "token": "", "https": False, "preferred_ip": ""},
     "services": {"profile": "full"},                             # full = every service at boot · essentials = browser + headless agents start on demand
     "tune": {},                                                  # written by the control panel's auto-tune (hardware profile + applied recommendation)   # LAN mode: reachable from your phone / other PCs with a token; https = self-signed TLS
