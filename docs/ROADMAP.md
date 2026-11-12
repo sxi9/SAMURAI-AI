@@ -88,7 +88,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] F12 (S) Audio-reactive everything: ring, ticker glow and corner brackets pulse with music, not only the orb
 - [x] F13 (M) 3D Earth globe for the position widget: textured globe, your location, satellites, the day-night line, spins on voice
 - [ ] F14 (L) Holographic desk: a 3D room in ambient mode with widgets as floating panels
-- [ ] F15 (M) Data constellations: memories and tasks as stars connected by topic, searchable by voice
+- [x] F15 (M) Data constellations: memories and tasks as stars connected by topic, searchable by voice
 - [ ] F16 (S) Wall or projector mode: 4K ambient scene with the orb alone, as a living wallpaper
 - [x] F17 (S) Typewriter reply text with a cursor glow, sound-synced
 - [x] F18 (S) Heartbeat line behind the system widget that follows real CPU load

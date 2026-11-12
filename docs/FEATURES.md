@@ -29,6 +29,8 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 - Effects layer: energy arcs from the orb to the widget it is driving, hologram materialise when a card appears, rain or snow from the live forecast, lightning in storms, alert tears and glitch, a CPU heartbeat line, day-cycle tint, the orb chasing the mouse, eyes that glance at what they act on
 - Looks: "cinema look" (letterbox, grain, warm vignette) and "retro look" (CRT scanlines and fringing)
 - Holographic globe in the position widget (wireframe Earth, your marker, a satellite)
+- Memory constellation: every fact, journal entry, task and recent conversation as a star, linked by shared words, searchable ("show my memory about dentist"), click a star to hear it
+- Big-text mode ("big text") and keyboard-reachable controls with screen-reader labels
 - Orb avatar with eyes and a waveform ring for idle, listening, thinking, speaking and alert
 - Free roaming when idle: the avatar picks a spot anywhere on the screen, glides there, banks into turns and glances ahead; "stay still" / "roam" by voice
 - Music reaction: while the library player runs, a real audio analyser drives the beat; the orb bounces, the ring pumps, the eyes squint on the kick (external players get a steady pulse)
