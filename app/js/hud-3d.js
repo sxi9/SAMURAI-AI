@@ -182,6 +182,8 @@ const gl = {
       vrm.scene.traverse(o => { for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) if (m) { m.clippingPlanes = [clip]; m.clipping = true; mats.push(m); if (m.isMToonMaterial) { rims.push(m); m.parametricRimFresnelPowerFactor = 5; m.parametricRimLiftFactor = 0; } m.needsUpdate = true; } });
       vrm.scene.traverse(o => { if (o.isMesh || o.isSkinnedMesh) o.renderOrder = 1; });                                // after the particle field, the halo and the nebula (blend materials write no depth)
       const g = new THREE.Group(); const SC = this.VRM_SCALE; vrm.scene.scale.setScalar(SC); g.add(vrm.scene);
+      /* spring bones (hair, ribbons) are tuned for metres; the scene works in pixels, so scale their settings too or the hair flies outward */
+      const sb = vrm.springBoneManager; if (sb) { try { for (const j of sb.joints) { j.settings.stiffness *= SC; j.settings.gravityPower *= SC; j.settings.hitRadius *= SC; } for (const c of sb.colliders || []) { const sh = c.shape; if (sh) { if (sh.radius != null) sh.radius *= SC; sh.offset && sh.offset.multiplyScalar(SC); sh.tail && sh.tail.multiplyScalar(SC); } } g.updateMatrixWorld(true); sb.setInitState(); sb.reset(); } catch (e) { vrm.springBoneManager = null; } }
       vrm.scene.updateMatrixWorld(true); const head = bone('head'), hp = new THREE.Vector3(); if (head) head.getWorldPosition(hp); else hp.set(0, 1.4 * SC, 0);
       vrm.scene.position.set(-hp.x, -hp.y, -hp.z);                                                            // the head sits on the group's origin
       const key = new THREE.DirectionalLight(0xfff6ee, 1.1); key.position.set(300, 700, 1100); g.add(key); g.add(new THREE.HemisphereLight(0x8a94a8, 0x0a0e14, .12));
