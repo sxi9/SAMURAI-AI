@@ -578,6 +578,61 @@ def camera_frame():
     return path
 
 
+# ---------- live screen: JPEG frames for the HUD's SCREEN widget, text through OCR when tesseract is installed ----------
+def grab_screen(monitor=0, width=1280):
+    """Return (PIL image) of a monitor: mss when available, else the platform screenshot tool."""
+    from PIL import Image
+    try:
+        import mss
+        with mss.mss() as sct:
+            mons = sct.monitors
+            m = mons[monitor + 1] if 0 <= monitor < len(mons) - 1 else mons[0]
+            shot = sct.grab(m)
+            img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+    except Exception:
+        img = Image.open(screenshot()).convert("RGB")
+    if width and img.width > width:
+        img = img.resize((width, int(img.height * width / img.width)))
+    return img
+
+
+def get_screen_view(h, q, body):
+    import io
+    try:
+        img = grab_screen(int(q.get("monitor", 0) or 0), int(q.get("w", 1280) or 1280))
+    except Exception as e:
+        h.send_bytes(json.dumps({"ok": False, "error": f"no screen capture available: {str(e)[:80]}"}).encode(), "application/json", code=503)
+        return None
+    buf = io.BytesIO(); img.save(buf, "JPEG", quality=int(q.get("q", 60) or 60))
+    h.send_bytes(buf.getvalue(), "image/jpeg", extra={"Cache-Control": "no-store", "X-Size": f"{img.width}x{img.height}"})
+    return None
+
+
+def get_screen_monitors(h, q, body):
+    try:
+        import mss
+        with mss.mss() as sct:
+            return {"ok": True, "monitors": [{"i": i, "w": m["width"], "h": m["height"], "x": m["left"], "y": m["top"]} for i, m in enumerate(sct.monitors[1:])]}
+    except Exception as e:
+        return {"ok": True, "monitors": [{"i": 0, "w": 0, "h": 0, "x": 0, "y": 0}], "note": str(e)[:80]}
+
+
+def get_screen_text(h, q, body):
+    """OCR of the screen (or a monitor) with tesseract; the HUD falls back to the vision brain when it is missing."""
+    try:
+        import pytesseract
+        if not shutil.which("tesseract"):
+            return {"ok": False, "error": "tesseract is not installed: Windows → https://github.com/UB-Mannheim/tesseract/wiki · Linux → apt install tesseract-ocr · macOS → brew install tesseract", "installed": False}
+        img = grab_screen(int(q.get("monitor", 0) or 0), 1920)
+        text = pytesseract.image_to_string(img)
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        return {"ok": True, "text": "\n".join(lines)[:20000], "lines": len(lines), "installed": True}
+    except ImportError:
+        return {"ok": False, "error": "pytesseract is not installed in the venv (pip install pytesseract pillow)", "installed": False}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:120], "installed": True}
+
+
 def get_actions(h, q, body):
     return {"ok": True, "os": sys.platform, "apps": sorted(APPS), "hotkeys": sorted(HOTKEYS),
             "actions": ["open_url", "web_search", "play_music", "open_app", "open_path", "volume_up", "volume_down",
@@ -590,7 +645,8 @@ def get_actions(h, q, body):
 
 class Handler(JSONHandler):
     TAG = "SAMURAI-ACT"
-    ROUTES = {("POST", "/action"): post_action, ("GET", "/actions"): get_actions, ("GET", "/audit"): get_audit, ("GET", "/file"): get_file}
+    ROUTES = {("POST", "/action"): post_action, ("GET", "/actions"): get_actions, ("GET", "/audit"): get_audit, ("GET", "/file"): get_file,
+              ("GET", "/screen/view"): get_screen_view, ("GET", "/screen/monitors"): get_screen_monitors, ("GET", "/screen/text"): get_screen_text}
 
 
 if __name__ == "__main__":

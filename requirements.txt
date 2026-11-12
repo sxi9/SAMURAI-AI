@@ -5,3 +5,6 @@ psutil>=5.9
 edge-tts>=6.1
 cryptography>=42        # self-signed certificate for phone mode over https
 qrcode>=7.4             # QR code for pairing the phone
+mss>=9          # live screen view for the SCREEN widget
+pillow>=10      # screen frames
+pytesseract>=0.3   # screen OCR (needs the tesseract binary)

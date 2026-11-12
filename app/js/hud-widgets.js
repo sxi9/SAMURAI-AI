@@ -18,7 +18,9 @@ window.SAM = window.SAM || {};
     { id: 'pix', side: 'R', x: 1608, y: 632, node: 5, code: 'PIX', name: 'HOLO GALLERY', title: 'HOLO GALLERY' },
     { id: 'vid', side: 'R', x: 1320, y: 366, node: 12, code: 'VID', name: 'VIDEO (YOUTUBE · LOCAL · STREAMS)', title: 'VIDEO', big: true, pin: false },
     { id: 'web', side: 'L', x: 328, y: 366, node: 13, code: 'WEB', name: 'BROWSER (LIVE AGENT VIEW)', title: 'BROWSER', big: true, pin: false },
+    { id: 'scr', side: 'L', x: 40, y: 366, node: 14, code: 'SCR', name: 'SCREEN (LIVE DESKTOP · READ · DESCRIBE)', title: 'SCREEN', big: true, pin: false },
   ];
+  const ACTIONS = SAM.H + ':9300';
   const NODE = k => { const a = (-90 + k * (360 / W.length)) * Math.PI / 180; return [960 + 300 * Math.cos(a), 470 + 300 * Math.sin(a)]; };
   const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -35,6 +37,8 @@ window.SAM = window.SAM || {};
       music: { tracks: [{ i: -1, title: 'Night Drive', artist: 'Kessler Array', len: 221, sample: true }], now: { i: -1, playing: false }, pos: 0, live: false, queryTitle: '', stations: [], episodes: [], stream: null },
       video: { files: [], live: false, now: null, cinema: false },
       web: { url: '', title: '', live: false },
+      screen: { live: false, monitor: 0, monitors: [], size: '', text: '' },
+      custom: [],
       gallery: [], position: null, security: null, ticker: null,
       timer: { left: 300, total: 300, running: false }, tty: [{ t: 'samurai boot · ok', c: '#2ee6ff' }], camErr: false,
     },
@@ -54,9 +58,14 @@ window.SAM = window.SAM || {};
       W.forEach(w => this.render(w.id));
       GET(ADDONS + '/video').then(r => { this.data.video.files = r.files || []; this.data.video.live = !!r.live; this.render('vid'); }).catch(() => { });
       setInterval(() => this.webRefresh(false), 700);
+      setInterval(() => this.screenRefresh(false), 1000);
+      setInterval(() => document.querySelectorAll('.cw iframe').forEach(fr => this.pushSnapshot(fr)), 5000);
+      window.addEventListener('message', e => { const m = e.data || {}; if (!m.samurai) return; if (m.samurai === 'say' && this.onSay) this.onSay(String(m.text).slice(0, 400)); if (m.samurai === 'focus' && this.onFocus) this.onFocus(m.id); if (m.samurai === 'action' && this.onAction) this.onAction(String(m.type), String(m.arg || '')); });
+      this.loadCustom();
     },
     tag(id, text, cls) { const el = $('tag-' + id); if (el) { el.className = 'tag' + (cls ? ' ' + cls : ''); el.innerHTML = text; } },
     render(id) {
+      if (id.startsWith('cw_')) return this.renderCustom(id);
       const b = $('body-' + id); if (!b) return;
       const d = this.data;
       switch (id) {
@@ -156,6 +165,19 @@ window.SAM = window.SAM || {};
             $('webView').addEventListener('wheel', e => { e.stopPropagation(); POST(BROWSER + '/browser', { cmd: 'scroll', arg: String(Math.round(e.deltaY * 3)) }).catch(() => { }); }, { passive: true });
           }
           $('webTitle').textContent = w.title || (w.live ? w.url : '—'); $('webEmpty').classList.toggle('hidden', !!w.live);
+          break;
+        }
+        case 'scr': {
+          const s = d.screen; this.tag(id, s.live ? '<i></i>LIVE' : 'SCREEN', s.live ? 'r' : '');
+          if (!b.firstChild) {
+            b.innerHTML = `<div class="web scr"><div class="wbar"><select id="scrMon"><option value="0">MONITOR 1</option></select><div id="scrRead" title="read the text on screen aloud">READ</div><div id="scrDesc" title="describe the screen with the vision brain">DESCRIBE</div><div id="scrShot" title="save a screenshot">SHOT</div></div>
+              <div class="wview" id="scrView"><img id="scrImg" alt=""><div class="wempty" id="scrEmpty">LIVE VIEW OF YOUR DESKTOP · SAY "SHOW MY SCREEN" · "READ MY SCREEN" · "WHAT IS ON MY SCREEN"</div></div><div class="wtitle" id="scrTitle">—</div></div>`;
+            $('scrMon').addEventListener('change', e => { s.monitor = +e.target.value; this.screenRefresh(true); }); $('scrMon').addEventListener('click', e => e.stopPropagation());
+            $('scrRead').addEventListener('click', e => { e.stopPropagation(); this.onAction && this.onAction('screen_read', ''); });
+            $('scrDesc').addEventListener('click', e => { e.stopPropagation(); this.onAction && this.onAction('screen_describe', ''); });
+            $('scrShot').addEventListener('click', e => { e.stopPropagation(); this.onAction && this.onAction('screenshot', ''); });
+            GET(ACTIONS + '/screen/monitors').then(r => { s.monitors = r.monitors || []; if (s.monitors.length > 1) $('scrMon').innerHTML = s.monitors.map(m => `<option value="${m.i}">MONITOR ${m.i + 1} · ${m.w}×${m.h}</option>`).join(''); }).catch(() => { });
+          }
           break;
         }
         case 'home': {
@@ -335,6 +357,41 @@ window.SAM = window.SAM || {};
         const tt = $('webTitle'); if (tt) tt.textContent = this.data.web.title || this.data.web.url || '—'; $('webEmpty') && $('webEmpty').classList.toggle('hidden', !!this.data.web.live); this.tag('web', this.data.web.live ? '<i></i>LIVE' : 'AGENT IDLE', this.data.web.live ? 'r' : '');
       } catch (e) { }
     },
+    /* ---------- live screen: JPEG frames from the action server while the SCREEN panel is open ---------- */
+    async screenRefresh(force) {
+      const img = $('scrImg'); if (!img) return; const open = force || (this.onScreenVisible && this.onScreenVisible()); if (!open) return;
+      const s = this.data.screen;
+      try { const r = await fetch(`${ACTIONS}/screen/view?monitor=${s.monitor}&w=1280`, { cache: 'no-store' }); if (!r.ok) { const e = await r.json().catch(() => ({})); s.live = false; $('scrTitle').textContent = e.error || 'no capture'; $('scrEmpty').classList.remove('hidden'); this.tag('scr', 'NO CAPTURE', 'v'); return; }
+        const blob = await r.blob(); const old = img.src; img.src = URL.createObjectURL(blob); if (old.startsWith('blob:')) URL.revokeObjectURL(old); s.live = true; s.size = r.headers.get('X-Size') || '';
+        $('scrTitle').textContent = `monitor ${s.monitor + 1} · ${s.size} · live`; $('scrEmpty').classList.add('hidden'); this.tag('scr', '<i></i>LIVE', 'r');
+      } catch (e) { s.live = false; }
+    },
+    async screenText() { try { const r = await GET(ACTIONS + '/screen/text'); return r; } catch (e) { return { ok: false, error: 'action server offline' }; } },
+    /* ---------- custom widgets: written by the brain, stored by the add-ons, rendered in a sandboxed frame ---------- */
+    async loadCustom() {
+      let list = []; try { list = (await GET(ADDONS + '/widgets_custom')).widgets || []; } catch (e) { return; }
+      this.data.custom = list;
+      for (const w of list) {
+        const id = 'cw_' + w.id; if (W.find(x => x.id === id)) continue;
+        const side = W.length % 2 ? 'R' : 'L';
+        W.push({ id, side, x: side === 'L' ? 40 : 1320, y: 366, node: W.length, code: w.code, name: w.name.toUpperCase() + ' (YOUR WIDGET)', title: w.title, big: true, pin: false, custom: w });
+        const layer = document.getElementById(side === 'L' ? 'layerL' : 'layerR'); layer.insertAdjacentHTML('beforeend', this.shell(W[W.length - 1]));
+        const nodes = document.getElementById('nodes'); nodes.insertAdjacentHTML('beforeend', `<div class="node" data-id="${id}" title="${esc(w.name)}">${esc(w.code)}<i></i></div>`);
+        const slot = document.querySelector(`.slot[data-id=${id}]`); slot.style.left = W[W.length - 1].x + 'px'; slot.style.top = W[W.length - 1].y + 'px';
+        this.render(id);
+      }
+      this.relayoutNodes(); this.onCustomLoaded && this.onCustomLoaded();
+    },
+    relayoutNodes() { W.forEach((w, i) => { w.node = i; const [x, y] = NODE(i); const n = document.querySelector(`.node[data-id=${w.id}]`); if (n) { n.style.left = (x - 23) + 'px'; n.style.top = (y - 23) + 'px'; } }); },
+    renderCustom(id) {
+      const b = $('body-' + id), w = W.find(x => x.id === id); if (!b || !w) return; this.tag(id, 'YOURS', 'v');
+      if (b.firstChild) return;
+      const doc = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:transparent;color:#d9f8ff;font-family:Saira,Segoe UI,sans-serif;font-size:14px}a{color:#2ee6ff}</style></head><body>${w.custom.html}
+        <script>window.samurai={say:t=>parent.postMessage({samurai:'say',text:String(t)},'*'),focus:id=>parent.postMessage({samurai:'focus',id},'*'),run:(type,arg)=>parent.postMessage({samurai:'action',type,arg},'*')};<\/script></body></html>`;
+      b.innerHTML = `<div class="cw"><iframe sandbox="allow-scripts" referrerpolicy="no-referrer" srcdoc="${esc(doc)}"></iframe><div class="cwfoot"><span>MADE BY SAMURAI · SAY "DELETE WIDGET ${esc(w.custom.name)}"</span></div></div>`;
+      const fr = b.querySelector('iframe'); fr.addEventListener('load', () => this.pushSnapshot(fr));
+    },
+    pushSnapshot(fr) { try { fr.contentWindow.postMessage({ snapshot: this.data, now: Date.now() }, '*'); } catch (e) { } },
     /* ---------- radio + podcasts play through a plain audio element (no analyser: streams rarely send CORS) ---------- */
     async stream(kind, arg) {
       const m = this.data.music;

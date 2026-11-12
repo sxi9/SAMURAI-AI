@@ -469,6 +469,45 @@ def get_yt_search(h, q, b):
     return {"ok": True, "results": results}
 
 
+# ---------- custom widgets: the brain writes them (name, 3-letter code, HTML + JS), they live in data/widgets/*.json ----------
+WIDGETS_DIR = os.path.join(DATA, "widgets")
+
+
+def list_custom_widgets():
+    out = []
+    if os.path.isdir(WIDGETS_DIR):
+        for n in sorted(os.listdir(WIDGETS_DIR)):
+            if n.endswith(".json"):
+                try:
+                    w = json.load(open(os.path.join(WIDGETS_DIR, n), encoding="utf-8")); w["id"] = n[:-5]; out.append(w)
+                except Exception:
+                    pass
+    return out
+
+
+def get_widgets_custom(h, q, b):
+    return {"ok": True, "widgets": list_custom_widgets()}
+
+
+def post_widgets_custom(h, q, b):
+    if b.get("delete"):
+        p = os.path.join(WIDGETS_DIR, re.sub(r"[^a-z0-9_-]", "", str(b["delete"]).lower()) + ".json")
+        if os.path.exists(p):
+            os.remove(p)
+        return {"ok": True, "did": "deleted", "widgets": list_custom_widgets()}
+    name = (b.get("name") or "").strip()[:40]
+    html = b.get("html") or ""
+    if not name or not html:
+        raise ValueError("name and html required")
+    wid = re.sub(r"[^a-z0-9_-]", "", (b.get("id") or name).lower().replace(" ", "_"))[:24] or f"w{int(time.time())}"
+    code = re.sub(r"[^A-Z0-9]", "", (b.get("code") or name).upper())[:4] or "NEW"
+    os.makedirs(WIDGETS_DIR, exist_ok=True)
+    w = {"name": name, "code": code, "title": (b.get("title") or name).upper()[:28], "html": html[:60000], "poll": int(b.get("poll") or 0), "created": int(time.time()), "by": b.get("by") or "brain"}
+    json.dump(w, open(os.path.join(WIDGETS_DIR, wid + ".json"), "w", encoding="utf-8"), indent=1)
+    w["id"] = wid
+    return {"ok": True, "widget": w, "widgets": list_custom_widgets()}
+
+
 def post_music(h, q, b):
     cmd = b.get("cmd")
     if cmd in ("play", "pause", "set"):
@@ -649,6 +688,7 @@ class Handler(JSONHandler):
         ("GET", "/config"): get_config, ("POST", "/config"): post_config,
         ("GET", "/weather"): get_weather, ("GET", "/ticker"): get_ticker,
         ("GET", "/video"): get_video, ("GET", "/video/file"): get_video_file, ("GET", "/yt_search"): get_yt_search,
+        ("GET", "/widgets_custom"): get_widgets_custom, ("POST", "/widgets_custom"): post_widgets_custom,
         ("GET", "/tasks"): get_tasks, ("POST", "/tasks"): post_tasks,
         ("GET", "/agenda"): get_agenda, ("GET", "/inbox"): get_inbox,
         ("GET", "/home"): get_home, ("POST", "/home"): post_home,

@@ -240,6 +240,18 @@
     const vu = q.match(/^(?:play|open|stream|watch) (https?:\/\/\S+\.(?:mp4|webm|m3u8|mov|m4v)(?:\?\S*)?)$/); if (vu) return { focus: 'vid', text: 'Streaming.', effect: () => widgets.video('url', vu[1]) };
     const vq = q.match(/^(?:play|watch|show(?: me)?|put on|start)(?: a| the| some)? (?:video|videos|youtube|movie|clip)(?: of| about| for| on|:)? (.+)$/) || q.match(/^(?:watch|youtube) (.+)$/) || q.match(/^(?:play|open|watch|put on) (.+?) on youtube$/);
     if (vq) { const what = vq[1].replace(/ on you ?tube$/, '').trim(); return { focus: 'vid', text: `Finding ${what}.`, effect: async () => { const ok = await widgets.video('search', what); say(ok ? `Playing ${widgets.data.video.now.title.slice(0, 60)}.` : `I could not find ${what}.`); } }; }
+    /* screen widget: live desktop, OCR, vision */
+    if (/^(show|open|view|watch) (me )?(my |the )?(screen|desktop|display)( live)?$|^screen (view|live)$/.test(q)) return { focus: 'scr', text: null, effect: () => widgets.screenRefresh(true) };
+    if (/^(read|ocr) (me )?(my |the )?(screen|display|text on (my|the) screen)( aloud| out loud)?$|^what does (my|the) screen say$/.test(q)) return { screenRead: true };
+    if (/^(take a |grab a )?(screenshot|screen shot|capture (my|the) screen)$/.test(q)) return { focus: 'scr', text: 'Captured.', actions: [{ type: 'screenshot', arg: '' }] };
+    /* custom widgets and the forge */
+    const cw = q.match(/^(?:create|make|build|add)(?: me)? (?:a |an )?(?:new )?widget(?: that| which| for| to| showing| called)? (.{4,})$/); if (cw) return { widgetCreate: cw[1] };
+    const dw = q.match(/^(?:delete|remove|drop) (?:the )?widget (.{2,})$/); if (dw) return { widgetDelete: dw[1] };
+    if (/^(list|show)( my)? (custom )?widgets$/.test(q)) return { text: widgets.data.custom.length ? `${widgets.data.custom.length} of yours: ${widgets.data.custom.map(w => w.name).join(', ')}.` : 'No custom widgets yet. Say "create a widget that shows my task count".' };
+    if (/^(forge|rebuild) status$/.test(q)) return { forgeStatus: true };
+    if (/^(apply|install|accept) (the )?(forge|changes|rebuild|upgrade)$/.test(q)) return { forgeApply: true };
+    if (/^(discard|drop|cancel|revert) (the )?(forge|changes|rebuild|upgrade)$/.test(q)) return { forgeDiscard: true };
+    const fj = q.match(/^(?:forge|rebuild yourself|improve yourself|add (?:a )?feature|add (?:the )?ability|upgrade yourself|modify yourself|change yourself|rewrite)[:,]?\s*(?:to |so that |that )?(.{6,})$/); if (fj) return { forge: fj[1] };
     /* browser widget: the agent's real page, live in the HUD */
     if (/^(show|open|focus) (the )?(browser|web|web view|agent browser)$/.test(q)) return { focus: 'web', text: null, effect: () => widgets.webRefresh(true) };
     const bu = q.match(/^(?:browse|open|go to|visit|open website|open site|open page|navigate to)(?: the)?(?: website| site| page)? (?:to )?((?:https?:\/\/)?[\w-]+(?:\.[\w-]+)+(?:\/\S*)?)$/) || q.match(/^browse (?:to |for )?(.+)$/) || q.match(/^(?:look (?:that |it |this )?up|search) in the browser(?: for)? (.+)$/);
@@ -341,6 +353,13 @@
       else if (r && r.docs) { r = await docsAnswer(r.docs); }
       else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
       else if (r && r.plan) { r = await planRun(r.plan); }
+      else if (r && r.screenRead) { r = await screenRead(); }
+      else if (r && r.widgetCreate) { r = await widgetCreate(r.widgetCreate); }
+      else if (r && r.widgetDelete) { const w = widgets.data.custom.find(x => x.name.toLowerCase().includes(r.widgetDelete.toLowerCase())); if (!w) r = { text: `No widget called ${r.widgetDelete}.` }; else { await fetch(ADDONS + '/widgets_custom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: w.id }) }); r = { text: `Widget ${w.name} removed. It disappears after the next reload.`, effect: () => { const el = document.querySelector(`.node[data-id=cw_${w.id}]`); el && el.remove(); document.querySelector(`.slot[data-id=cw_${w.id}]`)?.remove(); const i = W.findIndex(x => x.id === 'cw_' + w.id); if (i >= 0) W.splice(i, 1); widgets.data.custom = widgets.data.custom.filter(x => x.id !== w.id); widgets.relayoutNodes(); } }; } }
+      else if (r && r.forge) { r = await forgeStart(r.forge); }
+      else if (r && r.forgeApply) { r = await forgeApply(); }
+      else if (r && r.forgeDiscard) { const d = await (await fetch(PANEL + '/forge/discard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json(); r = { text: d.ok ? d.did + '.' : d.error }; }
+      else if (r && r.forgeStatus) { const d = await (await fetch(PANEL + '/forge/status')).json(); r = { text: !d.available ? `Forge unavailable: ${d.why}.` : d.running ? `The forge is working on: ${d.task}.` : d.changed.length ? `${d.changed.length} file(s) changed and waiting. Say "apply the forge" or "discard the forge".` : 'The forge is idle and ready.' }; }
       else if (r && r.journal) { const d = await (await fetch(ADDONS + '/journal/today')).json(); const n = (d.entries || []).length; r = { focus: 'task', text: n ? `${n} entr${n === 1 ? 'y' : 'ies'} today. ${d.entries.slice(0, 3).map(e => e.text).join('. ')}` : 'Nothing in the journal today.' }; }
       else if (r && r.files) { const d = await (await fetch(ADDONS + '/files?q=' + encodeURIComponent(r.files) + '&n=5')).json(); const L = d.results || []; L.forEach(f => widgets.pushTty(`file · ${f.path}`, '#a07cff')); r = { focus: 'tty', text: L.length ? `${L.length} match${L.length === 1 ? '' : 'es'}. First: ${L[0].name}.` : `No file matching ${r.files}.`, actions: L.length ? [] : [] }; }
       else if (r && r.readFile) { const d = await (await fetch(ADDONS + '/read?path=' + encodeURIComponent(r.readFile))).json(); r = d.ok ? { focus: 'tty', text: String(d.text || '').replace(/\s+/g, ' ').slice(0, 700) } : { text: `I could not read ${r.readFile}.` }; }
@@ -367,6 +386,51 @@
     if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text); return S.lastReply = text; }
     say(text, r.focus === undefined ? null : r.focus);
     return S.lastReply = text;
+  }
+  /* ---------- screen: OCR first, vision brain when tesseract is missing ---------- */
+  async function screenRead() {
+    const r = await widgets.screenText();
+    if (r.ok) { const t = r.text.replace(/\s+/g, ' ').trim(); return { focus: 'scr', text: t ? `On screen: ${t.slice(0, 600)}${t.length > 600 ? '… and more.' : ''}` : 'The screen has no readable text.', effect: () => { widgets.data.screen.text = r.text; } }; }
+    log('info', `ocr · ${r.error}`);
+    const v = await visionAnswer('screen', 'Read out the text that is on the screen, briefly, most important first.');
+    return { focus: 'scr', text: v.text };
+  }
+  /* ---------- custom widgets: the brain writes one, the add-ons store it, the HUD mounts it ---------- */
+  async function widgetCreate(spec) {
+    log('info', `widget · designing: ${spec}`);
+    const prompt = `Design a small HUD widget for this request: "${spec}". Reply ONLY with JSON: {"name": "<2-3 words>", "code": "<3 capital letters>", "html": "<self-contained HTML+CSS+JS for a 1260x680 dark panel, no external resources>"}.
+Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff / ice #d9f8ff colours, monospace labels, big readable values. Live data arrives as window messages: window.addEventListener('message', e => { const s = e.data && e.data.snapshot; if (!s) return; /* s.tel (cpu, mem, temp, battery, disk), s.weather, s.agenda, s.tasks, s.inbox, s.home, s.music, s.timer */ }) every 5 s. You may call window.samurai.say("text") to make SAMURAI speak, window.samurai.run("timer_start","5") to run an action, window.samurai.focus("wx") to open a widget. Keep it under 6000 characters.`;
+    let out; try { out = await brain.ask(prompt, widgets.snapshot()); } catch (e) { return { text: 'The brain did not answer.' }; }
+    let raw = String(out.reply || out.raw || '').trim(); const m = raw.match(/\{[\s\S]*\}/); if (!m) return { text: 'I could not design that widget. Try describing it differently.' };
+    let spec2; try { spec2 = JSON.parse(m[0]); } catch (e) { return { text: 'The widget design was not valid. Try again.' }; }
+    if (!spec2.html || !spec2.name) return { text: 'The design was missing its page. Try again.' };
+    const d = await (await fetch(ADDONS + '/widgets_custom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: spec2.name, code: spec2.code, html: spec2.html, by: out.provider || 'brain' }) })).json();
+    if (!d.ok) return { text: `Could not save the widget: ${d.error}` };
+    await widgets.loadCustom(); applyLayout();
+    return { focus: 'cw_' + d.widget.id, text: `${d.widget.name} is live in the ring. Say "delete widget ${d.widget.name}" to remove it.` };
+  }
+  /* ---------- forge: Claude Code rebuilds SAMURAI from a sentence; nothing goes live until you say apply ---------- */
+  let forgeTimer = null, forgeSeen = 0;
+  async function forgeStart(task) {
+    const st = await (await fetch(PANEL + '/forge/status')).json();
+    if (!st.available) return { text: `I cannot rebuild myself here: ${st.why}.` };
+    if (st.running) return { text: `Still working on: ${st.task}. Ask for the forge status later.` };
+    const d = await (await fetch(PANEL + '/forge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task }) })).json();
+    if (!d.ok) return { text: d.error };
+    forgeSeen = 0; clearInterval(forgeTimer);
+    forgeTimer = setInterval(async () => {
+      try {
+        const s = await (await fetch(PANEL + '/forge/log')).json(); const lines = (s.log || '').split('\n'); for (let i = forgeSeen; i < lines.length; i++) if (lines[i].trim()) widgets.pushTty(`forge · ${lines[i].trim().slice(0, 110)}`, '#ffb84d'); forgeSeen = lines.length;
+        if (!s.running) { clearInterval(forgeTimer); const f = await (await fetch(PANEL + '/forge/status')).json(); const last = f.last || {}; const n = (f.changed || []).length; say(n ? `Forge done: ${n} file${n === 1 ? '' : 's'} changed. ${String(last.summary || '').replace(/\s+/g, ' ').slice(-220)} Say "apply the forge" to install it, or "discard the forge".` : `The forge finished without changing files. ${String(last.summary || '').replace(/\s+/g, ' ').slice(-200)}`, 'tty'); }
+      } catch (e) { }
+    }, 3000);
+    return { focus: 'tty', text: `Forging: ${task}. I will tell you when it is ready.` };
+  }
+  async function forgeApply() {
+    const d = await (await fetch(PANEL + '/forge/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
+    if (!d.ok) return { text: `Not applied: ${d.error}${d.files ? ' · ' + Object.entries(d.files).map(([f, e]) => f + ': ' + e).join('; ').slice(0, 300) : ''}` };
+    setTimeout(() => location.reload(), 25000);
+    return { text: `${d.did}. I will reload in half a minute with the new code.` };
   }
   async function compareAll(q) {
     const ids = Object.keys(brain.PROVIDERS).filter(id => brain.configured(id) && brain.PROVIDERS[id].kind !== 'agent').slice(0, 5);
@@ -501,6 +565,10 @@
         case 'look_at_screen': { const r2 = await visionAnswer('screen', arg || 'Describe what is on the screen.'); return r2.text; }
         case 'look_at_camera': { const r2 = await visionAnswer('camera', arg || 'Describe what the camera sees.'); return r2.text; }
         case 'desktop_task': { T(() => desktopTask(arg), 1500); return null; }
+        case 'screen_read': { const d = await screenRead(); say(d.text, 'scr'); return null; }
+        case 'screen_describe': { const d = await visionAnswer('screen', 'Describe what is on the screen and anything notable.'); say(d.text, 'scr'); return null; }
+        case 'widget_create': { const d = await widgetCreate(arg); say(d.text, d.focus); return null; }
+        case 'forge': { const d = await forgeStart(arg); say(d.text); return null; }
         case 'video_play': case 'video_search': case 'youtube': { setFocus('vid'); const ok = await widgets.video('search', arg); if (!ok) log('warn', `video · nothing found for ${arg}`); return null; }
         case 'video_pause': widgets.video('pause'); return null; case 'video_close': widgets.video('close'); return null; case 'cinema': widgets.video('cinema'); return null;
         case 'radio_play': await widgets.stream('radio', arg); setFocus('mus'); return null; case 'podcast_play': await widgets.stream('podcast', arg); setFocus('mus'); return null;
@@ -582,7 +650,9 @@
   voice.onLevel = l => { core.micLevel = l; };
   voice.onWake = () => { widgets.pushTty('wake word detected', '#2ee6ff'); voice.stopSpeaking('wake'); setMode('listening'); };
   voice.onMicState = on => { if (!on && S.mode === 'listening') setMode('idle'); if (on && S.mode === 'idle') setMode('listening'); $('pillMic').textContent = on ? 'MIC · OPEN' : 'MIC · ARMED'; };
-  widgets.onVideo = now => { if (now) { if (S.focus !== 'vid') setFocus('vid'); else applyLayout(); } else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
+  widgets.onSay = t => say(t); widgets.onFocus = id => setFocus(id); widgets.onScreenVisible = () => S.focus === 'scr'; widgets.onCustomLoaded = () => applyLayout();
+    window.addEventListener('samurai-hotkey', () => { if (!voice.micOn) voice.start(); setMode('listening'); });
+    widgets.onVideo = now => { if (now) { if (S.focus !== 'vid') setFocus('vid'); else applyLayout(); } else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };
   widgets.onSecurity = sec => showAlert(sec);
   widgets.onAction = (type, arg) => runAction({ type, arg });

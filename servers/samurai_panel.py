@@ -18,6 +18,7 @@ from samurai_common import (bind_host, JSONHandler, PORTS, ROOT, APP, LOGS, MODE
                             lan_ips, scheme, tls_enabled, ensure_cert, tls_paths, maybe_wrap_tls, http_json)
 import samurai_autostart as autostart
 import samurai_tune as tune
+import samurai_forge as forge
 
 PORT = PORTS["panel"]
 if "--port" in sys.argv:
@@ -746,7 +747,7 @@ class Handler(JSONHandler):
               ("POST", "/remote/command"): post_remote_command, ("GET", "/remote/next"): get_remote_next,
               ("POST", "/remote/reply"): post_remote_reply, ("GET", "/remote/reply"): get_remote_reply,
               ("GET", "/auth/status"): get_auth_status, ("POST", "/auth/login"): post_auth_login, ("POST", "/auth/logout"): post_auth_logout,
-              **tune.ROUTES,
+              **tune.ROUTES, **forge.ROUTES,
               ("POST", "/auth/input"): post_auth_input,
               ("GET", "/backup"): get_backup, ("GET", "/update"): get_update, ("GET", "/logs/bundle"): get_log_bundle, ("GET", "/version"): get_version}
 
