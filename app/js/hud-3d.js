@@ -18,6 +18,24 @@ float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
             mix(mix(hash3(i+vec3(0,0,1)).x,hash3(i+vec3(1,0,1)).x,f.x),mix(hash3(i+vec3(0,1,1)).x,hash3(i+vec3(1,1,1)).x,f.x),f.y),f.z);}
 float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*noise(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;}return v;}`;
 
+
+/* icon shapes for widget morphs: drawn on a small canvas, then sampled like spelled words */
+function drawIcon(x, w, h, name) {
+  x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineWidth = 16; x.lineCap = 'round'; x.lineJoin = 'round'; const cx = w / 2, cy = h / 2;
+  if (name === 'cloud') { for (const [dx, dy, r] of [[-60, 10, 34], [-20, -18, 44], [30, -8, 40], [62, 14, 30], [0, 22, 36]]) { x.beginPath(); x.arc(cx + dx, cy + dy, r, 0, 6.283); x.fill(); } }
+  else if (name === 'pulse') { x.beginPath(); x.moveTo(cx - 150, cy); x.lineTo(cx - 70, cy); x.lineTo(cx - 50, cy - 40); x.lineTo(cx - 25, cy + 55); x.lineTo(cx, cy - 60); x.lineTo(cx + 20, cy + 20); x.lineTo(cx + 40, cy); x.lineTo(cx + 150, cy); x.stroke(); }
+  else if (name === 'house') { x.beginPath(); x.moveTo(cx - 90, cy + 10); x.lineTo(cx, cy - 60); x.lineTo(cx + 90, cy + 10); x.stroke(); x.strokeRect(cx - 65, cy + 5, 130, 60); x.fillRect(cx - 14, cy + 25, 28, 40); }
+  else if (name === 'pin') { x.beginPath(); x.arc(cx, cy - 22, 40, Math.PI * .8, Math.PI * 2.2); x.lineTo(cx, cy + 62); x.closePath(); x.fill(); x.fillStyle = '#000'; x.beginPath(); x.arc(cx, cy - 22, 16, 0, 6.283); x.fill(); }
+  else if (name === 'clock') { x.beginPath(); x.arc(cx, cy, 62, 0, 6.283); x.stroke(); x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx, cy - 40); x.moveTo(cx, cy); x.lineTo(cx + 30, cy + 12); x.stroke(); }
+  else if (name === 'envelope') { x.strokeRect(cx - 95, cy - 50, 190, 100); x.beginPath(); x.moveTo(cx - 95, cy - 50); x.lineTo(cx, cy + 10); x.lineTo(cx + 95, cy - 50); x.stroke(); }
+  else if (name === 'check') { x.lineWidth = 22; x.beginPath(); x.moveTo(cx - 80, cy); x.lineTo(cx - 20, cy + 50); x.lineTo(cx + 90, cy - 50); x.stroke(); }
+  else if (name === 'note') { x.font = 'bold 150px "DejaVu Sans", "Segoe UI Symbol", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('♪', cx, cy + 10); }
+  else if (name === 'eye') { x.beginPath(); x.ellipse(cx, cy, 100, 48, 0, 0, 6.283); x.stroke(); x.beginPath(); x.arc(cx, cy, 26, 0, 6.283); x.fill(); }
+  else if (name === 'screen') { x.strokeRect(cx - 100, cy - 60, 200, 120); x.fillRect(cx - 40, cy + 62, 80, 12); }
+  else if (name === 'globe') { x.beginPath(); x.arc(cx, cy, 64, 0, 6.283); x.stroke(); x.beginPath(); x.ellipse(cx, cy, 28, 64, 0, 0, 6.283); x.stroke(); x.beginPath(); x.moveTo(cx - 64, cy); x.lineTo(cx + 64, cy); x.stroke(); }
+  else { x.font = 'bold 120px Michroma, Arial Black, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(name.slice(0, 3).toUpperCase(), cx, cy); }
+}
+
 /* the same shape generators as the 2D core, for any particle count */
 function shapeOf(name, N) {
   const a = new Float32Array(N * 3), R = Math.random, set = (i, x, y, z) => { a[i * 3] = x; a[i * 3 + 1] = y; a[i * 3 + 2] = z; };
@@ -28,11 +46,11 @@ function shapeOf(name, N) {
   else if (name === 'knot') for (let i = 0; i < N; i++) { const t = (i / N) * 6.283 * 2, r = .62 + .22 * Math.cos(1.5 * t), j = () => (R() - .5) * .05; set(i, r * Math.cos(t) + j(), .24 * Math.sin(1.5 * t) + j(), r * Math.sin(t) + j()); }
   else if (name === 'ring') for (let i = 0; i < N; i++) { const t = (i / N) * 6.283, tube = R() * 6.283, Rr = .85, T = .07 + R() * .05; set(i, (Rr + T * Math.cos(tube)) * Math.cos(t), T * Math.sin(tube), (Rr + T * Math.cos(tube)) * Math.sin(t)); }
   else if (name === 'wave') { const side = Math.sqrt(N) | 0; for (let i = 0; i < N; i++) { const gx = (i % side) / side - .5, gz = Math.floor(i / side) / side - .5, d = Math.hypot(gx, gz); set(i, gx * 2.2, Math.sin(d * 18) * .22 * (1 - d), gz * 2.2); } }
-  else if (name.startsWith('text:')) {
+  else if (name.startsWith('text:') || name.startsWith('icon:')) {
     const word = name.slice(5), c = document.createElement('canvas'), w = 360, h = 160; c.width = w; c.height = h;
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    let size = 110; do { x.font = `bold ${size}px Michroma, Arial Black, sans-serif`; size -= 6; } while (x.measureText(word).width > w - 24 && size > 16);
-    x.fillText(word, w / 2, h / 2);
+    if (name.startsWith('icon:')) drawIcon(x, w, h, word);
+    else { let size = 110; do { x.font = `bold ${size}px Michroma, Arial Black, sans-serif`; size -= 6; } while (x.measureText(word).width > w - 24 && size > 16); x.fillText(word, w / 2, h / 2); }
     const img = x.getImageData(0, 0, w, h).data, pts = [];
     for (let py = 0; py < h; py += 2) for (let px = 0; px < w; px += 2) if (img[(py * w + px) * 4 + 3] > 110) pts.push(px, py);
     if (!pts.length) return shapeOf('sphere', N);
@@ -62,7 +80,7 @@ const gl = {
     this.scene = new THREE.Scene();
     const fov = 40, D = (H / 2) / Math.tan(fov / 2 * Math.PI / 180);
     this.camera = new THREE.PerspectiveCamera(fov, W / H, 10, 6000); this.camera.position.set(0, -(540 - CY), D); this.camera.lookAt(0, -(540 - CY), 0); this.D = D;
-    this.buildNebula(D); this.buildParticles(Q.n); this.buildOrb();
+    this.buildNebula(D); this.buildParticles(Q.n); this.buildOrb(); this.buildFace();
     if (Q.bloom) {
       this.composer = new EffectComposer(r); this.composer.addPass(new RenderPass(this.scene, this.camera));
       this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .6, .4, .4); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
@@ -144,6 +162,19 @@ const gl = {
     this.halo.scale.set(330, 330, 1); this.scene.add(this.halo);
   },
   getShape(name) { if (!this.shapes[name]) this.shapes[name] = shapeOf(name, this.N); return this.shapes[name]; },
+  /* procedural 3D head: an alternative avatar with eyes that look around, brows that follow the mood, a mouth that lip-syncs */
+  buildFace() {
+    const g = new THREE.Group(); const A = rgb(SAM.core.THEME.c), I = rgb(SAM.core.THEME.ice);
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(118, 48, 36), new THREE.MeshPhongMaterial({ color: 0x0a1428, emissive: A, emissiveIntensity: .08, shininess: 90, transparent: true, opacity: .92 })));
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(121, 48, 36), new THREE.MeshBasicMaterial({ color: A, wireframe: true, transparent: true, opacity: .06 })));
+    const eyeGeo = new THREE.SphereGeometry(14, 24, 16); const eyeMat = new THREE.MeshBasicMaterial({ color: I });
+    const eyes = [-38, 38].map(x => { const e = new THREE.Mesh(eyeGeo, eyeMat); e.position.set(x, 18, 104); e.scale.set(1, 1.35, .5); g.add(e); return e; });
+    const browMat = new THREE.MeshBasicMaterial({ color: A, transparent: true, opacity: .8 });
+    const brows = [-38, 38].map(x => { const b = new THREE.Mesh(new THREE.BoxGeometry(34, 4, 4), browMat); b.position.set(x, 46, 104); g.add(b); return b; });
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(56, 6, 6), new THREE.MeshBasicMaterial({ color: A })); mouth.position.set(0, -34, 108); g.add(mouth);
+    const light = new THREE.PointLight(0xffffff, 1.6, 900); light.position.set(-160, 220, 420); g.add(light); g.add(new THREE.AmbientLight(0x4060a0, .6));
+    g.visible = false; this.face = { group: g, eyes, brows, mouth, blink: 0, nextBlink: 2 }; this.scene.add(g);
+  },
 
   /* lip-sync: an analyser on whatever audio element the voice module is playing */
   speech() {
@@ -172,7 +203,7 @@ const gl = {
       for (let i = 0; i < N; i++) { let k = (this.morphT - D[i] * .45) / .55; k = k < 0 ? 0 : k > 1 ? 1 : k; k = k * k * (3 - 2 * k); for (let j = 0; j < 3; j++) P[i * 3 + j] = F[i * 3 + j] + (T[i * 3 + j] - F[i * 3 + j]) * k; }
       this.points.geometry.attributes.position.needsUpdate = true;
     }
-    const base = this.shapeName.startsWith('text:') ? 'text' : this.shapeName, spinSpeed = m === 'thinking' ? 1.4 : m === 'alert' ? 2 : .3;
+    const base = this.shapeName.startsWith('text:') || this.shapeName.startsWith('icon:') ? 'text' : this.shapeName, spinSpeed = m === 'thinking' ? 1.4 : m === 'alert' ? 2 : .3;
     if (FACING[base]) this.spin += (Math.sin(t * .6) * .3 - this.spin) * .04; else this.spin += spinSpeed * dt;
     this.tilt += ((SHAPE_TILT[base] ?? .3) - this.tilt) * .04;
     const show = core.show || 0, music = core.musicLevel || 0, mic = core.micLevel || 0;
@@ -185,6 +216,14 @@ const gl = {
     const sc = (wd.os || 1) * (1 + this.speechLevel * .12 + music * .06);
     this.orb.position.set(wd.ox || 0, -(wd.oy || 0), 40); this.orb.scale.set(sc, sc, sc);
     const ou = this.orb.material.uniforms; ou.uTime.value = t; ou.uA.value = A; ou.uB.value = B; ou.uRed.value = red; ou.uTalk.value = this.speechLevel; ou.uEnergy.value = this.energy;
+    const faceMode = hud && hud.S.avatar === 'face'; if (this.face) { const f = this.face; f.group.visible = faceMode; this.orb.visible = !faceMode; this.halo.visible = true;
+      if (faceMode) { f.group.position.copy(this.orb.position); f.group.scale.set(sc, sc, sc); f.group.rotation.y = (wd.gx || 0) * .03 + Math.sin(t * .4) * .04; f.group.rotation.x = -(wd.gy || 0) * .03;
+        const open = m === 'speaking' ? .6 + this.speechLevel * 7 : m === 'listening' ? 1.6 : 1; f.mouth.scale.set(1 + (m === 'speaking' ? this.speechLevel * .4 : 0), open, 1);
+        f.blink = t > f.nextBlink ? f.blink + dt * 12 : 0; if (f.blink > 2) { f.blink = 0; f.nextBlink = t + 2 + Math.random() * 4; } const lid = f.blink > 0 && f.blink < 2 ? Math.max(.08, Math.abs(1 - f.blink)) : 1;
+        const mood = (SAM.brain && SAM.brain.cfg && SAM.brain.cfg.mood) || 'balanced', tilt = ({ witty: -.35, hype: -.5, sarcastic: .25, deadpan: .1, professional: 0, balanced: -.1 })[mood] || 0;
+        f.eyes.forEach((e, i) => { e.scale.y = 1.35 * lid * (m === 'alert' ? .6 : 1); e.position.x = (i ? 38 : -38) + (wd.gx || 0) * .6; e.position.y = 18 + (wd.gy || 0) * .6; e.material.color = red ? new THREE.Color(1, .3, .45) : rgb(SAM.core.THEME.ice); });
+        f.brows.forEach((b, i) => { b.rotation.z = (i ? -1 : 1) * (tilt + (m === 'thinking' ? .3 : 0) + (red ? .5 : 0)); b.position.y = 46 + (m === 'listening' ? 6 : 0) - (red ? 8 : 0); });
+      } }
     this.halo.position.copy(this.orb.position); const hs = 330 * sc * (1 + this.speechLevel * .25 + music * .3); this.halo.scale.set(hs, hs, 1); this.halo.material.color = red ? new THREE.Color(1, .24, .43) : (mode === 1 ? B : A); this.halo.material.opacity = .35 + .35 * this.energy;
     const nu = this.nebula.material.uniforms; nu.uTime.value = t; nu.uA.value = A; nu.uB.value = B; nu.uRed.value += (red - nu.uRed.value) * .06; nu.uEnergy.value += (this.energy - nu.uEnergy.value) * .05; nu.uStir.value = m === 'alert' ? .6 : m === 'thinking' ? .35 : .15 + music * .3;
     this.glitch = Math.max(0, this.glitch - dt * 1.5); nu.uGlitch.value = this.glitch;

@@ -101,6 +101,16 @@
     /* ---- looks: crt and cinema overlays ---- */
     setLook(name) { this.look = ['crt', 'cinema', 'none'].includes(name) ? name : 'none'; const st = $('stage'); st.classList.remove('look-crt', 'look-cinema'); if (this.look !== 'none') st.classList.add('look-' + this.look); SAM.hud.S.look = this.look; },
 
+    /* ---- ambient slideshow: gallery photos drift behind the core ---- */
+    slideshow(on) {
+      const want = on && this.on && (SAM.widgets.data.gallery || []).length > 0;
+      if (!want) { if (this.slideT) { clearInterval(this.slideT); this.slideT = null; } document.querySelectorAll('.slide').forEach(e => e.remove()); return; }
+      if (this.slideT) return; let i = 0;
+      const show = () => { const g = SAM.widgets.data.gallery || []; if (!g.length) return; const url = SAM.H + ':9500' + g[i % g.length] + (SAM.token ? '&token=' + encodeURIComponent(SAM.token) : ''); i++;
+        const img = document.createElement('img'); img.className = 'slide'; img.src = url; img.style.opacity = '0'; $('stage').insertBefore(img, $('layerC')); requestAnimationFrame(() => { img.style.opacity = '.32'; });
+        document.querySelectorAll('.slide').forEach(e => { if (e !== img) { e.style.opacity = '0'; setTimeout(() => e.remove(), 2500); } }); };
+      show(); this.slideT = setInterval(show, 14000);
+    },
     /* ---- the orb chases the mouse while idle ---- */
     mouseChase() {
       const st = $('stage'); let last = 0;

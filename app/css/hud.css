@@ -500,3 +500,19 @@ html.bigtext .reply{font-size:26px}html.bigtext .field input{font-size:19px}html
 .leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) saturate(.55) brightness(.85) contrast(1.05)}
 .leaflet-container{background:#05070f;font-family:var(--mono)}.leaflet-control-attribution{background:rgba(5,6,13,.7)!important;color:var(--muted)!important;font-size:9px}.leaflet-control-attribution a{color:var(--cyan)!important}
 .maptip{background:rgba(5,6,13,.9)!important;border:1px solid rgba(var(--cyan-rgb),.5)!important;color:var(--ice)!important;font-family:var(--mono)!important;font-size:10px!important;letter-spacing:.12em;box-shadow:none!important}.maptip::before{display:none}
+
+/* ---- wall mode, desk mode, face avatar ---- */
+.stage.wall #nodes,.stage.wall .ticker,.stage.wall .shapeText,.stage.wall .brackets,.stage.wall .layerL,.stage.wall .layerR{opacity:0;pointer-events:none}
+.stage.wall .clockbox{transform:translate(-560px,470px) scale(3.4);transform-origin:right top}.stage.wall .clock{text-shadow:0 0 30px rgba(var(--cyan-rgb),.6)}
+.stage.wall .orbAnchor{transform:scale(1.5)!important}.stage.wall .console{opacity:.6}
+.stage.desk .layer{perspective:1500px;transform-style:preserve-3d}.stage.desk .fly{transition:transform 1.1s var(--ease),opacity .6s}.stage.desk #nodes{opacity:.35}
+.stage.face .orb,.stage.face .eyes{opacity:0}
+.slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 2.4s ease;filter:saturate(.7) brightness(.8);pointer-events:none}
+/* ---- skins ---- */
+.skin-wireframe .card{background:transparent;backdrop-filter:none;border:1px solid rgba(var(--cyan-rgb),.55);box-shadow:inset 0 0 0 1px rgba(var(--cyan-rgb),.08)}.skin-wireframe .card .ch{border-bottom:1px dashed rgba(var(--cyan-rgb),.35);padding-bottom:6px}
+.skin-paper .card{background:#f4efe3;color:#1d1b16;border:1px solid #cdbf9e;box-shadow:0 10px 30px rgba(0,0,0,.5)}.skin-paper .card .t,.skin-paper .card .tag,.skin-paper .meter span:last-child,.skin-paper .ti,.skin-paper .wx .big,.skin-paper .ev .ti,.skin-paper .task .lb{color:#1d1b16}.skin-paper .card .meter,.skin-paper .card .foot,.skin-paper .ar,.skin-paper .days .l{color:#5c5547}.skin-paper .card .ch b{background:#9b2c2c}
+/* ---- depth blur ---- */
+html.depth .bg-grid{filter:blur(1.2px)}html.depth .stage .backdrop{backdrop-filter:blur(6px)}html.depth .gl{filter:blur(.6px)}
+/* ---- privacy light + mic kill ---- */
+.pills .m i{transition:background .2s,box-shadow .2s}html.mic-open .pills .m i{background:#ffb84d;box-shadow:0 0 8px #ffb84d}html.mic-live .pills .m i{background:#ff3d6e;box-shadow:0 0 12px #ff3d6e,0 0 24px rgba(255,61,110,.6)}
+html.mickill .pills .m i{background:#444;box-shadow:none}html.mickill .pills .m{text-decoration:line-through;color:var(--muted)}html.mickill .ibtn.mic{opacity:.35;pointer-events:none}

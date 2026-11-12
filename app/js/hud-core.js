@@ -22,6 +22,24 @@ window.SAM = window.SAM || {};
     alert: { amp: 96, base: 16, sp: 9, col: THEME.red }, boot: { amp: 10, base: 10, sp: .5, col: THEME.c }
   });
 
+
+  /* icon shapes for widget morphs: drawn on a small canvas, then sampled like spelled words */
+  function drawIcon(x, w, h, name) {
+    x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineWidth = 16; x.lineCap = 'round'; x.lineJoin = 'round'; const cx = w / 2, cy = h / 2;
+    if (name === 'cloud') { for (const [dx, dy, r] of [[-60, 10, 34], [-20, -18, 44], [30, -8, 40], [62, 14, 30], [0, 22, 36]]) { x.beginPath(); x.arc(cx + dx, cy + dy, r, 0, 6.283); x.fill(); } }
+    else if (name === 'pulse') { x.beginPath(); x.moveTo(cx - 150, cy); x.lineTo(cx - 70, cy); x.lineTo(cx - 50, cy - 40); x.lineTo(cx - 25, cy + 55); x.lineTo(cx, cy - 60); x.lineTo(cx + 20, cy + 20); x.lineTo(cx + 40, cy); x.lineTo(cx + 150, cy); x.stroke(); }
+    else if (name === 'house') { x.beginPath(); x.moveTo(cx - 90, cy + 10); x.lineTo(cx, cy - 60); x.lineTo(cx + 90, cy + 10); x.stroke(); x.strokeRect(cx - 65, cy + 5, 130, 60); x.fillRect(cx - 14, cy + 25, 28, 40); }
+    else if (name === 'pin') { x.beginPath(); x.arc(cx, cy - 22, 40, Math.PI * .8, Math.PI * 2.2); x.lineTo(cx, cy + 62); x.closePath(); x.fill(); x.fillStyle = '#000'; x.beginPath(); x.arc(cx, cy - 22, 16, 0, 6.283); x.fill(); }
+    else if (name === 'clock') { x.beginPath(); x.arc(cx, cy, 62, 0, 6.283); x.stroke(); x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx, cy - 40); x.moveTo(cx, cy); x.lineTo(cx + 30, cy + 12); x.stroke(); }
+    else if (name === 'envelope') { x.strokeRect(cx - 95, cy - 50, 190, 100); x.beginPath(); x.moveTo(cx - 95, cy - 50); x.lineTo(cx, cy + 10); x.lineTo(cx + 95, cy - 50); x.stroke(); }
+    else if (name === 'check') { x.lineWidth = 22; x.beginPath(); x.moveTo(cx - 80, cy); x.lineTo(cx - 20, cy + 50); x.lineTo(cx + 90, cy - 50); x.stroke(); }
+    else if (name === 'note') { x.font = 'bold 150px "DejaVu Sans", "Segoe UI Symbol", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('♪', cx, cy + 10); }
+    else if (name === 'eye') { x.beginPath(); x.ellipse(cx, cy, 100, 48, 0, 0, 6.283); x.stroke(); x.beginPath(); x.arc(cx, cy, 26, 0, 6.283); x.fill(); }
+    else if (name === 'screen') { x.strokeRect(cx - 100, cy - 60, 200, 120); x.fillRect(cx - 40, cy + 62, 80, 12); }
+    else if (name === 'globe') { x.beginPath(); x.arc(cx, cy, 64, 0, 6.283); x.stroke(); x.beginPath(); x.ellipse(cx, cy, 28, 64, 0, 0, 6.283); x.stroke(); x.beginPath(); x.moveTo(cx - 64, cy); x.lineTo(cx + 64, cy); x.stroke(); }
+    else { x.font = 'bold 120px Michroma, Arial Black, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(name.slice(0, 3).toUpperCase(), cx, cy); }
+  }
+
   function shapeOf(name) {
     const a = new Float32Array(PN * 3), R = Math.random, set = (i, x, y, z) => { a[i * 3] = x; a[i * 3 + 1] = y; a[i * 3 + 2] = z; };
     if (name === 'heart') for (let i = 0; i < PN; i++) { const t = R() * 6.283, r = Math.sqrt(R()); const hx = 16 * Math.pow(Math.sin(t), 3), hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t); set(i, r * hx / 17, r * (hy + 2) / 17, (R() - .5) * .25); }
@@ -31,11 +49,11 @@ window.SAM = window.SAM || {};
     else if (name === 'knot') for (let i = 0; i < PN; i++) { const t = (i / PN) * 6.283 * 2, r = .62 + .22 * Math.cos(1.5 * t), j = () => (R() - .5) * .05; set(i, r * Math.cos(t) + j(), .24 * Math.sin(1.5 * t) + j(), r * Math.sin(t) + j()); }
     else if (name === 'ring') for (let i = 0; i < PN; i++) { const t = (i / PN) * 6.283, tube = R() * 6.283, Rr = .85, T = .07 + R() * .05; set(i, (Rr + T * Math.cos(tube)) * Math.cos(t), T * Math.sin(tube), (Rr + T * Math.cos(tube)) * Math.sin(t)); }
     else if (name === 'wave') { const side = Math.sqrt(PN) | 0; for (let i = 0; i < PN; i++) { const gx = (i % side) / side - .5, gz = Math.floor(i / side) / side - .5, d = Math.hypot(gx, gz); set(i, gx * 2.2, Math.sin(d * 18) * .22 * (1 - d), gz * 2.2); } }
-    else if (name.startsWith('text:')) {
+    else if (name.startsWith('text:') || name.startsWith('icon:')) {
       const word = name.slice(5), c = document.createElement('canvas'), w = 360, h = 160; c.width = w; c.height = h;
       const x = c.getContext('2d'); x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      let size = 110; do { x.font = `bold ${size}px Michroma, Arial Black, sans-serif`; size -= 6; } while (x.measureText(word).width > w - 24 && size > 16);
-      x.fillText(word, w / 2, h / 2);
+      if (name.startsWith('icon:')) drawIcon(x, w, h, word);
+      else { let size = 110; do { x.font = `bold ${size}px Michroma, Arial Black, sans-serif`; size -= 6; } while (x.measureText(word).width > w - 24 && size > 16); x.fillText(word, w / 2, h / 2); }
       const img = x.getImageData(0, 0, w, h).data, pts = [];
       for (let py = 0; py < h; py += 2) for (let px = 0; px < w; px += 2) if (img[(py * w + px) * 4 + 3] > 110) pts.push(px, py);
       if (!pts.length) return shapeOf('sphere');
@@ -87,7 +105,7 @@ window.SAM = window.SAM || {};
           this.morphT = Math.min(1, this.morphT + dt / 1.6);
           for (let i = 0; i < PN; i++) { let k = (this.morphT - D[i] * .45) / .55; k = k < 0 ? 0 : k > 1 ? 1 : k; k = k * k * (3 - 2 * k); for (let j = 0; j < 3; j++) P[i * 3 + j] = F[i * 3 + j] + (T[i * 3 + j] - F[i * 3 + j]) * k; }
         }
-        const base = this.shapeName.startsWith('text:') ? 'text' : this.shapeName;
+        const base = this.shapeName.startsWith('text:') || this.shapeName.startsWith('icon:') ? 'text' : this.shapeName;
         const spinSpeed = m === 'thinking' ? 1.4 : m === 'alert' ? 2 : .3;
         if (FACING[base]) this.spin += (Math.sin(t * .6) * .3 - this.spin) * .04; else this.spin += spinSpeed * dt;
         this.tilt += ((SHAPE_TILT[base] ?? .3) - this.tilt) * .04;

@@ -11,7 +11,7 @@
   const S = {
     mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, w.pin === false ? 0 : 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
-    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', glUser: false, fx: true, presence: false, presenceCam: '', governor: true, tune: null, gpuWarning: '', theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', glUser: false, fx: true, presence: false, avatar: 'orb', skin: 'glass', font: 'michroma', deskRot: 0, micKill: false, depth: true, presenceCam: '', governor: true, tune: null, gpuWarning: '', theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
   };
   const stage = $('stage'), root = $('root');
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; S.avatar = s.ui.avatar || 'orb'; S.skin = s.ui.skin || 'glass'; S.font = s.ui.font || 'michroma'; S.micKill = !!s.ui.micKill; S.depth = s.ui.depth ?? true; applySkin(); if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, avatar: S.avatar, skin: S.skin, font: S.font, micKill: S.micKill, depth: S.depth, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -61,11 +61,19 @@
   /* ---------- layout: slots, fly, halo, flow ---------- */
   const FOCUS_SET = { sys: 1, cal: 1, task: 1, wx: 1, mus: 1, home: 1 };     // the calmer default: six widgets, six docked in the ring
   function applyLayout() {
-    const ambient = S.layout === 'ambient', focusMode = S.layout === 'focus';
-    stage.classList.toggle('calm', focusMode || ambient);
+    const wall = S.layout === 'wall', desk = S.layout === 'desk', ambient = S.layout === 'ambient' || wall, focusMode = S.layout === 'focus';
+    stage.classList.toggle('calm', focusMode || ambient); stage.classList.toggle('wall', wall); stage.classList.toggle('desk', desk); stage.classList.toggle('face', S.avatar === 'face');
+    const deskList = desk ? W.filter(w => S.pinned[w.id] && w.pin !== false) : [];
     W.forEach((w, i) => {
       const slot = document.querySelector(`.slot[data-id=${w.id}]`), fly = document.querySelector(`.fly[data-id=${w.id}]`), node = document.querySelector(`.node[data-id=${w.id}]`);
       const docked = ambient || !S.pinned[w.id] || (focusMode && !FOCUS_SET[w.id]), focused = S.focus === w.id;
+      if (desk && !focused && !docked && !S.flow) {                        // holographic desk: pinned widgets on a curved 3D wall around the orb
+        slot.classList.remove('docked'); fly.classList.remove('focus', 'dim'); slot.style.left = w.x + 'px'; slot.style.top = w.y + 'px';
+        const k = deskList.indexOf(w), n = deskList.length, a = ((k - (n - 1) / 2) * (n > 8 ? 20 : 26) + S.deskRot) * Math.PI / 180;
+        const tx = 960 + Math.sin(a) * 1180 - (w.x + 136), ty = 300 + Math.abs(Math.sin(a)) * 90 - (w.y + 125), tz = Math.cos(a) * 520 - 820;
+        fly.style.cssText = `transform:perspective(1500px) translate3d(${tx.toFixed(0)}px,${ty.toFixed(0)}px,${tz.toFixed(0)}px) rotateY(${(-a * 180 / Math.PI).toFixed(1)}deg);opacity:${.55 + .45 * Math.cos(a)};visibility:${Math.abs(a) > 1.9 ? 'hidden' : 'visible'};z-index:${Math.round(40 + Math.cos(a) * 20)}`;
+        node.classList.remove('docked', 'focused'); return;
+      }
       node.classList.toggle('docked', docked && !focused); node.classList.toggle('focused', focused);
       if (S.flow) {
         slot.style.left = slot.style.top = '';
@@ -88,6 +96,7 @@
       fly.style.cssText = st;
     });
     $('backdrop').classList.toggle('hidden', !S.focus);
+    if (SAM.fx) SAM.fx.slideshow(ambient && !S.focus);
     document.querySelectorAll('.sbtn.lay').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout));
     document.querySelectorAll('.drawer .sbtn.lay').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout));
   }
@@ -215,6 +224,15 @@
     if (/^(presence (on|off)|(start|stop) watching( the)?( camera| for me)?|watch for me)$/.test(q)) { const on = !/off|stop/.test(q); return { text: on ? 'Watching for you.' : 'Presence off.', effect: () => { S.presence = on; save(); SAM.fx && SAM.fx.presence(on); } }; }
     if (/^(big(ger)? text( mode)?|large text|text (bigger|larger)|zoom in text)$/.test(q)) return { text: 'Bigger text.', effect: () => { S.bigtext = true; document.documentElement.classList.add('bigtext'); save(); } };
     if (/^(normal text|small(er)? text|text smaller|zoom out text)$/.test(q)) return { text: 'Normal text.', effect: () => { S.bigtext = false; document.documentElement.classList.remove('bigtext'); save(); } };
+    if (/^(desk( mode| layout)?|holographic desk|holo desk|3d desk)$/.test(q)) return { text: 'Holographic desk.', effect: () => { S.layout = 'desk'; save(); applyLayout(); } };
+    if (/^(wall( mode| layout)?|wallpaper( mode)?|projector mode|living wallpaper)$/.test(q)) return { text: 'Wall mode.', effect: () => { S.layout = 'wall'; save(); applyLayout(); } };
+    if (/^(show (me )?your face|face mode|3d face|put on a face|be a face)$/.test(q)) return { text: 'Face on.', effect: () => { S.avatar = 'face'; save(); applyLayout(); } };
+    if (/^(orb mode|back to the orb|be an orb|hide your face)$/.test(q)) return { text: 'Back to the orb.', effect: () => { S.avatar = 'orb'; save(); applyLayout(); } };
+    const skq = q.match(/^(glass|wireframe|paper) (skin|look|widgets|cards)$/); if (skq) return { text: `${skq[1]} skin.`, effect: () => { S.skin = skq[1]; save(); applySkin(); } };
+    if (/^(mute the mic|mic off|kill the mic|privacy mode( on)?|stop listening for good)$/.test(q)) return { text: 'Microphone off. Nothing leaves this PC until you flip the switch.', effect: () => micKill(true) };
+    if (/^(mic on|unmute the mic|privacy mode off|listen again)$/.test(q)) return { text: 'Microphone back.', effect: () => { micKill(false); } };
+    const po = q.match(/^(?:pop out|float|detach|pin out) (?:the )?(.+?)(?: widget)?$/); if (po) { const w = W.find(x => x.id === po[1] || x.title.toLowerCase() === po[1] || x.name.toLowerCase().includes(po[1])); if (w) return { popOut: w.id }; }
+    const site = q.match(/^open (claude|chatgpt|chat gpt|gemini|google ai studio|perplexity)( in the browser| website| site)?$/); if (site) { const u = { claude: 'https://claude.ai', chatgpt: 'https://chatgpt.com', 'chat gpt': 'https://chatgpt.com', gemini: 'https://gemini.google.com', 'google ai studio': 'https://aistudio.google.com', perplexity: 'https://www.perplexity.ai' }[site[1]]; return { text: `Opening ${site[1]} in the browser window. That is the real site, sign in there if you like.`, effect: async () => { try { await fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'headed', arg: 'on' }) }); } catch (e) { } fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'open', arg: u }) }).catch(() => { }); } }; }
     if (/^(stay|stay still|stop moving|stop wandering|hold still|come back|come here|center|centre)$/.test(q)) return { text: 'Holding position.', effect: () => { S.wander = false; save(); } };
     if (/^(roam|rome|roman|wander|wonder|move around|explore|free roam|go explore|move as you like|go roam)$/.test(q)) return { text: 'Roaming.', effect: () => { S.wander = true; save(); } };
     if (/^proactive check$/.test(q)) return { proactive: true };
@@ -249,7 +267,7 @@
     if (/^(sign in to google|google sign in|show (the )?browser window|open (the )?browser window)$/.test(q)) return { text: 'Opening the browser window. Sign in to Google there, then say "find my phone" again.', effect: () => fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'headed', arg: 'on' }) }).catch(() => { }) };
     /* map: where is X, show the map */
     if (/^(show|open) (me )?(the )?map$|^map$|^where am i\??$/.test(q)) return { focus: 'map', text: 'Here you are.', effect: () => setTimeout(() => widgets.mapShow(), 150) };
-    const wh = q.match(/^(?:where is|where's|show me|map of|find on the map|navigate to|locate) (?!my phone)(.{2,60})$/) || q.match(/^(?:find|show|put) (.{2,60}?) on the map$/); if (wh && !/phone|mobile/.test(wh[1])) return { mapFind: wh[1] };
+    const wh = q.match(/^(?:where is|where's|map of|find on the map|navigate to|locate) (?!my phone)(.{2,60})$/) || q.match(/^(?:find|show|show me|put) (.{2,60}?) on the map$/); if (wh && !/phone|mobile/.test(wh[1])) return { mapFind: wh[1] };
     /* spotify */
     if (/^(link|connect|log ?in to|sign in to) spotify$/.test(q)) return { spotifyLink: true };
     const spq = q.match(/^(?:play|put on|start) (.+?) on spotify$/) || q.match(/^spotify(?: play)? (.+)$/); if (spq && !/^(pause|next|previous|prev|volume|shuffle|repeat|status)/.test(spq[1])) return { spotify: ['play', spq[1]] };
@@ -381,6 +399,7 @@
       else if (r && r.docs) { r = await docsAnswer(r.docs); }
       else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
       else if (r && r.plan) { r = await planRun(r.plan); }
+      else if (r && r.popOut) { r = { text: await popOut(r.popOut) }; }
       else if (r && r.findPhone) { r = await findPhone(r.findPhone); }
       else if (r && r.mapFind) { const t = await widgets.mapFind(r.mapFind); r = t ? { focus: 'map', text: `${t.label.split(',').slice(0, 2).join(',')}.`, effect: () => setTimeout(() => widgets.mapShow(t), 150) } : { text: `I could not find ${r.mapFind} on the map.` }; }
       else if (r && r.spotifyLink) { const d = await (await fetch(ADDONS + '/spotify/auth')).json(); r = d.ok ? { text: 'Opening Spotify to link your account. Approve it there, then say "play something on spotify".', effect: () => window.open(d.url, '_blank') } : { text: d.error || 'Set your Spotify client id in the control panel first.' }; }
@@ -412,6 +431,7 @@
     if (r.alert) { showAlert({ level: 'HIGH', title: `Unusual login pattern on node ${widgets.nodeLabel}`, source: '203.0.113.9 · unknown host', vector: 'SSH · 3 failed attempts in 40 s', asset: 'login service', demo: true }); return; }
     if (r.reboot) { boot(); return; }
     r.effect && r.effect();
+    if (r.focus && !r.shape && ICON[r.focus] && !S.flow) iconMorph(r.focus);
     if (r.shape) { const ok = core.setShape(r.shape.startsWith('text:') ? r.shape : String(r.shape).toLowerCase(), true); if (!ok && !r.text) r.text = 'Already there.'; }
     const acts = r.actions || []; const results = [];
     for (const a of acts) { const res = await runAction(a); if (res) results.push(res); }
@@ -624,7 +644,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
         case 'remember': await brain.fact('remember', arg); return null;
         case 'forget': await brain.fact('forget', arg); return null;
         case 'shape': core.setShape(arg.startsWith('text:') ? arg : arg.toLowerCase(), true); return null;
-        case 'layout': S.layout = arg === 'ambient' ? 'ambient' : 'full'; save(); applyLayout(); return null;
+        case 'layout': S.layout = ['ambient', 'focus', 'desk', 'wall'].includes(arg) ? arg : 'full'; save(); applyLayout(); return null;
         case 'reboot': T(boot, 1500); return null;
         case 'alert_demo': T(() => showAlert({ level: 'HIGH', title: 'Demo alert', source: '203.0.113.9 · unknown host', vector: 'SSH · 3 failed attempts', asset: 'login service', demo: true }), 1200); return null;
         case 'research': case 'agent_task': { agentDelegate(type === 'research' ? 'search' : 'work', arg); return null; }
@@ -787,7 +807,13 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       <div class="themes">${Object.keys(THEMES).map(t => { const [a, b] = themeHex(t); return `<div class="sw${S.theme === t ? ' on' : ''}" data-t="${t}" style="--a:${a};--b:${b}" title="${t}"><span>${t}</span></div>`; }).join('')}</div>
       <div class="pick"><label>ACCENT <input type="color" id="optColA" value="${S.custom.a}"></label><label>SECOND <input type="color" id="optColB" value="${S.custom.b}"></label><span class="note" style="margin:0">pick two colours for your own theme · say "theme ocean", "random theme"</span></div>
       <h4>LAYOUT</h4>
-      <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div></div>
+      <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div><div class="sbtn lay${S.layout === 'desk' ? ' on' : ''}" data-l="desk">DESK 3D</div><div class="sbtn lay${S.layout === 'wall' ? ' on' : ''}" data-l="wall">WALL</div></div>
+      <h4>AVATAR · SKIN · FONT</h4>
+      <div class="lbtns"><div class="sbtn av${S.avatar === 'orb' ? ' on' : ''}" data-av="orb">ORB</div><div class="sbtn av${S.avatar === 'face' ? ' on' : ''}" data-av="face">3D FACE</div></div>
+      <div class="lbtns"><div class="sbtn sk${S.skin === 'glass' ? ' on' : ''}" data-sk="glass">GLASS</div><div class="sbtn sk${S.skin === 'wireframe' ? ' on' : ''}" data-sk="wireframe">WIREFRAME</div><div class="sbtn sk${S.skin === 'paper' ? ' on' : ''}" data-sk="paper">PAPER</div></div>
+      <select id="optFont">${[['michroma', 'FONT: MICHROMA + SAIRA (DEFAULT)'], ['system', 'FONT: SYSTEM (SEGOE / SF)'], ['mono', 'FONT: ALL MONOSPACE'], ['serif', 'FONT: SERIF']].map(([k, l]) => `<option value="${k}"${S.font === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
+      <div class="row"><span>DEPTH BLUR (BACKGROUND SOFTENS BEHIND CARDS)</span>${sw('depth', S.depth)}</div>
+      <div class="row"><span>MIC KILL SWITCH (PRIVACY · NO AUDIO LEAVES THE PC)</span>${sw('micKill', S.micKill)}</div>
       <div class="note">Focus shows six widgets; the other six wait in the ring. Full shows all twelve.</div>
       <div class="row"><span>PROACTIVE CHECK-INS (EVERY 30 MIN)</span>${sw('proactive', !!S.proactive)}</div>
       <h4>AUTO-TUNE · THIS MACHINE</h4>
@@ -821,6 +847,9 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     b.roles = b.roles || { chat: '', work: '', research: '', vision: '' };
     ['chat', 'work', 'research', 'vision'].forEach(role => { $('role_' + role).onchange = e => { b.roles[role] = e.target.value; save(); }; });
     document.querySelectorAll('.themes .sw').forEach(el => el.onclick = () => { applyTheme(el.dataset.t); save(); });
+    document.querySelectorAll('.sbtn.av').forEach(el => el.onclick = () => { S.avatar = el.dataset.av; save(); applyLayout(); document.querySelectorAll('.sbtn.av').forEach(b => b.classList.toggle('on', b === el)); });
+    document.querySelectorAll('.sbtn.sk').forEach(el => el.onclick = () => { S.skin = el.dataset.sk; save(); applySkin(); document.querySelectorAll('.sbtn.sk').forEach(b => b.classList.toggle('on', b === el)); });
+    $('optFont').onchange = e => { S.font = e.target.value; save(); applySkin(); };
     document.querySelectorAll('.sbtn.gl').forEach(el => el.onclick = () => { S.gl = el.dataset.g; save(); document.querySelectorAll('.sbtn.gl').forEach(b => b.classList.toggle('on', b === el)); if (!SAM.gl) return; if (S.gl === 'off') SAM.gl.disable(); else if (!SAM.gl.on) SAM.gl.enable(S.glQuality); });
     document.querySelectorAll('.sbtn.glq').forEach(el => el.onclick = () => { S.glQuality = el.dataset.q; S.glUser = true; save(); document.querySelectorAll('.sbtn.glq').forEach(b => b.classList.toggle('on', b === el)); if (SAM.gl && SAM.gl.on) SAM.gl.setQuality(S.glQuality); });
     const colPick = () => { S.custom = { a: $('optColA').value, b: $('optColB').value }; applyTheme('custom'); save(); };
@@ -849,6 +878,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       else if (k === 'particles') { S.particles = on; core.particles = on && !(SAM.gl && SAM.gl.on); } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
       else if (k === 'fx') { S.fx = on; SAM.fx && SAM.fx.setEnabled(on); } else if (k === 'presence') { S.presence = on; SAM.fx && SAM.fx.presence(on); }
       else if (k === 'governor') S.governor = on; else if (k === 'bigtext') { S.bigtext = on; document.documentElement.classList.toggle('bigtext', on); }
+      else if (k === 'depth') { S.depth = on; applySkin(); } else if (k === 'micKill') micKill(on);
       else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });
@@ -892,6 +922,42 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   }
 
   /* ---------- wiring ---------- */
+  /* ---------- skins, fonts, depth ---------- */
+  function applySkin() {
+    stage.classList.remove('skin-glass', 'skin-wireframe', 'skin-paper'); stage.classList.add('skin-' + (S.skin || 'glass'));
+    const r = document.documentElement.style, F = { michroma: null, system: ["'Segoe UI','SF Pro Text',system-ui,sans-serif", "'Segoe UI','SF Pro Text',system-ui,sans-serif", "Consolas,'SF Mono',monospace"], mono: ["'IBM Plex Mono',monospace", "'IBM Plex Mono',monospace", "'IBM Plex Mono',monospace"], serif: ["Georgia,'Times New Roman',serif", "Georgia,'Times New Roman',serif", "'IBM Plex Mono',monospace"] }[S.font || 'michroma'];
+    if (F) { r.setProperty('--disp', F[0]); r.setProperty('--body', F[1]); r.setProperty('--mono', F[2]); } else ['--disp', '--body', '--mono'].forEach(k => r.removeProperty(k));
+    document.documentElement.classList.toggle('depth', !!S.depth);
+  }
+  /* ---------- mic kill switch: stops the mic, blocks restarts, mutes the system microphone ---------- */
+  function micKill(on) {
+    S.micKill = on; save(); document.documentElement.classList.toggle('mickill', on);
+    if (on) { voice.stop(); if (S.mode === 'listening') setMode('idle'); }
+    fetch(SAM.H + ':9300/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'mic_mute', arg: on ? 'on' : 'off' }) }).catch(() => { });
+    log(on ? 'warn' : 'ok', on ? 'mic kill switch ON · no audio leaves this PC' : 'mic kill switch off');
+  }
+  const _vstart = voice.start.bind(voice); voice.start = (...a) => { if (S.micKill) { log('warn', 'mic is killed · say nothing, flip the switch in settings'); return Promise.resolve(false); } return _vstart(...a); };
+  setInterval(() => { document.documentElement.classList.toggle('mic-live', !!voice.micOn && !S.micKill && (voice.level || 0) > .02); document.documentElement.classList.toggle('mic-open', !!voice.micOn && !S.micKill); }, 250);
+  /* ---------- particles form the widget's icon for a moment before it opens ---------- */
+  const ICON = { wx: 'cloud', sys: 'pulse', home: 'house', map: 'pin', tmr: 'clock', msg: 'envelope', task: 'check', mus: 'note', cam: 'eye', scr: 'screen', cal: 'clock', web: 'globe' };
+  let iconT = null;
+  function iconMorph(id) {
+    if (!S.fx || !ICON[id] || core.showcase()) return; const prev = core.shapeName; if (prev.startsWith('icon:')) return;
+    core.setShape('icon:' + ICON[id]); clearTimeout(iconT); iconT = setTimeout(() => { if (core.shapeName === 'icon:' + ICON[id]) core.setShape(prev); }, 1500);
+  }
+  /* ---------- pop a widget out into a small always-on-top window (Document Picture-in-Picture, Chrome 116+) ---------- */
+  async function popOut(id) {
+    const card = document.querySelector(`.card[data-id=${id}]`); if (!card) return 'No such widget.';
+    if (!('documentPictureInPicture' in window)) return 'This browser cannot pop widgets out. Chrome 116 or newer can.';
+    try {
+      const pw = await documentPictureInPicture.requestWindow({ width: 420, height: 360 });
+      [...document.styleSheets].forEach(ss => { try { const st = pw.document.createElement('style'); st.textContent = [...ss.cssRules].map(r => r.cssText).join('\n'); pw.document.head.appendChild(st); } catch (e) { if (ss.href) { const l = pw.document.createElement('link'); l.rel = 'stylesheet'; l.href = ss.href; pw.document.head.appendChild(l); } } });
+      pw.document.body.style.cssText = 'margin:0;background:#05060d;overflow:hidden'; const holder = pw.document.createElement('div'); holder.style.cssText = 'position:relative;width:272px;height:250px;transform:scale(1.4);transform-origin:0 0'; pw.document.body.appendChild(holder);
+      const clone = card.cloneNode(true); clone.style.position = 'absolute'; clone.style.inset = '0'; holder.appendChild(clone);
+      const iv = setInterval(() => { if (pw.closed) { clearInterval(iv); return; } const live = document.querySelector(`.card[data-id=${id}] .body`); const c = clone.querySelector('.body'); if (live && c && c.innerHTML !== live.innerHTML) c.innerHTML = live.innerHTML; }, 2000);
+      return `${W.find(w => w.id === id).title} is floating in its own window.`;
+    } catch (e) { return 'Pop-out was blocked: ' + String(e.message).slice(0, 60); }
+  }
   /* ---------- auto-tune: defaults from the control panel's hardware profile (only where the user has not chosen) ---------- */
   const PANEL = SAM.H + ':9000';
   async function loadTune() {
@@ -956,6 +1022,9 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   }
   function init() {
     if (APP_WINDOW) appWindow();
+    let dragX = null; stage.addEventListener('mousedown', e => { if (S.layout === 'desk' && !e.target.closest('.card,.drawer,.inputbar,.console,.node')) dragX = e.clientX; });
+    window.addEventListener('mousemove', e => { if (dragX !== null) { S.deskRot += (e.clientX - dragX) * .25; dragX = e.clientX; applyLayout(); } }); window.addEventListener('mouseup', () => { if (dragX !== null) { dragX = null; save(); } });
+    applySkin();
     loadTune(); setInterval(governor, 10000);
     if (COMPANION) { companionEvents(); voice.cfg.sttEngine = voice.phoneCapable ? 'phone' : voice.cfg.sttEngine; if (!voice.cfg.companion || voice.cfg.companion === 'off') voice.cfg.companion = 'phone'; document.documentElement.dataset.companion = '1'; }
     else voice.relay.pollLoop(async c => { const quiet = c.speak_on === 'phone', was = voice.cfg.voiceOn; if (quiet) voice.cfg.voiceOn = false; widgets.pushTty(`phone · ${c.text}`, '#ffb84d'); console.log('relay · from phone: ' + c.text); let text = ''; try { text = await submit(c.text); } finally { if (quiet) voice.cfg.voiceOn = was; } setTimeout(() => { $('transcript').textContent = `from your phone: "${c.text}"`; $('transcript').classList.add('on'); }, 60); return text || S.lastReply || ''; });
