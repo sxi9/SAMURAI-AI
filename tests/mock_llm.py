@@ -12,7 +12,7 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 1234
 
 def reply_for(user):
     if "Design a small HUD widget" in user:
-        return None, ('{"name": "Task Count", "code": "TCT", "html": "<div style=\\"padding:24px;font-family:monospace;color:#d9f8ff\\"><div style=\\"font-size:12px;letter-spacing:.3em;color:#a07cff\\">OPEN TASKS</div><div id=n style=\\"font-size:120px;color:#2ee6ff;line-height:1.1\\">0</div><div id=l style=\\"font-size:14px;opacity:.8\\"></div><script>window.addEventListener(\\"message\\",e=>{const s=e.data&&e.data.snapshot;if(!s)return;const t=(s.tasks||[]).filter(x=>!x.done);document.getElementById(\\"n\\").textContent=t.length;document.getElementById(\\"l\\").textContent=t.map(x=>x.label).join(\\" · \\")});</script></div>"}')
+        return {"focus": None, "actions": [], "shape": None, "reply": ('{"name": "Task Count", "code": "TCT", "html": "<div style=\\"padding:24px;font-family:monospace;color:#d9f8ff\\"><div style=\\"font-size:12px;letter-spacing:.3em;color:#a07cff\\">OPEN TASKS</div><div id=n style=\\"font-size:120px;color:#2ee6ff;line-height:1.1\\">0</div><div id=l style=\\"font-size:14px;opacity:.8\\"></div><script>window.addEventListener(\\"message\\",e=>{const s=e.data&&e.data.snapshot;if(!s)return;const t=(s.tasks||[]).filter(x=>!x.done);document.getElementById(\\"n\\").textContent=t.length;document.getElementById(\\"l\\").textContent=t.map(x=>x.label).join(\\" · \\")});</script></div>"}')}
     u = (user or "").lower()
     focus, actions, shape = None, [], None
     if "spoken briefing from these facts" in u:

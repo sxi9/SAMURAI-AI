@@ -240,6 +240,11 @@
     const vu = q.match(/^(?:play|open|stream|watch) (https?:\/\/\S+\.(?:mp4|webm|m3u8|mov|m4v)(?:\?\S*)?)$/); if (vu) return { focus: 'vid', text: 'Streaming.', effect: () => widgets.video('url', vu[1]) };
     const vq = q.match(/^(?:play|watch|show(?: me)?|put on|start)(?: a| the| some)? (?:video|videos|youtube|movie|clip)(?: of| about| for| on|:)? (.+)$/) || q.match(/^(?:watch|youtube) (.+)$/) || q.match(/^(?:play|open|watch|put on) (.+?) on youtube$/);
     if (vq) { const what = vq[1].replace(/ on you ?tube$/, '').trim(); return { focus: 'vid', text: `Finding ${what}.`, effect: async () => { const ok = await widgets.video('search', what); say(ok ? `Playing ${widgets.data.video.now.title.slice(0, 60)}.` : `I could not find ${what}.`); } }; }
+    /* find my phone: companion page alarm + ntfy + Google Find My Device through the agent browser */
+    if (/^(find|locate|where is|where's|track) (my )?(phone|mobile|cell|android)( is)?\??$|^track my phone$/.test(q)) return { findPhone: 'locate' };
+    if (/^(ring|call|ping|buzz|make .* ring|play (a )?sound on) (my )?(phone|mobile|cell|android)$|^ring it$/.test(q)) return { findPhone: 'ring' };
+    if (/^(stop|silence|quiet) (the )?(ring|ringing|alarm|phone)$/.test(q)) return { text: 'Quiet.', effect: () => stopRing() };
+    if (/^(sign in to google|google sign in|show (the )?browser window|open (the )?browser window)$/.test(q)) return { text: 'Opening the browser window. Sign in to Google there, then say "find my phone" again.', effect: () => fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'headed', arg: 'on' }) }).catch(() => { }) };
     /* screen widget: live desktop, OCR, vision */
     if (/^(show|open|view|watch) (me )?(my |the )?(screen|desktop|display)( live)?$|^screen (view|live)$/.test(q)) return { focus: 'scr', text: null, effect: () => widgets.screenRefresh(true) };
     if (/^(read|ocr) (me )?(my |the )?(screen|display|text on (my|the) screen)( aloud| out loud)?$|^what does (my|the) screen say$/.test(q)) return { screenRead: true };
@@ -353,6 +358,7 @@
       else if (r && r.docs) { r = await docsAnswer(r.docs); }
       else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
       else if (r && r.plan) { r = await planRun(r.plan); }
+      else if (r && r.findPhone) { r = await findPhone(r.findPhone); }
       else if (r && r.screenRead) { r = await screenRead(); }
       else if (r && r.widgetCreate) { r = await widgetCreate(r.widgetCreate); }
       else if (r && r.widgetDelete) { const w = widgets.data.custom.find(x => x.name.toLowerCase().includes(r.widgetDelete.toLowerCase())); if (!w) r = { text: `No widget called ${r.widgetDelete}.` }; else { await fetch(ADDONS + '/widgets_custom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: w.id }) }); r = { text: `Widget ${w.name} removed. It disappears after the next reload.`, effect: () => { const el = document.querySelector(`.node[data-id=cw_${w.id}]`); el && el.remove(); document.querySelector(`.slot[data-id=cw_${w.id}]`)?.remove(); const i = W.findIndex(x => x.id === 'cw_' + w.id); if (i >= 0) W.splice(i, 1); widgets.data.custom = widgets.data.custom.filter(x => x.id !== w.id); widgets.relayoutNodes(); } }; } }
@@ -386,6 +392,42 @@
     if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text); return S.lastReply = text; }
     say(text, r.focus === undefined ? null : r.focus);
     return S.lastReply = text;
+  }
+  /* ---------- find my phone ---------- */
+  const BROWSER = SAM.H + ':9600';
+  async function findPhone(action) {
+    let d; try { d = await (await fetch(ADDONS + '/findmy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })).json(); } catch (e) { return { text: 'The add-ons service did not answer.' }; }
+    if (!d.ok) return { text: d.error || 'Find my phone failed.' };
+    const g = d.google || {}, sent = d.sent || [], parts = [];
+    if (action === 'ring') parts.push(sent.length ? `Ringing your phone through ${sent.map(s => ({ companion: 'the companion page', ntfy: 'the phone push', google: 'Google Find My Device' })[s] || s).join(' and ')}.` : 'Ring sent to your phone if the companion page is open. For a sure ring, set up the ntfy push in the panel or sign in to Google.');
+    if (g.needs_login) parts.push('Google Find My Device needs you signed in once: say "show the browser window", sign in there, then ask again.');
+    else if (g.devices && g.devices.length) parts.push(`Google sees ${g.devices.join(', ')}${g.last_seen ? ', last seen ' + g.last_seen : ''}${g.address ? ', near ' + g.address : ''}.`);
+    else if (g.error) parts.push(`Google: ${String(g.error).slice(0, 80)}.`);
+    if (d.note && !sent.length && !/companion page is open/.test(parts.join(' '))) parts.push(d.note);
+    const trackable = !g.needs_login && !g.error && g.ok !== false && widgets.data.web !== undefined && sent.includes('google') || (g.devices && g.devices.length);
+    return { focus: trackable ? 'web' : (action === 'ring' ? null : 'map'), text: parts.join(' ') || 'Done.', effect: () => { if (trackable) { widgets.data.web.live = true; widgets.data.web.title = 'TRACKING MY PHONE'; widgets.render('web'); widgets.webRefresh(true); trackOverlay(true, g); } } };
+  }
+  function trackOverlay(on, g) {
+    let el = document.getElementById('trackOv'); if (!on) { el && el.remove(); return; }
+    const view = document.getElementById('webView'); if (!view) return;
+    if (!el) { el = document.createElement('div'); el.id = 'trackOv'; el.className = 'trackov'; view.appendChild(el); }
+    el.innerHTML = `<div class="tscan"></div><div class="tcross"><i></i><i></i></div><div class="tlab"><b>TRACKING MY PHONE</b><span>${esc((g.devices || []).join(' · ') || 'locating…')}${g.last_seen ? ' · ' + esc(g.last_seen) : ''}</span></div>`;
+    clearTimeout(trackOverlay.t); trackOverlay.t = setTimeout(() => trackOverlay(false), 90000);
+  }
+  /* companion page: the PC can make this phone ring */
+  let ringCtx = null, ringTimer = null;
+  function startRing(text) {
+    stopRing(); try { ringCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    const ctx = ringCtx, g = ctx.createGain(); g.gain.value = 1; g.connect(ctx.destination); let i = 0;
+    ringTimer = setInterval(() => { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = i % 2 ? 1760 : 1320; o.connect(g); o.start(); o.stop(ctx.currentTime + .22); i++; if (i > 90) stopRing(); }, 260);
+    try { navigator.vibrate && navigator.vibrate([500, 200, 500, 200, 500]); } catch (e) { }
+    let ov = document.getElementById('ringOv'); if (!ov) { ov = document.createElement('div'); ov.id = 'ringOv'; ov.className = 'ringov'; ov.innerHTML = `<div><b>SAMURAI IS LOOKING FOR THIS PHONE</b><span>${esc(text || '')}</span><div class="sbtn on" id="ringStop">STOP</div></div>`; document.body.appendChild(ov); ov.querySelector('#ringStop').onclick = stopRing; }
+    if (voice.speakLocal) voice.speakLocal(text || 'Here I am.');
+  }
+  function stopRing() { clearInterval(ringTimer); ringTimer = null; try { ringCtx && ringCtx.close(); } catch (e) { } ringCtx = null; const ov = document.getElementById('ringOv'); ov && ov.remove(); }
+  function companionEvents() {
+    let since = Date.now() / 1000;
+    setInterval(async () => { try { const d = await (await fetch(PANEL + '/remote/events?since=' + since)).json(); since = d.now || since; for (const e of d.events || []) { if (e.kind === 'ring') startRing(e.text); else if (e.kind === 'say' && e.text) { setReply(e.text); voice.speakLocal ? voice.speakLocal(e.text) : say(e.text); } } } catch (e) { } }, 3000);
   }
   /* ---------- screen: OCR first, vision brain when tesseract is missing ---------- */
   async function screenRead() {
@@ -565,6 +607,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
         case 'look_at_screen': { const r2 = await visionAnswer('screen', arg || 'Describe what is on the screen.'); return r2.text; }
         case 'look_at_camera': { const r2 = await visionAnswer('camera', arg || 'Describe what the camera sees.'); return r2.text; }
         case 'desktop_task': { T(() => desktopTask(arg), 1500); return null; }
+        case 'find_phone': { const d = await findPhone(/ring|sound/.test(arg) ? 'ring' : 'locate'); say(d.text, d.focus); d.effect && d.effect(); return null; }
         case 'screen_read': { const d = await screenRead(); say(d.text, 'scr'); return null; }
         case 'screen_describe': { const d = await visionAnswer('screen', 'Describe what is on the screen and anything notable.'); say(d.text, 'scr'); return null; }
         case 'widget_create': { const d = await widgetCreate(arg); say(d.text, d.focus); return null; }
@@ -861,7 +904,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   }
   function init() {
     loadTune(); setInterval(governor, 10000);
-    if (COMPANION) { voice.cfg.sttEngine = voice.phoneCapable ? 'phone' : voice.cfg.sttEngine; if (!voice.cfg.companion || voice.cfg.companion === 'off') voice.cfg.companion = 'phone'; document.documentElement.dataset.companion = '1'; }
+    if (COMPANION) { companionEvents(); voice.cfg.sttEngine = voice.phoneCapable ? 'phone' : voice.cfg.sttEngine; if (!voice.cfg.companion || voice.cfg.companion === 'off') voice.cfg.companion = 'phone'; document.documentElement.dataset.companion = '1'; }
     else voice.relay.pollLoop(async c => { const quiet = c.speak_on === 'phone', was = voice.cfg.voiceOn; if (quiet) voice.cfg.voiceOn = false; widgets.pushTty(`phone · ${c.text}`, '#ffb84d'); console.log('relay · from phone: ' + c.text); let text = ''; try { text = await submit(c.text); } finally { if (quiet) voice.cfg.voiceOn = was; } setTimeout(() => { $('transcript').textContent = `from your phone: "${c.text}"`; $('transcript').classList.add('on'); }, 60); return text || S.lastReply || ''; });
     load(); core.particles = S.particles;
     if (S.reduced) stage.classList.add('rm');

@@ -461,3 +461,16 @@ option{background:#0b1022;color:var(--ice)}
 .slot.big .scr .wbar select{font-size:12px;padding:8px 12px}
 .cw{display:flex;flex-direction:column;height:100%}.cw iframe{flex:1;width:100%;border:1px solid rgba(var(--violet-rgb),.3);background:rgba(5,6,13,.4);min-height:0}
 .cwfoot{margin-top:6px;font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--muted)}.slot.big .cwfoot{font-size:10px}
+
+/* ---- find my phone ---- */
+.trackov{position:absolute;inset:0;pointer-events:none;border:2px solid rgba(var(--cyan-rgb),.6);box-shadow:inset 0 0 40px rgba(var(--cyan-rgb),.15)}
+.trackov .tscan{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);box-shadow:0 0 16px var(--cyan);animation:tscan 2.6s linear infinite}
+@keyframes tscan{0%{top:0}100%{top:100%}}
+.trackov .tcross{position:absolute;left:50%;top:50%;width:160px;height:160px;margin:-80px 0 0 -80px;border:1px solid rgba(var(--cyan-rgb),.7);border-radius:50%;animation:tpulse 1.6s ease-in-out infinite}
+.trackov .tcross i{position:absolute;background:rgba(var(--cyan-rgb),.8)}.trackov .tcross i:first-child{left:50%;top:-20px;bottom:-20px;width:1px}.trackov .tcross i:last-child{top:50%;left:-20px;right:-20px;height:1px}
+@keyframes tpulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.12);opacity:.5}}
+.trackov .tlab{position:absolute;left:14px;top:12px;background:rgba(5,6,13,.85);border:1px solid rgba(var(--cyan-rgb),.5);padding:8px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--ice)}
+.trackov .tlab b{display:block;color:var(--cyan);margin-bottom:3px}.trackov .tlab span{font-size:9px;letter-spacing:.1em;color:var(--text)}
+.ringov{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(255,61,110,.85);animation:ringflash .5s steps(2) infinite;font-family:var(--disp)}
+.ringov>div{text-align:center;color:#fff}.ringov b{display:block;font-size:22px;letter-spacing:.2em;margin-bottom:14px}.ringov span{display:block;font-family:var(--mono);font-size:13px;margin-bottom:24px}.ringov .sbtn{display:inline-block;padding:16px 40px;font-size:16px;background:#fff;color:#ff3d6e;border:none}
+@keyframes ringflash{0%{background:rgba(255,61,110,.85)}100%{background:rgba(5,6,13,.95)}}

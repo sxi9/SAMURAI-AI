@@ -88,6 +88,8 @@ a{color:var(--cyan)}
   </div>
   <div class="card">
     <h2>PHONE · COMPANION MODE</h2>
+    <div class="row"><button class="b v" id="ringPhone">RING MY PHONE</button><button class="b" id="locatePhone">LOCATE (GOOGLE)</button><span class="muted" style="margin-left:auto">BROWSER WINDOW (SIGN IN TO GOOGLE)</span><div class="sw" id="swHeaded"><i></i></div></div>
+    <div class="muted" id="findMsg" style="margin:-2px 0 8px"></div>
     <div class="muted">Your phone's own speech recognition (Google / Siri) and voices, SAMURAI's brain and PC control. Same Wi-Fi. HTTPS is needed for the phone's microphone: switch it on, install the certificate once on the phone.</div>
     <div class="row"><span class="muted">PHONE / LAN ACCESS</span><div class="sw" id="swLan2"><i></i></div><span class="muted">HTTPS (SELF-SIGNED)</span><div class="sw" id="swHttps"><i></i></div><a class="b sm" id="certLink" href="/phone/cert" style="display:none">DOWNLOAD CERTIFICATE</a></div>
     <div id="phoneQr" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap"></div>
@@ -104,6 +106,13 @@ a{color:var(--cyan)}
     <h2>BACKUP · UPDATE · SUPPORT</h2>
     <div class="row"><a class="b" href="/backup">DOWNLOAD BACKUP</a><button class="b v" id="restoreBtn">RESTORE FROM BACKUP</button><input type="file" id="restoreFile" accept=".zip" style="display:none"><a class="b" href="/logs/bundle">LOG BUNDLE</a><button class="b" id="updateBtn">CHECK FOR UPDATES</button></div>
     <div class="status" id="updateMsg"></div>
+  </div>
+  <div class="card wide">
+    <h2>FORGE · SAMURAI REBUILDS ITSELF</h2>
+    <div class="row"><input type="text" id="forgeTask" placeholder="describe the change: add a pomodoro widget with a streak · make the alert red flash shorter · add a voice command for …" style="flex:1"><button class="b big v" id="forgeRun">FORGE</button></div>
+    <div class="row"><span class="status" id="forgeStatus">…</span><span style="margin-left:auto"></span><button class="b" id="forgeApply">APPLY + RESTART</button><button class="b r" id="forgeDiscard">DISCARD</button></div>
+    <pre id="forgeLog" style="max-height:220px">no forge run yet</pre>
+    <div class="muted">Needs the source install (git checkout) and Claude Code signed in. The forge edits the code, you review the summary, then apply. Nothing is pushed anywhere.</div>
   </div>
   <div class="card wide">
     <h2>CONFIG · YOU AND YOUR WIDGETS</h2>
@@ -133,6 +142,15 @@ async function refresh() {
     if (!$('logKey').options.length) { $('logKey').innerHTML = d.services.map(s => `<option value="${s.key}">${s.name}</option>`).join(''); loadLog(); }
   } catch (e) { $('status').textContent = 'panel service unreachable'; }
 }
+async function loadForge() {
+  try { const d = await J('/forge/status'); $('forgeStatus').textContent = !d.available ? 'unavailable: ' + d.why : d.running ? 'working on: ' + d.task : d.changed.length ? `${d.changed.length} file(s) changed, waiting for apply: ${d.changed.join(', ')}` : 'ready (' + d.branch + ')';
+    $('forgeApply').disabled = !d.changed.length || d.running; $('forgeDiscard').disabled = !d.changed.length || d.running;
+    if (d.running || d.log_tail) { const l = await J('/forge/log'); $('forgeLog').textContent = (l.log || '').slice(-6000) || 'starting…'; $('forgeLog').scrollTop = 1e9; } } catch (e) { $('forgeStatus').textContent = 'panel offline'; }
+}
+$('forgeRun').onclick = () => POST('/forge', { task: $('forgeTask').value }).then(d => { $('forgeStatus').textContent = d.ok ? 'started' : d.error; loadForge(); });
+$('forgeApply').onclick = () => POST('/forge/apply', {}).then(d => { $('forgeStatus').textContent = d.ok ? d.did : d.error + (d.files ? ' ' + JSON.stringify(d.files) : ''); loadForge(); });
+$('forgeDiscard').onclick = () => POST('/forge/discard', {}).then(d => { $('forgeStatus').textContent = d.did || d.error; loadForge(); });
+setInterval(loadForge, 4000); loadForge();
 async function loadTune(apply) {
   $('tuneProfile').innerHTML = '<span class="muted">detecting…</span>';
   try {
@@ -184,6 +202,11 @@ $('swAuto').onclick = () => POST('/panel/autostart', { on: !$('swAuto').classLis
 const lanToggle = () => POST('/panel/lan', { on: !$('swLan').classList.contains('on') }).then(d => { $('swLan').classList.toggle('on', d.enabled); $('lanLinks').innerHTML = d.enabled ? 'Open on your phone (same Wi-Fi): ' + d.links.map(l => `<a href="${l}">${l}</a>`).join(' · ') + ' — services are restarting' : 'LAN access off: everything listens on this PC only'; setTimeout(loadCfg, 4000); });
 $('swLan').onclick = lanToggle; $('swLan2').onclick = lanToggle;
 $('swHttps').onclick = () => POST('/panel/lan', { on: true, https: !$('swHttps').classList.contains('on') }).then(d => { $('swHttps').classList.toggle('on', d.https); $('swLan').classList.toggle('on', d.enabled); $('swLan2').classList.toggle('on', d.enabled); $('phoneLinks').textContent = (d.cert || '') + ' — services are restarting'; setTimeout(loadPhone, 4000); });
+const ADDONS9 = location.protocol + '//' + location.hostname + ':9500', BROWSER9 = location.protocol + '//' + location.hostname + ':9600';
+async function findPhone(action) { $('findMsg').textContent = action + '…'; try { const r = await fetch(ADDONS9 + '/findmy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) }); const d = await r.json(); const g = d.google || {}; $('findMsg').textContent = (d.ok ? `sent: ${(d.sent || []).join(', ') || 'nothing'} · ${d.note || ''}` : d.error) + (g.needs_login ? ' · Google needs a sign-in: switch the browser window on and sign in there' : g.devices && g.devices.length ? ` · Google sees ${g.devices.join(', ')} ${g.last_seen || ''}` : ''); } catch (e) { $('findMsg').textContent = 'add-ons service offline'; } }
+$('ringPhone').onclick = () => findPhone('ring'); $('locatePhone').onclick = () => findPhone('locate');
+$('swHeaded').onclick = async () => { const on = !$('swHeaded').classList.contains('on'); try { const d = await (await fetch(BROWSER9 + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'headed', arg: on ? 'on' : 'off' }) })).json(); $('swHeaded').classList.toggle('on', !!d.headless === false); $('findMsg').textContent = d.did || d.error || ''; } catch (e) { $('findMsg').textContent = 'browser service offline'; } };
+fetch(BROWSER9 + '/browser/status').then(r => r.json()).then(d => $('swHeaded').classList.toggle('on', d.headless === false)).catch(() => { });
 async function loadPhone() {
   try {
     const d = await J('/phone');
