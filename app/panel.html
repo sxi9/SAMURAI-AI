@@ -45,7 +45,7 @@ a{color:var(--cyan)}
 <body>
 <div class="wrap">
 <header><div class="hex"></div><h1>SAMURAI</h1><span class="tag">CONTROL PANEL</span><span class="muted" id="osinfo"></span>
-  <span style="margin-left:auto"><button class="b big" id="openHud">OPEN HUD ▸</button></span></header>
+  <span style="margin-left:auto"><button class="b big" id="openHud">OPEN HUD ▸</button><button class="b big v" id="openWin" title="the HUD in its own chromeless window (pywebview)">OPEN AS APP WINDOW</button></span></header>
 
 <div class="grid">
   <div class="card wide">
@@ -179,6 +179,7 @@ $('saveCfg').onclick = async () => {
 $('startAll').onclick = () => POST('/panel/control', { action: 'start_all', open: true }).then(refresh);
 $('stopAll').onclick = () => POST('/panel/control', { action: 'stop_all' }).then(refresh);
 $('openHud').onclick = () => { if (last) window.open(last.ui, '_blank'); };
+$('openWin').onclick = () => POST('/panel/open', { window: true }).then(d => { $('status').textContent = d.did || 'app window starting'; });
 $('swWatch').onclick = () => POST('/panel/watchdog', { on: !$('swWatch').classList.contains('on') }).then(refresh);
 $('swAuto').onclick = () => POST('/panel/autostart', { on: !$('swAuto').classList.contains('on') }).then(d => { if (!d.ok) alert(d.error); refresh(); });
 const lanToggle = () => POST('/panel/lan', { on: !$('swLan').classList.contains('on') }).then(d => { $('swLan').classList.toggle('on', d.enabled); $('lanLinks').innerHTML = d.enabled ? 'Open on your phone (same Wi-Fi): ' + d.links.map(l => `<a href="${l}">${l}</a>`).join(' · ') + ' — services are restarting' : 'LAN access off: everything listens on this PC only'; setTimeout(loadCfg, 4000); });

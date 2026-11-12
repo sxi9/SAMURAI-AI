@@ -5,3 +5,4 @@ psutil>=5.9
 edge-tts>=6.1
 cryptography>=42        # self-signed certificate for phone mode over https
 qrcode>=7.4             # QR code for pairing the phone
+# optional (installed separately by install.py, skipped when it fails): pywebview>=5 for the chromeless app window, keyboard for its Ctrl+Alt+S hotkey

@@ -64,6 +64,9 @@ def step_venv():
         run([PY, "-m", "pip", "install", "-r", os.path.join(ROOT, "requirements.txt")])
     r = run([PY, "-c", "import vosk, websockets, psutil, edge_tts"], capture_output=True, text=True)
     say("packages ok" if r.returncode == 0 else "! some packages failed: " + (r.stderr or "").strip().splitlines()[-1][:100])
+    say("optional: pywebview (chromeless app window) …")
+    r = run([PY, "-m", "pip", "install", "--quiet", "pywebview>=5"])
+    say("app window available: python samurai_launcher.py --window" if r.returncode == 0 else "pywebview not installed (the HUD still opens in your browser)")
 
 
 def step_config():

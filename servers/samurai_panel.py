@@ -711,6 +711,14 @@ def get_version(h, q, b):
 
 
 def post_open(h, q, b):
+    """{window: true} opens the HUD in its own chromeless app window (pywebview); otherwise the default browser."""
+    if b.get("window"):
+        from samurai_common import FROZEN
+        cmd = [sys.executable, "--service", "window"] if FROZEN else [venv_python(), os.path.join(ROOT, "samurai_launcher.py"), "--service", "window"]
+        os.makedirs(LOGS, exist_ok=True)
+        log = open(os.path.join(LOGS, "window.log"), "ab")
+        subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, creationflags=NOWIN)
+        return {"ok": True, "did": "app window starting (needs pywebview; falls back to the browser)"}
     webbrowser.open(UI_URL)
     return {"ok": True}
 
