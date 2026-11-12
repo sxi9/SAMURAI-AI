@@ -8,3 +8,4 @@ qrcode>=7.4             # QR code for pairing the phone
 mss>=9          # live screen view for the SCREEN widget
 pillow>=10      # screen frames
 pytesseract>=0.3   # screen OCR (needs the tesseract binary)
+# optional (installed separately by install.py, skipped when it fails): pywebview>=5 for the chromeless app window, keyboard for its Ctrl+Alt+S hotkey

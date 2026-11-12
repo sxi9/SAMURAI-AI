@@ -2,8 +2,9 @@
 
     SAMURAI                  start the control panel, bring every service up, open the HUD
     SAMURAI --no-browser     same without opening the browser
+    SAMURAI --window         same, then open the HUD in its own chromeless app window (pywebview) instead of a browser tab
     SAMURAI --service <key>  run one service in this process (the panel spawns these)
-                             keys: ui speech tel tts act agent addons web mock
+                             keys: ui speech tel tts act agent addons web mock window
 
 From source it works the same:  python samurai_launcher.py
 """
@@ -25,9 +26,16 @@ def run_ui():
     maybe_wrap_tls(http.server.ThreadingHTTPServer((host, PORTS["ui"]), handler)).serve_forever()
 
 
+def run_window():
+    import samurai_window
+    return samurai_window.main()
+
+
 def run_service(key):
     if key == "ui":
         return run_ui()
+    if key == "window":
+        return run_window()
     mod = {"speech": "samurai_speech_server", "tel": "samurai_telemetry", "tts": "samurai_tts_server", "act": "samurai_action_server",
            "agent": "samurai_agent_server", "addons": "samurai_addons", "web": "samurai_browser", "panel": "samurai_panel", "mock": "mock_llm"}.get(key)
     if not mod:
@@ -46,4 +54,19 @@ if __name__ == "__main__":
     else:
         if "--autostart" not in args:
             sys.argv.append("--autostart")
+        if "--window" in args:
+            sys.argv.append("--no-browser")        # the panel brings the services up; the window opens the HUD itself
+            import threading, time, urllib.request
+            from samurai_common import PORTS
+
+            def open_window():
+                for _ in range(90):
+                    try:
+                        urllib.request.urlopen(f"http://localhost:{PORTS['ui']}/jarvis-interface.html", timeout=2).read(64)
+                        break
+                    except Exception:
+                        time.sleep(2)
+                import subprocess
+                subprocess.Popen([sys.executable] + ([] if getattr(sys, "frozen", False) else [os.path.abspath(__file__)]) + ["--service", "window"])
+            threading.Thread(target=open_window, daemon=True).start()
         run_service("panel")
