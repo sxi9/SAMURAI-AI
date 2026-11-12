@@ -202,6 +202,7 @@
   const SHAPES = [[/\b(heart|love)\b/, 'heart', 'Heart, as requested.'], [/\b(cube|box)\b/, 'cube', 'Cube.'], [/\b(galaxy|spiral|stars|milky way)\b/, 'galaxy', 'One galaxy, three arms.'], [/\b(helix|dna)\b/, 'helix', 'Double helix.'], [/\b(knot|not|naught)\b/, 'knot', 'Torus knot.'], [/\b(ring|halo|torus|donut)\b/, 'ring', 'Ring.'], [/\b(wave|waves|ocean|ripple|sea)\b/, 'wave', 'Wave field.'], [/\b(sphere|cloud|particles|ball|normal)\b/, 'sphere', 'Back to the cloud.']];
   const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, ninety: 90 };
   function quickRoute(q) {
+    q = q.replace(/\bwire frame\b/g, 'wireframe').replace(/\bcount down\b/g, 'countdown').replace(/\bthe mike\b/g, 'the mic').replace(/\bplug in\b/g, 'plugin').replace(/\bhand off\b/g, 'hand off');   // recogniser spellings
     const has = (...k) => k.some(x => q.includes(x));
     if (/^(alert demo|alert|threat|intrusion|breach)$/.test(q)) return { alert: true };
     if (/^(reboot|restart hud|restart samurai|reboot samurai)$/.test(q)) return { reboot: true };
@@ -267,7 +268,7 @@
     const sy = q.match(/^sync (?:my )?settings (?:to|with) (.{2,120})$/); if (sy) return { run: async () => { try { const d = await POSTJ(ADDONS + '/sync', { dir: sy[1] }); return { text: `Settings synced with ${d.dir}. ${d.pushed || 0} pushed, ${d.pulled || 0} pulled.` }; } catch (e) { return { text: `Sync failed: ${e.message}` }; } } };
     if (/^sync (?:my )?settings( now)?$/.test(q)) return { run: async () => { try { const d = await POSTJ(ADDONS + '/sync', {}); return { text: d.dir ? `Synced with ${d.dir}. ${d.pushed || 0} pushed, ${d.pulled || 0} pulled.` : 'Say "sync my settings to" and a folder first.' }; } catch (e) { return { text: `Sync failed: ${e.message}` }; } } };
     if (/^(plugin (store|market|marketplace)|what plugins (are there|can i install)|list plugins)\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/plugins/market')).json(); const P = d.plugins || []; P.forEach(p => widgets.pushTty(`🧩 ${p.name} ${p.version}${p.installed ? ' · installed' : ''} · ${p.description}`, '#a07cff')); return { focus: 'tty', text: P.length ? `${P.length} plugins in the store: ${P.map(p => p.name + (p.installed ? ' (installed)' : '')).join(', ')}. Say "install plugin" and a name.` : 'The store is empty.' }; } };
-    const pi = q.match(/^install (?:the )?plugin (.{2,60})$/); if (pi) return { run: async () => { try { const m = await (await fetch(ADDONS + '/plugins/market')).json(); const hit = (m.plugins || []).find(p => p.name.toLowerCase() === pi[1].toLowerCase() || p.name.toLowerCase().replace(/_/g, ' ') === pi[1].toLowerCase()); const d = await POSTJ(ADDONS + '/plugins/install', { url: hit ? hit.url : pi[1] }); return { text: `Installed ${d.name || pi[1]}${d.tools && d.tools.length ? ' with ' + d.tools.join(', ') : ''}.` }; } catch (e) { return { text: `Install failed: ${String(e.message).replace(/^Error: /, '')}` }; } } };
+    const pi = q.match(/^install (?:the )?plugin (.{2,60})$/); if (pi) return { run: async () => { try { const m = await (await fetch(ADDONS + '/plugins/market')).json(); const want = pi[1].toLowerCase().replace(/[\s_-]/g, ''), hit = (m.plugins || []).find(p => p.name.toLowerCase().replace(/[\s_-]/g, '') === want); if (!hit && !/^https?:\/\/|^plugins\//.test(pi[1])) return { text: `There is no plugin called ${pi[1]} in the store.` }; const d = await POSTJ(ADDONS + '/plugins/install', { url: hit ? hit.url : pi[1] }); return { text: `Installed ${d.name || pi[1]}${d.tools && d.tools.length ? ' with ' + d.tools.join(', ') : ''}.` }; } catch (e) { return { text: `Install failed: ${String(e.message).replace(/^Error: /, '')}` }; } } };
     const pr = q.match(/^(?:remove|uninstall) (?:the )?plugin (.{2,60})$/); if (pr) return { run: async () => { try { await POSTJ(ADDONS + '/plugins/remove', { name: pr[1].replace(/ /g, '_') }); return { text: `Removed ${pr[1]}.` }; } catch (e) { return { text: String(e.message).replace(/^Error: /, '') }; } } };
     if (/^(show|what are the|sing the) lyrics\??$/.test(q) || /^lyrics$/.test(q)) return { focus: 'mus', run: async () => { const m = widgets.data.music; if (!m.live || m.now.i < 0) return { focus: 'mus', text: 'Play something from the library first.' }; const d = await (await fetch(ADDONS + '/lyrics?i=' + m.now.i)).json(); const txt = d.plain || (d.lrc ? d.lrc.replace(/\[[^\]]*\]/g, ' ') : ''); return { focus: 'mus', text: txt ? txt.replace(/\s+/g, ' ').trim().slice(0, 500) : 'No lyrics found for this track.' }; } };
     if (/^(mute the mic|mic off|kill the mic|privacy mode( on)?|stop listening for good)$/.test(q)) return { text: 'Microphone off. Nothing leaves this PC until you flip the switch.', effect: () => micKill(true) };
@@ -730,7 +731,9 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   async function runRoutineQueue() { const cmd = S.routineQueue && S.routineQueue.shift(); if (!cmd) return; await submit(cmd); const wait = setInterval(() => { if (S.mode !== 'speaking' && S.mode !== 'thinking') { clearInterval(wait); T(runRoutineQueue, 600); } }, 400); }
   /* proactive events from the add-ons scheduler and watch */
   let eventsSince = Date.now() / 1000;
+  let eventsBusy = false;
   async function pollEvents() {
+    if (eventsBusy) return; eventsBusy = true;                      // a slow poll must not overlap the next one (the same event would be spoken twice)
     try {
       const d = await (await fetch(`${ADDONS}/events?since=${eventsSince}`)).json(); eventsSince = d.now || eventsSince;
       for (const e of d.events || []) {
@@ -742,6 +745,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
         else { widgets.pushTty(`${e.kind === 'alert' ? '⚠' : '⏰'} ${e.text}`, e.kind === 'alert' ? '#ff3d6e' : '#a07cff'); say(e.text, e.kind === 'alert' ? 'sys' : null); }
       }
     } catch (err) { }
+    eventsBusy = false;
   }
   async function agentDelegate(mode, arg) {
     const agent = brain.preferredAgent() || (await brain.agentPing(), brain.preferredAgent());

@@ -26,6 +26,8 @@ Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC con
 
 ## New in 1.6 — brains, voice, senses, platform
 
+Clip: [docs/whatsnew-1.6.mp4](https://github.com/sxi9/SAMURAI-AI/blob/claude/upbeat-heisenberg-0eu8oj/docs/whatsnew-1.6.mp4) (three minutes, spoken commands recognised offline).
+
 - Streaming replies from headless Claude Code; Claude Code can use SAMURAI as tools (MCP): actions, browser, documents, journal, calendar, memory. Panel: GIVE CLAUDE CODE SAMURAI'S TOOLS
 - Cost meter per provider with a monthly budget: "what did I spend", "set my budget to 20 dollars"; spoken warning at 80 %
 - Missions: "start a mission: research X and write a report" runs Claude Code for hours in workspace/ with a scratchpad and tells you when it is done; "missions", "stop the mission"
