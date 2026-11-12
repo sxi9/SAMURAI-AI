@@ -64,7 +64,10 @@ DEFAULT_CONFIG = {
     "browser": {"headless": True, "profile_dir": ""},                  # persistent profile (data/browser-profile): sign in once
     "findmy": {"google": True},
     "spotify": {"client_id": ""},                                      # developer.spotify.com app, redirect http://127.0.0.1:9500/spotify/callback (servers/samurai_spotify.py)
-    "calendar": {"target": "ics", "caldav_url": "", "caldav_user": "", "caldav_password": ""},   # where "add to my calendar" writes: the agenda .ics file, or a CalDAV collection
+    "calendar": {"target": "ics", "caldav_url": "", "caldav_user": "", "caldav_password": ""},
+    "senses": {"quiet_apps": [], "read_notifications": False},             # activity awareness (servers/samurai_senses.py): extra app names that mean "do not interrupt"; read toasts aloud
+    "home2": {"hue_bridge": "", "hue_user": "", "govee_key": "", "kasa_discover": False, "kasa_hosts": []},   # Hue local, Govee cloud, Kasa/Tapo (python-kasa)
+    "market": {"download_dir": "", "qbittorrent_url": "", "qbittorrent_user": "", "qbittorrent_password": ""},   # downloads folder (default ~/Downloads/SAMURAI), qBittorrent Web UI   # where "add to my calendar" writes: the agenda .ics file, or a CalDAV collection
     "lan": {"enabled": False, "token": "", "https": False, "preferred_ip": ""},
     "services": {"profile": "full"},                             # full = every service at boot · essentials = browser + headless agents start on demand
     "tune": {},                                                  # written by the control panel's auto-tune (hardware profile + applied recommendation)   # LAN mode: reachable from your phone / other PCs with a token; https = self-signed TLS

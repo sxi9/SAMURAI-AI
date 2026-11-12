@@ -22,6 +22,7 @@ STATE = {
     "temp": None, "cores": 0, "uptime": "",
     "top_cpu": [], "top_mem": [], "disk": [], "battery": None,
     "net_history": [],
+    "active_window": {"title": "", "app": ""}, "fullscreen": False,
 }
 LOCK = threading.Lock()
 
@@ -199,6 +200,53 @@ def read_events():
     return []
 
 
+def active_window():
+    """Foreground window title + process name (best effort per OS); returns (dict, fullscreen)."""
+    try:
+        if IS_WIN:
+            script = ("Add-Type -AssemblyName System.Windows.Forms; Add-Type @'\nusing System;using System.Runtime.InteropServices;using System.Text;public class FW{[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();"
+                      "[DllImport(\"user32.dll\")]public static extern int GetWindowText(IntPtr h,StringBuilder s,int n);[DllImport(\"user32.dll\")]public static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);"
+                      "[DllImport(\"user32.dll\")]public static extern bool GetWindowRect(IntPtr h,out RECT r);public struct RECT{public int L,T,R,B;}}\n'@;"
+                      "$h=[FW]::GetForegroundWindow();$sb=New-Object System.Text.StringBuilder 256;[FW]::GetWindowText($h,$sb,256)|Out-Null;$p=0;[FW]::GetWindowThreadProcessId($h,[ref]$p)|Out-Null;"
+                      "$r=New-Object FW+RECT;[FW]::GetWindowRect($h,[ref]$r)|Out-Null;$n=(Get-Process -Id $p -ErrorAction SilentlyContinue).ProcessName;"
+                      "$w=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width;$hh=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height;"
+                      "@{title=$sb.ToString();app=$n;full=(($r.R-$r.L) -ge $w -and ($r.B-$r.T) -ge $hh)} | ConvertTo-Json -Compress")
+            out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, timeout=8).stdout
+            d = json.loads(out.strip() or "{}")
+            return {"title": str(d.get("title") or "")[:160], "app": str(d.get("app") or "")[:60]}, bool(d.get("full"))
+        if IS_MAC:
+            out = subprocess.run(["osascript", "-e", 'tell application "System Events" to set p to first application process whose frontmost is true', "-e", 'set t to ""', "-e", "try",
+                                  "-e", 'tell application "System Events" to set t to name of front window of p', "-e", "end try", "-e", 'return (name of p) & "|" & t'], capture_output=True, text=True, timeout=5).stdout.strip()
+            app, _, title = out.partition("|")
+            return {"title": title[:160], "app": app[:60]}, False
+        if shutil.which("xdotool") and os.environ.get("DISPLAY"):
+            run = lambda *a: subprocess.run(["xdotool", *a], capture_output=True, text=True, timeout=3).stdout.strip()
+            wid = run("getactivewindow"); title = run("getwindowname", wid); pid = run("getwindowpid", wid)
+            app = psutil.Process(int(pid)).name() if pid.isdigit() else ""
+            full = False
+            try:
+                g = dict(l.split("=") for l in run("getwindowgeometry", "--shell", wid).splitlines() if "=" in l)
+                scr = run("getdisplaygeometry").split()
+                full = int(g.get("WIDTH", 0)) >= int(scr[0]) and int(g.get("HEIGHT", 0)) >= int(scr[1])
+            except Exception:
+                pass
+            return {"title": title[:160], "app": app[:60]}, full
+    except Exception:
+        pass
+    return {"title": "", "app": ""}, False
+
+
+def sample_window():
+    while True:
+        try:
+            aw, full = active_window()
+            with LOCK:
+                STATE["active_window"] = aw; STATE["fullscreen"] = full
+        except Exception:
+            pass
+        time.sleep(5)
+
+
 def sample_events():
     while True:
         try:
@@ -221,7 +269,7 @@ class Handler(JSONHandler):
 
 
 if __name__ == "__main__":
-    for fn in (sample_fast, sample_conns, sample_events, sample_system):
+    for fn in (sample_fast, sample_conns, sample_events, sample_system, sample_window):
         threading.Thread(target=fn, daemon=True).start()
     print(f"[SAMURAI] Telemetry sidecar on http://localhost:{PORT}/stats")
     maybe_wrap_tls(ThreadingHTTPServer((bind_host(), PORT), Handler)).serve_forever()

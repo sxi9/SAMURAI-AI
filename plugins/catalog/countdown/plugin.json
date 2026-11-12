@@ -1,0 +1,9 @@
+{
+  "name": "countdown",
+  "version": "1.0.0",
+  "description": "Count the days to a date: 'days until 25 december' or 'countdown 2027-01-01'.",
+  "entry": "countdown.py",
+  "tools": ["days_until"],
+  "author": "SAMURAI",
+  "homepage": "https://github.com/sxi9/SAMURAI-AI/tree/main/plugins/catalog/countdown"
+}
