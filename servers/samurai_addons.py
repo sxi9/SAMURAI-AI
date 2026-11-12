@@ -20,7 +20,7 @@ import json, os, re, sys, threading, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT, DATA, IS_WIN, IS_MAC, NOWIN,
+from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT, APP, DATA, IS_WIN, IS_MAC, NOWIN,
                             load_config, save_config, http_json, run_hidden)
 import samurai_automation as auto
 import samurai_connect as connect
@@ -566,6 +566,20 @@ def get_gallery_file(h, q, b):
     return None
 
 
+# ----------------------------------------------------------------------------- avatars (VRM files the HUD can wear)
+AVATARS_DIR = os.path.join(APP, "avatars")
+
+
+def get_avatars(h, q, b):
+    """VRM models in app/avatars. The UI server (:8080) serves them statically, so the url is relative to the HUD's origin."""
+    try:
+        names = sorted(f for f in os.listdir(AVATARS_DIR) if f.lower().endswith(".vrm"))
+    except OSError:
+        names = []
+    pretty = lambda n: re.sub(r"[_\-]+", " ", n[:-4]).strip() or n
+    return {"ok": True, "avatars": [{"name": pretty(n), "file": n, "url": "/avatars/" + urllib.parse.quote(n)} for n in names], "dir": AVATARS_DIR}
+
+
 # ----------------------------------------------------------------------------- position
 def get_position(h, q, b):
     cfg = load_config()
@@ -703,7 +717,7 @@ class Handler(JSONHandler):
         ("GET", "/home"): get_home, ("POST", "/home"): post_home,
         ("GET", "/music"): get_music, ("GET", "/music/file"): get_music_file, ("POST", "/music"): post_music,
         ("GET", "/gallery"): get_gallery, ("GET", "/gallery/file"): get_gallery_file,
-        ("GET", "/position"): get_position,
+        ("GET", "/position"): get_position, ("GET", "/avatars"): get_avatars,
         ("GET", "/security"): get_security, ("POST", "/security/block"): post_block,
         ("GET", "/memory"): get_memory, ("POST", "/memory"): post_memory, ("GET", "/memory/search"): get_memory_search,
         ("GET", "/addons/status"): get_status,

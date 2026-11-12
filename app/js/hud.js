@@ -5,13 +5,13 @@
   const ACTION_URL = SAM.H + ':9300/action', ADDONS = SAM.H + ':9500';
   const MODES = { idle: ['IDLE', 'awaiting command', '#2ee6ff'], listening: ['LISTENING', 'say "samurai" + command', '#d9f8ff'], thinking: ['PROCESSING', 'neural core', '#a07cff'], speaking: ['SPEAKING', 'neural voice', '#2ee6ff'], alert: ['ALERT', 'security watch · high', '#ff3d6e'], boot: ['BOOT', 'initialising', '#6a8ea3'] };
   const BOOT = ['mounting telemetry sidecar :8765', 'voice model vosk ready', 'neural core linked', 'action server :9300 armed', 'add-ons · 12 pinned', 'assembling HUD'];
-  const DEMO = new URLSearchParams(location.search).has('demo');
+  const DEMO = new URLSearchParams(location.search).has('demo'), SKIPBOOT = new URLSearchParams(location.search).has('skipboot');
   const SAVE_KEY = 'samurai.hud3';
 
   const S = {
     mode: 'boot', layout: 'focus', pinned: Object.fromEntries(W.map(w => [w.id, w.pin === false ? 0 : 1])), focus: null, drawer: false,
     assembled: false, stagger: false, blink: false, tick: 0, flow: false, vw: 1920, vh: 1080, scale: 1, cols: 3, k: .5,
-    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', glUser: false, fx: true, presence: false, avatar: 'orb', skin: 'glass', font: 'michroma', deskRot: 0, micKill: false, depth: true, presenceCam: '', governor: true, tune: null, gpuWarning: '', theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    parallax: true, particles: true, idleMorph: true, wander: true, gl: 'auto', glQuality: 'medium', glUser: false, fx: true, presence: false, avatar: 'orb', faceStyle: 'soft', vrm: '', skin: 'glass', font: 'michroma', deskRot: 0, micKill: false, depth: true, presenceCam: '', governor: true, tune: null, gpuWarning: '', theme: 'arc', custom: { a: '#2ee6ff', b: '#a07cff' }, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
     typing: null, speakGen: 0, lastAlertSource: null, pendingConfirm: null, wakeArmed: false,
   };
   const stage = $('stage'), root = $('root');
@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; S.avatar = s.ui.avatar || 'orb'; S.skin = s.ui.skin || 'glass'; S.font = s.ui.font || 'michroma'; S.micKill = !!s.ui.micKill; S.depth = s.ui.depth ?? true; S.gestures = !!s.ui.gestures; S.room = s.ui.room || ''; S.quietMode = s.ui.quietMode ?? true; applySkin(); if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; S.avatar = s.ui.avatar === 'face' ? 'bot' : (s.ui.avatar || 'orb'); S.faceStyle = s.ui.faceStyle || 'soft'; S.vrm = s.ui.vrm || ''; S.skin = s.ui.skin || 'glass'; S.font = s.ui.font || 'michroma'; S.micKill = !!s.ui.micKill; S.depth = s.ui.depth ?? true; S.gestures = !!s.ui.gestures; S.room = s.ui.room || ''; S.quietMode = s.ui.quietMode ?? true; applySkin(); if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, avatar: S.avatar, skin: S.skin, font: S.font, micKill: S.micKill, depth: S.depth, gestures: S.gestures, room: S.room, quietMode: S.quietMode, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, avatar: S.avatar, faceStyle: S.faceStyle, vrm: S.vrm, skin: S.skin, font: S.font, micKill: S.micKill, depth: S.depth, gestures: S.gestures, room: S.room, quietMode: S.quietMode, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -38,7 +38,7 @@
     $('stateSub').textContent = m === 'speaking' ? `neural voice · ${(voice.cfg.neuralVoice.split('-')[2] || 'aria').replace('Neural', '')}` : sub;
     $('pillMic').textContent = m === 'listening' ? 'MIC · HOT' : (voice.micOn ? 'MIC · OPEN' : 'MIC · ARMED');
     $('alertPulse').classList.toggle('hidden', m !== 'alert'); $('alert').classList.toggle('hidden', m !== 'alert');
-    eyes();
+    eyes(); SAM.face && SAM.face.mode(m);
   }
   function eyes() { core.eyes($('eyeL'), $('eyeR'), S.mode, S.blink, S.tick); }
   function blinkLoop() { T(() => { S.blink = true; eyes(); T(() => { S.blink = false; eyes(); }, 110); blinkLoop(); }, 2800 + Math.random() * 3200); }
@@ -50,8 +50,8 @@
     S.assembled = false; S.stagger = false; S.focus = null; setMode('boot'); setReply(''); $('transcript').textContent = '';
     $('bootWrap').classList.remove('off'); $('bootLog').innerHTML = ''; $('bootBar').style.width = '0%'; $('bootPct').textContent = '0';
     applyLayout();
-    BOOT.forEach((l, i) => T(() => { $('bootLog').insertAdjacentHTML('beforeend', `<div>▸ ${l}</div>`); const pct = Math.round((i + 1) / BOOT.length * 100); $('bootBar').style.width = pct + '%'; $('bootPct').textContent = pct; }, 400 + i * 330));
-    const end = 400 + BOOT.length * 330 + 250;
+    if (!SKIPBOOT) BOOT.forEach((l, i) => T(() => { $('bootLog').insertAdjacentHTML('beforeend', `<div>▸ ${l}</div>`); const pct = Math.round((i + 1) / BOOT.length * 100); $('bootBar').style.width = pct + '%'; $('bootPct').textContent = pct; }, 400 + i * 330));
+    const end = SKIPBOOT ? 0 : 400 + BOOT.length * 330 + 250;                                   // ?skipboot=1 (tests): straight to idle
     T(() => $('bootWrap').classList.add('off'), end);
     T(() => { setMode('idle'); S.assembled = true; S.stagger = true; applyLayout(); $('welcome').classList.remove('hidden'); }, end + 700);
     T(() => { S.stagger = false; applyLayout(); }, end + 2600);
@@ -62,7 +62,7 @@
   const FOCUS_SET = { sys: 1, cal: 1, task: 1, wx: 1, mus: 1, home: 1 };     // the calmer default: six widgets, six docked in the ring
   function applyLayout() {
     const wall = S.layout === 'wall', desk = S.layout === 'desk', ambient = S.layout === 'ambient' || wall, focusMode = S.layout === 'focus';
-    stage.classList.toggle('calm', focusMode || ambient); stage.classList.toggle('wall', wall); stage.classList.toggle('desk', desk); stage.classList.toggle('face', S.avatar === 'face');
+    stage.classList.toggle('calm', focusMode || ambient); stage.classList.toggle('wall', wall); stage.classList.toggle('desk', desk); SAM.face && SAM.face.apply();
     const deskList = desk ? W.filter(w => S.pinned[w.id] && w.pin !== false) : [];
     W.forEach((w, i) => {
       const slot = document.querySelector(`.slot[data-id=${w.id}]`), fly = document.querySelector(`.fly[data-id=${w.id}]`), node = document.querySelector(`.node[data-id=${w.id}]`);
@@ -100,7 +100,7 @@
     document.querySelectorAll('.sbtn.lay').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout));
     document.querySelectorAll('.drawer .sbtn.lay').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout));
   }
-  function setFocus(id) { S.focus = S.focus === id && id !== null ? null : id; if (S.focus === 'map') setTimeout(() => widgets.mapShow(), 200); if (S.focus && S.flow) document.querySelector(`.slot[data-id=${S.focus}]`).classList.remove('docked'); applyLayout(); }
+  function setFocus(id) { S.focus = S.focus === id && id !== null ? null : id; SAM.face && SAM.face.glance(S.focus); if (S.focus === 'map') setTimeout(() => widgets.mapShow(), 200); if (S.focus && S.flow) document.querySelector(`.slot[data-id=${S.focus}]`).classList.remove('docked'); applyLayout(); }
   function onResize() {
     const vw = innerWidth, vh = innerHeight, scale = Math.min(vw / 1920, vh / 1080), flow = scale < .75;
     S.vw = vw; S.vh = vh; S.scale = scale; S.flow = flow; S.cols = vw < 600 ? 1 : vw < 1000 ? 2 : 3; S.k = Math.max(.35, Math.min(.75, (vw - 24) / 760));
@@ -165,7 +165,7 @@
   function say(text, focus, opts = {}) {
     clearInterval(S.typing); const gen = ++S.speakGen;
     if (focus !== undefined) { S.focus = focus; applyLayout(); }
-    setMode('speaking'); setReply('');
+    setMode('speaking'); setReply(''); SAM.face && SAM.face.set(opts.emotion || SAM.face.guess(text));
     let i = 0, typingDone = false, audioDone = false, settled = false;
     const finish = () => { if (settled || !(typingDone && audioDone) || gen !== S.speakGen) return; settled = true; setReply(text); T(() => { if (gen === S.speakGen && S.mode === 'speaking') setMode(voice.micOn ? 'listening' : 'idle'); opts.after && opts.after(); }, opts.quick ? 400 : 2400); };
     const startTyping = () => {                                            // generation-safe: a late audio start from an older reply can never type over a newer one
@@ -190,10 +190,10 @@
       if (all) upto = rest.length;
       if (upto > 0 && (all || rest.slice(0, upto).trim().length > 12 || /[.!?]\s*$/.test(rest.slice(0, upto)))) { speakChunk(rest.slice(0, upto)); spoken += upto; }
     };
-    const startTyping = () => { if (started) return; started = true; setMode('speaking'); setReply(''); S.typing = setInterval(() => { if (gen !== S.speakGen) { clearInterval(S.typing); return; } if (shown.length < target.length) { shown = target.slice(0, shown.length + 1); setReply(shown); } else if (ended) { clearInterval(S.typing); finish(); } }, 22); };
+    const startTyping = () => { if (started) return; started = true; setMode('speaking'); setReply(''); SAM.face && SAM.face.set(SAM.face.guess(target)); S.typing = setInterval(() => { if (gen !== S.speakGen) { clearInterval(S.typing); return; } if (shown.length < target.length) { shown = target.slice(0, shown.length + 1); setReply(shown); } else if (ended) { clearInterval(S.typing); finish(); } }, 22); };
     return {
       push(text) { if (gen !== S.speakGen || !text) return; target = text; startTyping(); flush(false); },
-      end(text) { if (gen !== S.speakGen) return; if (text != null) target = text; startTyping(); ended = true; flush(true); if (!target) { settled = true; setMode(voice.micOn ? 'listening' : 'idle'); } },
+      end(text, emotion) { if (gen !== S.speakGen) return; if (text != null) target = text; startTyping(); if (emotion && SAM.face) SAM.face.set(emotion); ended = true; flush(true); if (!target) { settled = true; setMode(voice.micOn ? 'listening' : 'idle'); } },
       active: () => gen === S.speakGen && started,
     };
   }
@@ -227,8 +227,13 @@
     if (/^(normal text|small(er)? text|text smaller|zoom out text)$/.test(q)) return { text: 'Normal text.', effect: () => { S.bigtext = false; document.documentElement.classList.remove('bigtext'); save(); } };
     if (/^(desk( mode| layout)?|holographic desk|holo desk|3d desk)$/.test(q)) return { text: 'Holographic desk.', effect: () => { S.layout = 'desk'; save(); applyLayout(); } };
     if (/^(wall( mode| layout)?|wallpaper( mode)?|projector mode|living wallpaper)$/.test(q)) return { text: 'Wall mode.', effect: () => { S.layout = 'wall'; save(); applyLayout(); } };
-    if (/^(show (me )?your face|face mode|3d face|put on a face|be a face)$/.test(q)) return { text: 'Face on.', effect: () => { S.avatar = 'face'; save(); applyLayout(); } };
-    if (/^(orb mode|back to the orb|be an orb|hide your face)$/.test(q)) return { text: 'Back to the orb.', effect: () => { S.avatar = 'orb'; save(); applyLayout(); } };
+    /* ---- faces: the robot face (pinu-bot), the VRM avatar (three-vrm), emotions and styles ---- */
+    if (/^(show (me )?your face|face mode|3d face|put on a face|be a face|robot face|robot mode|be a robot)$/.test(q)) return { text: 'Face on.', effect: () => { S.avatar = 'bot'; save(); applyLayout(); } };
+    if (/^(avatar mode|anime (face|mode|avatar)|show (me )?the avatar|use the avatar|vrm (mode|avatar)|be the avatar)$/.test(q)) return { text: 'Avatar on.', effect: () => { S.avatar = 'vrm'; save(); applyLayout(); } };
+    if (/^(orb mode|back to the orb|be an orb|hide your face|hide the avatar|no face)$/.test(q)) return { text: 'Back to the orb.', effect: () => { S.avatar = 'orb'; save(); applyLayout(); } };
+    const ua = q.match(/^(?:use|wear|load|pick) the avatar (.{2,40})$/); if (ua) return { run: async () => { await SAM.face.listAvatars(); const a = SAM.face.pickAvatar(ua[1]); if (!a) return { text: `I have no avatar called ${ua[1]}. Drop a VRM file into app/avatars.` }; S.avatar = 'vrm'; S.vrm = a.file; save(); applyLayout(); return { text: `Wearing ${a.name}.` }; } };
+    const lk2 = q.match(/^(?:look|be|act|feel) (happy|sad|angry|mad|surprised|excited|confused|neutral|loving|in love|thoughtful|thinking)$/); if (lk2) { const e = { mad: 'angry', loving: 'love', 'in love': 'love', thoughtful: 'thinking' }[lk2[1]] || lk2[1]; return { text: ({ happy: 'Happy it is.', sad: 'If you say so.', angry: 'Grr.', surprised: 'Oh!', excited: "Let's go!", confused: 'Hm?', neutral: 'Neutral.', love: 'Aw.', thinking: 'Thinking.' })[e], effect: () => SAM.face && SAM.face.set(e, 8000) }; }
+    const fst = q.match(/^(?:face style|face look|robot style) (soft|visor|band)$/); if (fst) return { text: `${fst[1]} face.`, effect: () => { SAM.face && SAM.face.style(fst[1]); save(); } };
     const skq = q.match(/^(glass|wireframe|paper) (skin|look|widgets|cards)$/); if (skq) return { text: `${skq[1]} skin.`, effect: () => { S.skin = skq[1]; save(); applySkin(); } };
     /* ---- brains + voice (v1.6): missions, meter, meeting mode, voice styles, wake phrase, voice identity, full duplex ---- */
     const ms = q.match(/^(?:start|run|launch) (?:a )?mission[:,]? (.{6,400})$/); if (ms) return { run: async () => { try { await ensureService('agent'); const d = await brain.mission(ms[1]); return { focus: 'tty', text: `Mission ${d.id || ''} started. I will keep working on it in the background and tell you when it is done.` }; } catch (e) { return { text: `I could not start the mission: ${String(e.message).replace(/^Error: /, '')}` }; } } };
@@ -466,7 +471,7 @@
         if (brain.online) {
           llmSnap = brain.cfg.sysAccess ? widgets.snapshot() : null;
           const sc = sayStream();
-          try { const out = await brain.ask(q, llmSnap, text => sc.push(text)); r = { text: out.reply, focus: out.focus, actions: out.actions, shape: out.shape, provider: out.provider, stream: sc }; }
+          try { const out = await brain.ask(q, llmSnap, text => sc.push(text)); r = { text: out.reply, focus: out.focus, actions: out.actions, shape: out.shape, emotion: out.emotion, provider: out.provider, stream: sc }; }
           catch (e) { log('warn', `neural core · ${String(e.message).slice(0, 70)}`); if (sc.active()) { sc.end(); return; } r = offlineRoute(low); }
         } else r = offlineRoute(low);
       }
@@ -480,8 +485,8 @@
     for (const a of acts) { const res = await runAction(a); if (res) results.push(res); }
     let text = r.text == null ? (results[0] || 'Done.') : r.text;
     if (r.text && results.length && acts.some(a => a.type === 'clipboard_get')) text += ' ' + results.join(' ');
-    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text); return S.lastReply = text; }
-    say(text, r.focus === undefined ? null : r.focus);
+    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text, r.emotion); return S.lastReply = text; }
+    say(text, r.focus === undefined ? null : r.focus, { emotion: r.emotion });
     return S.lastReply = text;
   }
   /* ---------- find my phone ---------- */
@@ -811,6 +816,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     if (!voiceList) voiceList = await voice.voices();
     if (!ttsEngines) ttsEngines = await voice.engines();
     let cams = []; try { cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput' && d.label).map(d => ({ label: d.label, id: d.deviceId })); } catch (e) { }
+    const avatars = SAM.face ? await SAM.face.listAvatars() : [];
     const sw = (id, on) => `<div class="sw${on ? ' on' : ''}" data-sw="${id}"><i></i></div>`;
     const provOpts = Object.entries(brain.PROVIDERS).map(([id, x]) => `<option value="${id}"${id === b.provider ? ' selected' : ''}>${x.label}${x.free ? ' · FREE' : ''}${brain.configured(id) ? '' : (x.nokey ? '' : ' (NO KEY)')}</option>`).join('');
     const localModels = (brain.localModels || []).slice(0, 40);
@@ -863,7 +869,10 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       <h4>LAYOUT</h4>
       <div class="lbtns"><div class="sbtn lay${S.layout === 'focus' ? ' on' : ''}" data-l="focus">FOCUS</div><div class="sbtn lay${S.layout === 'full' ? ' on' : ''}" data-l="full">FULL</div><div class="sbtn lay${S.layout === 'ambient' ? ' on' : ''}" data-l="ambient">AMBIENT</div><div class="sbtn lay${S.layout === 'desk' ? ' on' : ''}" data-l="desk">DESK 3D</div><div class="sbtn lay${S.layout === 'wall' ? ' on' : ''}" data-l="wall">WALL</div></div>
       <h4>AVATAR · SKIN · FONT</h4>
-      <div class="lbtns"><div class="sbtn av${S.avatar === 'orb' ? ' on' : ''}" data-av="orb">ORB</div><div class="sbtn av${S.avatar === 'face' ? ' on' : ''}" data-av="face">3D FACE</div></div>
+      <select id="optAvatar">${[['orb', 'AVATAR: ORB'], ['bot', 'AVATAR: ROBOT FACE'], ['vrm', 'AVATAR: VRM AVATAR (3D CORE)']].map(([k, l]) => `<option value="${k}"${S.avatar === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
+      <select id="optFaceStyle">${[['soft', 'FACE STYLE: SOFT'], ['band', 'FACE STYLE: BAND MOUTH'], ['visor', 'FACE STYLE: VISOR']].map(([k, l]) => `<option value="${k}"${S.faceStyle === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
+      <select id="optVrm">${avatars.map(a => `<option value="${esc(a.file)}"${(S.vrm || SAM.face.DEFAULT_VRM.file) === a.file ? ' selected' : ''}>VRM FILE: ${esc(a.name.toUpperCase().slice(0, 40))}</option>`).join('')}</select>
+      <div class="note">Robot face: "show your face", "face style visor", "look happy". VRM: "avatar mode", "use the avatar &lt;name&gt;"; drop .vrm files into app/avatars.</div>
       <div class="lbtns"><div class="sbtn sk${S.skin === 'glass' ? ' on' : ''}" data-sk="glass">GLASS</div><div class="sbtn sk${S.skin === 'wireframe' ? ' on' : ''}" data-sk="wireframe">WIREFRAME</div><div class="sbtn sk${S.skin === 'paper' ? ' on' : ''}" data-sk="paper">PAPER</div></div>
       <select id="optFont">${[['michroma', 'FONT: MICHROMA + SAIRA (DEFAULT)'], ['system', 'FONT: SYSTEM (SEGOE / SF)'], ['mono', 'FONT: ALL MONOSPACE'], ['serif', 'FONT: SERIF']].map(([k, l]) => `<option value="${k}"${S.font === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
       <div class="row"><span>DEPTH BLUR (BACKGROUND SOFTENS BEHIND CARDS)</span>${sw('depth', S.depth)}</div>
@@ -904,7 +913,9 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     b.roles = b.roles || { chat: '', work: '', research: '', vision: '' };
     ['chat', 'work', 'research', 'vision'].forEach(role => { $('role_' + role).onchange = e => { b.roles[role] = e.target.value; save(); }; });
     document.querySelectorAll('.themes .sw').forEach(el => el.onclick = () => { applyTheme(el.dataset.t); save(); });
-    document.querySelectorAll('.sbtn.av').forEach(el => el.onclick = () => { S.avatar = el.dataset.av; save(); applyLayout(); document.querySelectorAll('.sbtn.av').forEach(b => b.classList.toggle('on', b === el)); });
+    $('optAvatar').onchange = e => { S.avatar = e.target.value; save(); applyLayout(); };
+    $('optFaceStyle').onchange = e => { SAM.face && SAM.face.style(e.target.value); save(); };
+    $('optVrm').onchange = e => { S.vrm = e.target.value; save(); applyLayout(); };
     document.querySelectorAll('.sbtn.sk').forEach(el => el.onclick = () => { S.skin = el.dataset.sk; save(); applySkin(); document.querySelectorAll('.sbtn.sk').forEach(b => b.classList.toggle('on', b === el)); });
     $('optFont').onchange = e => { S.font = e.target.value; save(); applySkin(); };
     document.querySelectorAll('.sbtn.gl').forEach(el => el.onclick = () => { S.gl = el.dataset.g; save(); document.querySelectorAll('.sbtn.gl').forEach(b => b.classList.toggle('on', b === el)); if (!SAM.gl) return; if (S.gl === 'off') SAM.gl.disable(); else if (!SAM.gl.on) SAM.gl.enable(S.glQuality); });
@@ -960,7 +971,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   function applyTheme(name) {
     if (!(name in THEMES)) name = 'arc'; S.theme = name; document.documentElement.dataset.theme = name;
     const r = document.documentElement.style; ['--cyan', '--cyan-rgb', '--violet', '--violet-rgb', '--ice', '--text', '--tick', '--muted', '--bg'].forEach(k => r.removeProperty(k));
-    const t = name === 'custom' ? customTheme() : THEMES[name]; core.setTheme(t[0], t[1], t[2]);
+    const t = name === 'custom' ? customTheme() : THEMES[name]; core.setTheme(t[0], t[1], t[2]); SAM.face && SAM.face.retheme();
     document.querySelectorAll('.themes .sw').forEach(el => el.classList.toggle('on', el.dataset.t === name));
   }
   const themeHex = n => n === 'custom' ? [S.custom.a, S.custom.b] : THEMES[n].slice(0, 2).map(x => rgbHex(...x.split(',').map(Number)));
@@ -1000,8 +1011,8 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   async function submitQuiet(text) {
     const q = String(text || '').trim(); if (!q) return '';
     const low = q.toLowerCase().replace(/[.!?]+$/, ''); let r = quickRoute(low, q);
-    try { if (r && r.run) r = await r.run(); else if (!r && brain.online) { const out = await brain.ask(q, brain.cfg.sysAccess ? widgets.snapshot() : null); r = { text: out.reply, focus: out.focus, actions: out.actions }; } else if (!r) r = offlineRoute(low); } catch (e) { return 'Something went wrong on my side.'; }
-    if (!r) return ''; if (r.focus && S.focus !== r.focus) setFocus(r.focus); if (r.effect) { try { r.effect(); } catch (e) { } } for (const a of r.actions || []) { try { await runAction(a); } catch (e) { } }
+    try { if (r && r.run) r = await r.run(); else if (!r && brain.online) { const out = await brain.ask(q, brain.cfg.sysAccess ? widgets.snapshot() : null); r = { text: out.reply, focus: out.focus, actions: out.actions, emotion: out.emotion }; } else if (!r) r = offlineRoute(low); } catch (e) { return 'Something went wrong on my side.'; }
+    if (!r) return ''; if (SAM.face) SAM.face.set(r.emotion || SAM.face.guess(r.text)); if (r.focus && S.focus !== r.focus) setFocus(r.focus); if (r.effect) { try { r.effect(); } catch (e) { } } for (const a of r.actions || []) { try { await runAction(a); } catch (e) { } }
     widgets.pushTty(`≈ ${String(r.text || '').slice(0, 120)}`, '#2ee6ff'); return r.text || '';
   }
   brain.onBudget = m => { if (m && m.spoken) { widgets.pushTty(`meter · ${m.spoken}`, '#ff3d6e'); say(m.spoken, 'tty'); } };

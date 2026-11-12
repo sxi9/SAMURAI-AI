@@ -1,7 +1,7 @@
 /* SAMURAI HUD v3 — 3D core (ES module). A WebGL layer behind the widgets: a nebula shader background, a particle field of
    up to 24,000 points that morphs through the same shapes as the 2D core, a volumetric glass orb that follows the avatar and
-   lip-syncs to the voice, bloom, and a holographic globe for the position widget. Falls back to the 2D canvas when WebGL is
-   slow or missing. Exposes window.SAM.gl. */
+   lip-syncs to the voice, an optional VRM avatar (three-vrm) in the same scene, bloom, and a holographic globe for the
+   position widget. Falls back to the 2D canvas when WebGL is slow or missing. Exposes window.SAM.gl. */
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -67,7 +67,7 @@ const gl = {
   on: false, quality: 'medium', fps: 0, speechLevel: 0, energy: 0, ready: false, failed: '',
   canvas: null, renderer: null, scene: null, camera: null, composer: null, bloom: null,
   nebula: null, points: null, orb: null, halo: null, N: 0, shapes: {}, ppos: null, pfrom: null, ptarget: null, pdelay: null, morphT: 1, shapeName: 'sphere', spin: 0, tilt: .3, lastTs: 0, raf: 0,
-  analyser: null, actx: null, srcEl: null, fft: null, glitch: 0,
+  analyser: null, actx: null, srcEl: null, fft: null, glitch: 0, vrm: null, vrmLoading: '', vrmFailed: '',
 
   enable(quality) {
     if (this.on) return true;
@@ -80,7 +80,7 @@ const gl = {
     this.scene = new THREE.Scene();
     const fov = 40, D = (H / 2) / Math.tan(fov / 2 * Math.PI / 180);
     this.camera = new THREE.PerspectiveCamera(fov, W / H, 10, 6000); this.camera.position.set(0, -(540 - CY), D); this.camera.lookAt(0, -(540 - CY), 0); this.D = D;
-    this.buildNebula(D); this.buildParticles(Q.n); this.buildOrb(); this.buildFace();
+    this.buildNebula(D); this.buildParticles(Q.n); this.buildOrb();
     if (Q.bloom) {
       this.composer = new EffectComposer(r); this.composer.addPass(new RenderPass(this.scene, this.camera));
       this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .6, .4, .4); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
@@ -93,7 +93,7 @@ const gl = {
     return true;
   },
   disable() {
-    if (!this.on) return; this.on = false; cancelAnimationFrame(this.raf);
+    if (!this.on) return; this.on = false; cancelAnimationFrame(this.raf); this.disposeVrm(); this.vrmLoading = '';
     document.getElementById('stage').classList.remove('gl'); SAM.core.particles = true;
     try { this.renderer.dispose(); this.composer && this.composer.dispose(); } catch (e) { }
     this.renderer = null; this.composer = null; this.scene = null; if (this.canvas) this.canvas.remove(); this.canvas = null;
@@ -162,22 +162,52 @@ const gl = {
     this.halo.scale.set(330, 330, 1); this.scene.add(this.halo);
   },
   getShape(name) { if (!this.shapes[name]) this.shapes[name] = shapeOf(name, this.N); return this.shapes[name]; },
-  /* procedural 3D head: an alternative avatar with eyes that look around, brows that follow the mood, a mouth that lip-syncs */
-  buildFace() {
-    const g = new THREE.Group(); const A = rgb(SAM.core.THEME.c), I = rgb(SAM.core.THEME.ice);
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(118, 48, 36), new THREE.MeshPhongMaterial({ color: 0x0a1428, emissive: A, emissiveIntensity: .08, shininess: 90, transparent: true, opacity: .92 })));
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(121, 48, 36), new THREE.MeshBasicMaterial({ color: A, wireframe: true, transparent: true, opacity: .06 })));
-    const eyeGeo = new THREE.SphereGeometry(14, 24, 16); const eyeMat = new THREE.MeshBasicMaterial({ color: I });
-    const eyes = [-38, 38].map(x => { const e = new THREE.Mesh(eyeGeo, eyeMat); e.position.set(x, 18, 104); e.scale.set(1, 1.35, .5); g.add(e); return e; });
-    const browMat = new THREE.MeshBasicMaterial({ color: A, transparent: true, opacity: .8 });
-    const brows = [-38, 38].map(x => { const b = new THREE.Mesh(new THREE.BoxGeometry(34, 4, 4), browMat); b.position.set(x, 46, 104); g.add(b); return b; });
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(56, 6, 6), new THREE.MeshBasicMaterial({ color: A })); mouth.position.set(0, -34, 108); g.add(mouth);
-    const light = new THREE.PointLight(0xffffff, 1.6, 900); light.position.set(-160, 220, 420); g.add(light); g.add(new THREE.AmbientLight(0x4060a0, .6));
-    g.visible = false; this.face = { group: g, eyes, brows, mouth, blink: 0, nextBlink: 2 }; this.scene.add(g);
+
+  /* ---- VRM avatar (three-vrm): loaded lazily when the avatar is set to 'vrm', framed head-and-shoulders where the orb is,
+     lit with a soft warm key and a cyan parametric rim, driven by SAM.face (expressions, visemes, blink, gaze) ---- */
+  async loadVrm() {
+    if (this.vrm || this.vrmLoading) return; const url = SAM.face.vrmUrl(); this.vrmLoading = url;
+    const hud = SAM.hud; hud.log('info', 'avatar · loading ' + decodeURIComponent(url.split('/').pop()) + ' …');
+    try {
+      const [{ GLTFLoader }, { VRMLoaderPlugin, VRMUtils }] = await Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('@pixiv/three-vrm')]);
+      const loader = new GLTFLoader(); loader.register(parser => new VRMLoaderPlugin(parser));
+      const gltf = await loader.loadAsync(url); const vrm = gltf.userData.vrm;
+      if (!this.on || this.vrmLoading !== url) { VRMUtils.deepDispose(gltf.scene); this.vrmLoading = ''; return; }
+      VRMUtils.removeUnnecessaryVertices(gltf.scene); VRMUtils.combineSkeletons(gltf.scene); VRMUtils.rotateVRM0(vrm);
+      const hum = vrm.humanoid, bone = n => hum && hum.getNormalizedBoneNode(n);
+      const lUA = bone('leftUpperArm'), rUA = bone('rightUpperArm'); if (lUA) lUA.rotation.z = -1.2; if (rUA) rUA.rotation.z = 1.2;   // arms down from the T-pose
+      vrm.scene.traverse(o => { for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) if (m && m.isMToonMaterial) { m.parametricRimColorFactor = rgb(SAM.core.THEME.c).multiplyScalar(.7); m.parametricRimFresnelPowerFactor = 5; m.parametricRimLiftFactor = 0; m.needsUpdate = true; } });
+      const g = new THREE.Group(); const SC = 760; vrm.scene.scale.setScalar(SC); g.add(vrm.scene);
+      vrm.scene.updateMatrixWorld(true); const head = bone('head'), hp = new THREE.Vector3(); if (head) head.getWorldPosition(hp); else hp.set(0, 1.4 * SC, 0);
+      vrm.scene.position.set(-hp.x, -hp.y, -hp.z);                                                            // the head sits on the group's origin
+      const key = new THREE.DirectionalLight(0xfff6ee, 1.1); key.position.set(300, 700, 1100); g.add(key); g.add(new THREE.HemisphereLight(0x8a94a8, 0x0a0e14, .12));
+      const target = new THREE.Object3D(); g.add(target); if (vrm.lookAt) vrm.lookAt.target = target;
+      this.scene.add(g); this.vrm = { vrm, group: g, target, head, neck: bone('neck'), em: vrm.expressionManager, cur: {}, url }; this.vrmLoading = '';
+      hud.log('ok', `avatar · ${(vrm.meta && (vrm.meta.name || vrm.meta.title)) || 'VRM'} ready`);
+    } catch (e) { this.vrmLoading = ''; this.vrmFailed = url; hud.log('warn', 'avatar · could not load the VRM · ' + String(e.message || e).slice(0, 70)); }
+  },
+  disposeVrm() {
+    const V = this.vrm; if (!V) return; this.vrm = null; this.scene && this.scene.remove(V.group);
+    import('@pixiv/three-vrm').then(({ VRMUtils }) => VRMUtils.deepDispose(V.vrm.scene)).catch(() => { });
+  },
+  updateVrm(dt, t) {
+    const V = this.vrm, F = SAM.face, wd = SAM.hud.WD || {}, em = V.em; if (!em) return;
+    const want = Object.assign({}, F.VRM_EXPR ? F.VRM_EXPR[F.shown] : {}), k = Math.min(1, dt * 8);
+    for (const name of ['happy', 'angry', 'sad', 'relaxed', 'surprised', 'lookUp', 'lookLeft']) { const tv = (want[name] || 0) * F.shownIntensity; V.cur[name] = (V.cur[name] || 0) + (tv - (V.cur[name] || 0)) * k; em.setValue(name, V.cur[name]); }
+    for (const v in F.vis) em.setValue(v, F.vis[v]);
+    em.setValue('blink', F.blinkV);
+    /* gaze and a little head life: the look-at target floats in front of the camera, the head turns part of the way */
+    V.target.position.set(F.lookX * 900, -F.lookY * 600, 1400);
+    const idle = SAM.core.mode === 'idle', hx = F.lookX * .22 + (idle ? Math.sin(t * .37) * .05 : 0), hy = -F.lookY * .18 + (idle ? Math.sin(t * .29 + 1) * .03 : 0);
+    if (V.head) { V.head.rotation.y += (hx - V.head.rotation.y) * k; V.head.rotation.x += (hy - V.head.rotation.x) * k; V.head.rotation.z += ((idle ? Math.sin(t * .23) * .03 : 0) - V.head.rotation.z) * k; }
+    if (V.neck) V.neck.rotation.y += (hx * .4 - V.neck.rotation.y) * k;
+    V.group.position.set((wd.ox || 0) * .25, -(wd.oy || 0) * .25 - 30, 0);
+    V.vrm.update(dt);
   },
 
-  /* lip-sync: an analyser on whatever audio element the voice module is playing */
+  /* lip-sync level: the face controller owns the analyser (shared with the robot face); the old path stays as a fallback */
   speech() {
+    if (SAM.face) return SAM.face.speech();
     const v = SAM.voice, el = v && v.audio;
     if (el && el !== this.srcEl) {
       try { if (!this.actx) this.actx = new (window.AudioContext || window.webkitAudioContext)(); const src = this.actx.createMediaElementSource(el); this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 256; src.connect(this.analyser); this.analyser.connect(this.actx.destination); this.fft = new Uint8Array(this.analyser.frequencyBinCount); if (this.actx.state === 'suspended') this.actx.resume().catch(() => { }); }
@@ -216,15 +246,14 @@ const gl = {
     const sc = (wd.os || 1) * (1 + this.speechLevel * .12 + music * .06);
     this.orb.position.set(wd.ox || 0, -(wd.oy || 0), 40); this.orb.scale.set(sc, sc, sc);
     const ou = this.orb.material.uniforms; ou.uTime.value = t; ou.uA.value = A; ou.uB.value = B; ou.uRed.value = red; ou.uTalk.value = this.speechLevel; ou.uEnergy.value = this.energy;
-    const faceMode = hud && hud.S.avatar === 'face'; if (this.face) { const f = this.face; f.group.visible = faceMode; this.orb.visible = !faceMode; this.halo.visible = true;
-      if (faceMode) { f.group.position.copy(this.orb.position); f.group.scale.set(sc, sc, sc); f.group.rotation.y = (wd.gx || 0) * .03 + Math.sin(t * .4) * .04; f.group.rotation.x = -(wd.gy || 0) * .03;
-        const open = m === 'speaking' ? .6 + this.speechLevel * 7 : m === 'listening' ? 1.6 : 1; f.mouth.scale.set(1 + (m === 'speaking' ? this.speechLevel * .4 : 0), open, 1);
-        f.blink = t > f.nextBlink ? f.blink + dt * 12 : 0; if (f.blink > 2) { f.blink = 0; f.nextBlink = t + 2 + Math.random() * 4; } const lid = f.blink > 0 && f.blink < 2 ? Math.max(.08, Math.abs(1 - f.blink)) : 1;
-        const mood = (SAM.brain && SAM.brain.cfg && SAM.brain.cfg.mood) || 'balanced', tilt = ({ witty: -.35, hype: -.5, sarcastic: .25, deadpan: .1, professional: 0, balanced: -.1 })[mood] || 0;
-        f.eyes.forEach((e, i) => { e.scale.y = 1.35 * lid * (m === 'alert' ? .6 : 1); e.position.x = (i ? 38 : -38) + (wd.gx || 0) * .6; e.position.y = 18 + (wd.gy || 0) * .6; e.material.color = red ? new THREE.Color(1, .3, .45) : rgb(SAM.core.THEME.ice); });
-        f.brows.forEach((b, i) => { b.rotation.z = (i ? -1 : 1) * (tilt + (m === 'thinking' ? .3 : 0) + (red ? .5 : 0)); b.position.y = 46 + (m === 'listening' ? 6 : 0) - (red ? 8 : 0); });
-      } }
-    this.halo.position.copy(this.orb.position); const hs = 330 * sc * (1 + this.speechLevel * .25 + music * .3); this.halo.scale.set(hs, hs, 1); this.halo.material.color = red ? new THREE.Color(1, .24, .43) : (mode === 1 ? B : A); this.halo.material.opacity = .35 + .35 * this.energy;
+    /* avatar: the orb, the robot face (DOM layer, orb hidden) or the VRM avatar (loaded on demand, orb hidden once it is in) */
+    const av = SAM.face ? SAM.face.effective() : 'orb';
+    if (av === 'vrm') { if (!this.vrm && !this.vrmLoading && this.vrmFailed !== SAM.face.vrmUrl()) this.loadVrm(); else if (this.vrm && this.vrm.url !== SAM.face.vrmUrl()) this.disposeVrm(); }
+    else if (this.vrm || this.vrmLoading) { this.disposeVrm(); this.vrmLoading = ''; }
+    const vrmOn = av === 'vrm' && !!this.vrm; this.orb.visible = av === 'orb' || (av === 'vrm' && !vrmOn);
+    if (vrmOn) this.updateVrm(dt, t);
+    pu.uCenter.value.z += ((vrmOn ? -520 : 0) - pu.uCenter.value.z) * .08;                      // the particle field moves behind the bust
+    this.halo.position.copy(this.orb.position); if (vrmOn) { this.halo.position.set(0, -60, -220); } const hs = 330 * sc * (vrmOn ? 2.2 : 1) * (1 + this.speechLevel * .25 + music * .3); this.halo.scale.set(hs, hs, 1); this.halo.material.color = red ? new THREE.Color(1, .24, .43) : (mode === 1 ? B : A); this.halo.material.opacity = (vrmOn ? .22 : .35) + .35 * this.energy;
     const nu = this.nebula.material.uniforms; nu.uTime.value = t; nu.uA.value = A; nu.uB.value = B; nu.uRed.value += (red - nu.uRed.value) * .06; nu.uEnergy.value += (this.energy - nu.uEnergy.value) * .05; nu.uStir.value = m === 'alert' ? .6 : m === 'thinking' ? .35 : .15 + music * .3;
     this.glitch = Math.max(0, this.glitch - dt * 1.5); nu.uGlitch.value = this.glitch;
     if (this.bloom) this.bloom.strength = .45 + .4 * this.energy + .35 * music;
