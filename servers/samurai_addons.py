@@ -567,17 +567,30 @@ def get_gallery_file(h, q, b):
 
 
 # ----------------------------------------------------------------------------- avatars (VRM files the HUD can wear)
-AVATARS_DIR = os.path.join(APP, "avatars")
+AVATARS_DIR = os.path.join(APP, "avatars")                                # the bundled models
+OVERLAY_AVATARS = os.path.join(DATA, "src", "app", "avatars")              # the forge overlay's folder: the one the UI server serves when a rebuild is in place
+
+
+def avatar_dirs():
+    """Where the HUD finds VRM files: the overlay's app/avatars (when the UI server serves the overlay, which falls back to the
+    bundled folder for files it lacks) and the bundled app/avatars. Dropping a file into either makes it show up."""
+    dirs = [AVATARS_DIR]
+    if getattr(sys, "frozen", False) and os.path.exists(os.path.join(DATA, "src", "servers", "samurai_common.py")) and os.path.isdir(OVERLAY_AVATARS):
+        dirs.insert(0, OVERLAY_AVATARS)
+    return dirs
 
 
 def get_avatars(h, q, b):
-    """VRM models in app/avatars. The UI server (:8080) serves them statically, so the url is relative to the HUD's origin."""
-    try:
-        names = sorted(f for f in os.listdir(AVATARS_DIR) if f.lower().endswith(".vrm"))
-    except OSError:
-        names = []
+    """VRM models in app/avatars (bundled, plus the forge overlay's folder when active). The UI server (:8080) serves them
+    statically, so the url is relative to the HUD's origin."""
+    names = set()
+    for d in avatar_dirs():
+        try:
+            names.update(f for f in os.listdir(d) if f.lower().endswith(".vrm"))
+        except OSError:
+            pass
     pretty = lambda n: re.sub(r"[_\-]+", " ", n[:-4]).strip() or n
-    return {"ok": True, "avatars": [{"name": pretty(n), "file": n, "url": "/avatars/" + urllib.parse.quote(n)} for n in names], "dir": AVATARS_DIR}
+    return {"ok": True, "avatars": [{"name": pretty(n), "file": n, "url": "/avatars/" + urllib.parse.quote(n)} for n in sorted(names)], "dir": avatar_dirs()[0]}
 
 
 # ----------------------------------------------------------------------------- position

@@ -127,13 +127,15 @@
      drifts on every axis on the way, glances where it is going, and bounces to the music when something is playing */
   const WD = { x: 0, y: 0, vx: 0, vy: 0, s: 1, rx: 0, ry: 0, rz: 0, gx: 0, gy: 0, sh: 0, wx: 0, wy: 0, nextWp: 0, beat: 0, bob: 0 };
   function pickWaypoint(t) {
-    const flow = S.flow, R = flow ? 0.35 : 1;
+    const flow = S.flow, R = flow ? 0.35 : faceOn() ? 0.15 : 1;                                   // a face (opaque panel or bust) only drifts a little around its spot
     WD.wx = (Math.random() * 2 - 1) * 600 * R; WD.wy = (Math.random() * 2 - 1) * 290 * R;     // anywhere on the stage, clear of the console
     WD.nextWp = t + 5 + Math.random() * 7;
   }
+  const faceOn = () => !!(SAM.face && SAM.face.effective() !== 'orb');
   function wanderFrame(ts) {
-    const t = ts / 1000, showcase = core.showcase(), playing = widgets.data.music.now.playing;
+    const t = ts / 1000, showcase = core.showcase(), playing = widgets.data.music.now.playing, face = faceOn();
     const idle = S.wander && !S.reduced && S.mode === 'idle' && !S.focus && !S.drawer && !showcase;
+    if (face) { if (Math.abs(WD.wx) > 130 || Math.abs(WD.wy) > 70) { WD.wx *= .2; WD.wy *= .2; } WD.x = Math.max(-110, Math.min(110, WD.x)); WD.y = Math.max(-60, Math.min(60, WD.y)); }   // the face came on mid-trip: shorten the waypoint and keep the panel by its spot
     WD.sh += ((showcase ? 1 : 0) - WD.sh) * .05;       // a commanded shape is on display: orb shrinks and stays centred so the shape reads
     if (idle) { if (t > WD.nextWp) pickWaypoint(t); }
     else { WD.wx = WD.wy = 0; WD.nextWp = t + 2; }
@@ -142,8 +144,10 @@
     WD.vx = (WD.vx + dx * acc) * damp; WD.vy = (WD.vy + dy * acc) * damp; WD.x += WD.vx; WD.y += WD.vy;
     const speed = Math.hypot(WD.vx, WD.vy);
     const tsc = idle ? 1 + .08 * Math.sin(t * .13 + 2) : 1;
-    const trx = idle ? 9 * Math.sin(t * .19 + .7) - WD.vy * 3 : 0, tryy = idle ? 12 * Math.sin(t * .23 + 1.9) + WD.vx * 3 : 0, trz = idle ? WD.vx * 4 : 0;
+    const tilt = idle && !face;                                                                      // the faces stay upright: no banking for the panel or the bust
+    const trx = tilt ? 9 * Math.sin(t * .19 + .7) - WD.vy * 3 : 0, tryy = tilt ? 12 * Math.sin(t * .23 + 1.9) + WD.vx * 3 : 0, trz = tilt ? WD.vx * 4 : 0;
     WD.s += (tsc - WD.s) * .05; WD.rx += (Math.max(-18, Math.min(18, trx)) - WD.rx) * .05; WD.ry += (Math.max(-22, Math.min(22, tryy)) - WD.ry) * .05; WD.rz += (Math.max(-14, Math.min(14, trz)) - WD.rz) * .05;
+    if (face) WD.rx = WD.ry = WD.rz = 0;                                                             // a face switched on mid-bank stands up straight at once
     const look = t < (WD.lookUntil || 0);
     const gx = look ? WD.lookX : idle ? Math.max(-9, Math.min(9, dx * .03)) + 4 * Math.sin(t * .9) : 0, gy = look ? WD.lookY : idle ? Math.max(-6, Math.min(6, dy * .03)) + 2 * Math.sin(t * .7 + 2) : 0;
     WD.gx += (gx - WD.gx) * .08; WD.gy += (gy - WD.gy) * .08;
@@ -165,7 +169,7 @@
   function say(text, focus, opts = {}) {
     clearInterval(S.typing); const gen = ++S.speakGen;
     if (focus !== undefined) { S.focus = focus; applyLayout(); }
-    setMode('speaking'); setReply(''); SAM.face && SAM.face.set(opts.emotion || SAM.face.guess(text));
+    setMode('speaking'); setReply(''); SAM.face && SAM.face.set(opts.emotion || SAM.face.guess(text), opts.hold);   // the reply's face: from the brain, a route, or a guess
     let i = 0, typingDone = false, audioDone = false, settled = false;
     const finish = () => { if (settled || !(typingDone && audioDone) || gen !== S.speakGen) return; settled = true; setReply(text); T(() => { if (gen === S.speakGen && S.mode === 'speaking') setMode(voice.micOn ? 'listening' : 'idle'); opts.after && opts.after(); }, opts.quick ? 400 : 2400); };
     const startTyping = () => {                                            // generation-safe: a late audio start from an older reply can never type over a newer one
@@ -193,7 +197,7 @@
     const startTyping = () => { if (started) return; started = true; setMode('speaking'); setReply(''); SAM.face && SAM.face.set(SAM.face.guess(target)); S.typing = setInterval(() => { if (gen !== S.speakGen) { clearInterval(S.typing); return; } if (shown.length < target.length) { shown = target.slice(0, shown.length + 1); setReply(shown); } else if (ended) { clearInterval(S.typing); finish(); } }, 22); };
     return {
       push(text) { if (gen !== S.speakGen || !text) return; target = text; startTyping(); flush(false); },
-      end(text, emotion) { if (gen !== S.speakGen) return; if (text != null) target = text; startTyping(); if (emotion && SAM.face) SAM.face.set(emotion); ended = true; flush(true); if (!target) { settled = true; setMode(voice.micOn ? 'listening' : 'idle'); } },
+      end(text, emotion, hold) { if (gen !== S.speakGen) return; if (text != null) target = text; startTyping(); if (emotion && SAM.face) SAM.face.set(emotion, hold); ended = true; flush(true); if (!target) { settled = true; setMode(voice.micOn ? 'listening' : 'idle'); } },
       active: () => gen === S.speakGen && started,
     };
   }
@@ -232,7 +236,7 @@
     if (/^(avatar mode|anime (face|mode|avatar)|show (me )?the avatar|use the avatar|vrm (mode|avatar)|be the avatar)$/.test(q)) return { text: 'Avatar on.', effect: () => { S.avatar = 'vrm'; save(); applyLayout(); } };
     if (/^(orb mode|back to the orb|be an orb|hide your face|hide the avatar|no face)$/.test(q)) return { text: 'Back to the orb.', effect: () => { S.avatar = 'orb'; save(); applyLayout(); } };
     const ua = q.match(/^(?:use|wear|load|pick) the avatar (.{2,40})$/); if (ua) return { run: async () => { await SAM.face.listAvatars(); const a = SAM.face.pickAvatar(ua[1]); if (!a) return { text: `I have no avatar called ${ua[1]}. Drop a VRM file into app/avatars.` }; S.avatar = 'vrm'; S.vrm = a.file; save(); applyLayout(); return { text: `Wearing ${a.name}.` }; } };
-    const lk2 = q.match(/^(?:look|be|act|feel) (happy|sad|angry|mad|surprised|excited|confused|neutral|loving|in love|thoughtful|thinking)$/); if (lk2) { const e = { mad: 'angry', loving: 'love', 'in love': 'love', thoughtful: 'thinking' }[lk2[1]] || lk2[1]; return { text: ({ happy: 'Happy it is.', sad: 'If you say so.', angry: 'Grr.', surprised: 'Oh!', excited: "Let's go!", confused: 'Hm?', neutral: 'Neutral.', love: 'Aw.', thinking: 'Thinking.' })[e], effect: () => SAM.face && SAM.face.set(e, 8000) }; }
+    const lk2 = q.match(/^(?:look|be|act|feel) (happy|sad|angry|mad|surprised|excited|confused|neutral|loving|in love|thoughtful|thinking)$/); if (lk2) { const e = { mad: 'angry', loving: 'love', 'in love': 'love', thoughtful: 'thinking' }[lk2[1]] || lk2[1]; return { text: ({ happy: 'Happy it is.', sad: 'If you say so.', angry: 'Grr.', surprised: 'Oh!', excited: "Let's go!", confused: 'Hm?', neutral: 'Neutral.', love: 'Aw.', thinking: 'Thinking.' })[e], emotion: e, hold: 8000 }; }   // say() gets the emotion, so the short reply's own guess does not override it
     const fst = q.match(/^(?:face style|face look|robot style) (soft|visor|band)$/); if (fst) return { text: `${fst[1]} face.`, effect: () => { SAM.face && SAM.face.style(fst[1]); save(); } };
     const skq = q.match(/^(glass|wireframe|paper) (skin|look|widgets|cards)$/); if (skq) return { text: `${skq[1]} skin.`, effect: () => { S.skin = skq[1]; save(); applySkin(); } };
     /* ---- brains + voice (v1.6): missions, meter, meeting mode, voice styles, wake phrase, voice identity, full duplex ---- */
@@ -485,8 +489,8 @@
     for (const a of acts) { const res = await runAction(a); if (res) results.push(res); }
     let text = r.text == null ? (results[0] || 'Done.') : r.text;
     if (r.text && results.length && acts.some(a => a.type === 'clipboard_get')) text += ' ' + results.join(' ');
-    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text, r.emotion); return S.lastReply = text; }
-    say(text, r.focus === undefined ? null : r.focus, { emotion: r.emotion });
+    if (r.stream) { if (r.focus !== undefined) { S.focus = r.focus; applyLayout(); } r.stream.end(text, r.emotion, r.hold); return S.lastReply = text; }
+    say(text, r.focus === undefined ? null : r.focus, { emotion: r.emotion, hold: r.hold });
     return S.lastReply = text;
   }
   /* ---------- find my phone ---------- */
@@ -1012,7 +1016,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     const q = String(text || '').trim(); if (!q) return '';
     const low = q.toLowerCase().replace(/[.!?]+$/, ''); let r = quickRoute(low, q);
     try { if (r && r.run) r = await r.run(); else if (!r && brain.online) { const out = await brain.ask(q, brain.cfg.sysAccess ? widgets.snapshot() : null); r = { text: out.reply, focus: out.focus, actions: out.actions, emotion: out.emotion }; } else if (!r) r = offlineRoute(low); } catch (e) { return 'Something went wrong on my side.'; }
-    if (!r) return ''; if (SAM.face) SAM.face.set(r.emotion || SAM.face.guess(r.text)); if (r.focus && S.focus !== r.focus) setFocus(r.focus); if (r.effect) { try { r.effect(); } catch (e) { } } for (const a of r.actions || []) { try { await runAction(a); } catch (e) { } }
+    if (!r) return ''; if (SAM.face) SAM.face.set(r.emotion || SAM.face.guess(r.text), r.hold); if (r.focus && S.focus !== r.focus) setFocus(r.focus); if (r.effect) { try { r.effect(); } catch (e) { } } for (const a of r.actions || []) { try { await runAction(a); } catch (e) { } }
     widgets.pushTty(`≈ ${String(r.text || '').slice(0, 120)}`, '#2ee6ff'); return r.text || '';
   }
   brain.onBudget = m => { if (m && m.spoken) { widgets.pushTty(`meter · ${m.spoken}`, '#ff3d6e'); say(m.spoken, 'tty'); } };

@@ -35,8 +35,20 @@ def run_ui():
     from samurai_common import PORTS, bind_host, maybe_wrap_tls, tls_enabled
     mimetypes.add_type("application/manifest+json", ".webmanifest")    # companion PWA manifest (the dev `python -m http.server` serves it as octet-stream; Chrome still accepts it on http://localhost)
     mimetypes.add_type("application/javascript", ".js")
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=app_dir())
-    handler.log_message = lambda *a: None
+    from samurai_common import APP
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def translate_path(self, path):                                   # /avatars/<file>: the overlay carries no VRM models (not needed to rebuild), serve the bundled ones
+            p = super().translate_path(path)
+            if not os.path.exists(p) and path.split("?", 1)[0].startswith("/avatars/"):
+                alt = os.path.join(APP, "avatars", os.path.basename(p))
+                if os.path.exists(alt):
+                    return alt
+            return p
+
+        def log_message(self, *a):
+            pass
+    handler = functools.partial(Handler, directory=app_dir())
     host = "0.0.0.0" if bind_host() != "localhost" else "127.0.0.1"
     print(f"[SAMURAI] UI server on {'https' if tls_enabled() else 'http'}://localhost:{PORTS['ui']}/jarvis-interface.html" + (f"  (overlay {app_dir()})" if USE_OVERLAY else ""))
     maybe_wrap_tls(http.server.ThreadingHTTPServer((host, PORTS["ui"]), handler)).serve_forever()

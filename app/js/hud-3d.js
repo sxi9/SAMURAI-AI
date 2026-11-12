@@ -67,7 +67,8 @@ const gl = {
   on: false, quality: 'medium', fps: 0, speechLevel: 0, energy: 0, ready: false, failed: '',
   canvas: null, renderer: null, scene: null, camera: null, composer: null, bloom: null,
   nebula: null, points: null, orb: null, halo: null, N: 0, shapes: {}, ppos: null, pfrom: null, ptarget: null, pdelay: null, morphT: 1, shapeName: 'sphere', spin: 0, tilt: .3, lastTs: 0, raf: 0,
-  analyser: null, actx: null, srcEl: null, fft: null, glitch: 0, vrm: null, vrmLoading: '', vrmFailed: '',
+  glitch: 0, vrm: null, vrmLoading: '', vrmFailed: '',
+  VRM_SCALE: 640, VRM_Y: 46, VRM_CUT: -214,                                 // bust framing: model units -> px, head bone above the orb centre, where the body fades out (px, group space)
 
   enable(quality) {
     if (this.on) return true;
@@ -77,10 +78,11 @@ const gl = {
       this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, alpha: true, powerPreference: 'high-performance', premultipliedAlpha: false });
     } catch (e) { this.failed = 'WebGL unavailable'; return false; }
     const r = this.renderer; r.setPixelRatio(Q.pr); r.setSize(W, H, false); r.setClearColor(0x000000, 0); r.toneMapping = THREE.NoToneMapping;
-    this.scene = new THREE.Scene();
+    this.scene = new THREE.Scene(); r.localClippingEnabled = true;
     const fov = 40, D = (H / 2) / Math.tan(fov / 2 * Math.PI / 180);
     this.camera = new THREE.PerspectiveCamera(fov, W / H, 10, 6000); this.camera.position.set(0, -(540 - CY), D); this.camera.lookAt(0, -(540 - CY), 0); this.D = D;
     this.buildNebula(D); this.buildParticles(Q.n); this.buildOrb();
+    if (this.vrm) this.scene.add(this.vrm.group);                                  // an avatar kept across a quality change comes straight back
     if (Q.bloom) {
       this.composer = new EffectComposer(r); this.composer.addPass(new RenderPass(this.scene, this.camera));
       this.bloom = new UnrealBloomPass(new THREE.Vector2(W * Q.pr / 2, H * Q.pr / 2), .6, .4, .4); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
@@ -92,13 +94,13 @@ const gl = {
     const loop = ts => { if (!this.on) return; skip = !skip && this.quality !== 'high'; if (!skip) this.frame(ts); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop);
     return true;
   },
-  disable() {
-    if (!this.on) return; this.on = false; cancelAnimationFrame(this.raf); this.disposeVrm(); this.vrmLoading = '';
+  disable(keepVrm) {                                                            // keepVrm: a quality change rebuilds the renderer but keeps the parsed 11 MB avatar
+    if (!this.on) return; this.on = false; cancelAnimationFrame(this.raf); if (keepVrm && this.vrm) this.scene.remove(this.vrm.group); else this.disposeVrm(); this.vrmLoading = '';
     document.getElementById('stage').classList.remove('gl'); SAM.core.particles = true;
     try { this.renderer.dispose(); this.composer && this.composer.dispose(); } catch (e) { }
     this.renderer = null; this.composer = null; this.scene = null; if (this.canvas) this.canvas.remove(); this.canvas = null;
   },
-  setQuality(q) { const was = this.on; if (was) this.disable(); this.quality = q; if (was) this.enable(q); },
+  setQuality(q) { const was = this.on; if (was) this.disable(true); this.quality = q; if (was) this.enable(q); },
 
   buildNebula(D) {
     const z = -900, k = (D - z) / D, geo = new THREE.PlaneGeometry(W * k * 1.08, H * k * 1.08);
@@ -117,7 +119,7 @@ const gl = {
           if(uGlitch>0.){float g=step(.985,hash3(vec3(floor(vUv.y*90.),floor(uTime*24.),1.)).x)*uGlitch;col+=vec3(g);a+=g*.35;}
           gl_FragColor=vec4(col,a);}`
     });
-    this.nebula = new THREE.Mesh(geo, mat); this.nebula.position.set(0, -(540 - CY), z); this.scene.add(this.nebula);
+    this.nebula = new THREE.Mesh(geo, mat); this.nebula.position.set(0, -(540 - CY), z); this.nebula.renderOrder = -2; this.scene.add(this.nebula);
   },
   buildParticles(N) {
     this.N = N; this.shapes = {}; this.ppos = shapeOf('sphere', N); this.pfrom = this.ppos.slice(); this.ptarget = this.getShape(SAM.core.shapeName || 'sphere'); this.shapeName = SAM.core.shapeName || 'sphere';
@@ -139,7 +141,7 @@ const gl = {
           vec3 c=mix(uB,uA,smoothstep(.35,.75,vD));if(uMode==1.)c=uB;if(uMode==2.)c=vec3(1.,.24,.43);
           float br=(.18+vD*.5+uShow*.3+step(.985,vS)*.7)*uDim;gl_FragColor=vec4(c*br,a*(.35+.45*vD+uShow*.3)*uDim);}`
     });
-    this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.scene.add(this.points);
+    this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.points.renderOrder = -1; this.scene.add(this.points);
   },
   buildOrb() {
     const geo = new THREE.SphereGeometry(96, 48, 32);
@@ -159,7 +161,7 @@ const gl = {
     this.orb = new THREE.Mesh(geo, mat); this.scene.add(this.orb);
     const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(.3, 'rgba(255,255,255,.25)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
     const tex = new THREE.CanvasTexture(c); this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: rgb(SAM.core.THEME.c), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .55 }));
-    this.halo.scale.set(330, 330, 1); this.scene.add(this.halo);
+    this.halo.scale.set(330, 330, 1); this.halo.renderOrder = -1; this.scene.add(this.halo);
   },
   getShape(name) { if (!this.shapes[name]) this.shapes[name] = shapeOf(name, this.N); return this.shapes[name]; },
 
@@ -176,15 +178,28 @@ const gl = {
       VRMUtils.removeUnnecessaryVertices(gltf.scene); VRMUtils.combineSkeletons(gltf.scene); VRMUtils.rotateVRM0(vrm);
       const hum = vrm.humanoid, bone = n => hum && hum.getNormalizedBoneNode(n);
       const lUA = bone('leftUpperArm'), rUA = bone('rightUpperArm'); if (lUA) lUA.rotation.z = -1.2; if (rUA) rUA.rotation.z = 1.2;   // arms down from the T-pose
-      vrm.scene.traverse(o => { for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) if (m && m.isMToonMaterial) { m.parametricRimColorFactor = rgb(SAM.core.THEME.c).multiplyScalar(.7); m.parametricRimFresnelPowerFactor = 5; m.parametricRimLiftFactor = 0; m.needsUpdate = true; } });
-      const g = new THREE.Group(); const SC = 760; vrm.scene.scale.setScalar(SC); g.add(vrm.scene);
+      const clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), -this.VRM_CUT), mats = [], rims = [];
+      vrm.scene.traverse(o => { for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) if (m) { m.clippingPlanes = [clip]; m.clipping = true; mats.push(m); if (m.isMToonMaterial) { rims.push(m); m.parametricRimFresnelPowerFactor = 5; m.parametricRimLiftFactor = 0; } m.needsUpdate = true; } });
+      vrm.scene.traverse(o => { if (o.isMesh || o.isSkinnedMesh) o.renderOrder = 1; });                                // after the particle field, the halo and the nebula (blend materials write no depth)
+      const g = new THREE.Group(); const SC = this.VRM_SCALE; vrm.scene.scale.setScalar(SC); g.add(vrm.scene);
       vrm.scene.updateMatrixWorld(true); const head = bone('head'), hp = new THREE.Vector3(); if (head) head.getWorldPosition(hp); else hp.set(0, 1.4 * SC, 0);
       vrm.scene.position.set(-hp.x, -hp.y, -hp.z);                                                            // the head sits on the group's origin
       const key = new THREE.DirectionalLight(0xfff6ee, 1.1); key.position.set(300, 700, 1100); g.add(key); g.add(new THREE.HemisphereLight(0x8a94a8, 0x0a0e14, .12));
       const target = new THREE.Object3D(); g.add(target); if (vrm.lookAt) vrm.lookAt.target = target;
-      this.scene.add(g); this.vrm = { vrm, group: g, target, head, neck: bone('neck'), em: vrm.expressionManager, cur: {}, url }; this.vrmLoading = '';
+      g.add(this.fadePlane()); g.position.y = this.VRM_Y;
+      this.scene.add(g); this.vrm = { vrm, group: g, target, head, neck: bone('neck'), em: vrm.expressionManager, cur: {}, url, clip, mats, rims, rimKey: '' }; this.vrmLoading = '';
       hud.log('ok', `avatar · ${(vrm.meta && (vrm.meta.name || vrm.meta.title)) || 'VRM'} ready`);
     } catch (e) { this.vrmLoading = ''; this.vrmFailed = url; hud.log('warn', 'avatar · could not load the VRM · ' + String(e.message || e).slice(0, 70)); }
+  },
+  /* the bust fades out below the shoulders instead of ending in a hard cut: a plane in front of the body that erases what is
+     behind it (colour and alpha, dst *= 1 - a) so the page shows through, strongest at the cut, gone sideways and upwards */
+  fadePlane() {
+    const h = 120, geo = new THREE.PlaneGeometry(1000, h), mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, depthTest: false, blending: THREE.CustomBlending, blendSrc: THREE.ZeroFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation,
+      vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+      fragmentShader: `precision highp float;varying vec2 vUv;void main(){float a=smoothstep(.0,.9,1.-vUv.y)*(1.-smoothstep(.26,.5,abs(vUv.x-.5)));gl_FragColor=vec4(0.,0.,0.,a);}`
+    });
+    const m = new THREE.Mesh(geo, mat); m.position.set(0, this.VRM_CUT + h / 2 - 4, 300); m.renderOrder = 50; return m;
   },
   disposeVrm() {
     const V = this.vrm; if (!V) return; this.vrm = null; this.scene && this.scene.remove(V.group);
@@ -192,7 +207,8 @@ const gl = {
   },
   updateVrm(dt, t) {
     const V = this.vrm, F = SAM.face, wd = SAM.hud.WD || {}, em = V.em; if (!em) return;
-    const want = Object.assign({}, F.VRM_EXPR ? F.VRM_EXPR[F.shown] : {}), k = Math.min(1, dt * 8);
+    const want = Object.assign({}, F.VRM_EXPR ? F.VRM_EXPR[F.shown] : {}), k = Math.min(1, dt * 8), rimKey = SAM.core.THEME.c;
+    if (rimKey !== V.rimKey) { V.rimKey = rimKey; const c = rgb(rimKey).multiplyScalar(.7); for (const m of V.rims) m.parametricRimColorFactor = c; }   // the rim follows the theme
     for (const name of ['happy', 'angry', 'sad', 'relaxed', 'surprised', 'lookUp', 'lookLeft']) { const tv = (want[name] || 0) * F.shownIntensity; V.cur[name] = (V.cur[name] || 0) + (tv - (V.cur[name] || 0)) * k; em.setValue(name, V.cur[name]); }
     for (const v in F.vis) em.setValue(v, F.vis[v]);
     em.setValue('blink', F.blinkV);
@@ -201,24 +217,12 @@ const gl = {
     const idle = SAM.core.mode === 'idle', hx = F.lookX * .22 + (idle ? Math.sin(t * .37) * .05 : 0), hy = -F.lookY * .18 + (idle ? Math.sin(t * .29 + 1) * .03 : 0);
     if (V.head) { V.head.rotation.y += (hx - V.head.rotation.y) * k; V.head.rotation.x += (hy - V.head.rotation.x) * k; V.head.rotation.z += ((idle ? Math.sin(t * .23) * .03 : 0) - V.head.rotation.z) * k; }
     if (V.neck) V.neck.rotation.y += (hx * .4 - V.neck.rotation.y) * k;
-    V.group.position.set((wd.ox || 0) * .25, -(wd.oy || 0) * .25 - 30, 0);
+    V.group.position.set((wd.ox || 0) * .25, -(wd.oy || 0) * .25 + this.VRM_Y, 0); V.clip.constant = -(this.VRM_CUT + V.group.position.y);   // the cut (world space) moves with the bust
     V.vrm.update(dt);
   },
 
-  /* lip-sync level: the face controller owns the analyser (shared with the robot face); the old path stays as a fallback */
-  speech() {
-    if (SAM.face) return SAM.face.speech();
-    const v = SAM.voice, el = v && v.audio;
-    if (el && el !== this.srcEl) {
-      try { if (!this.actx) this.actx = new (window.AudioContext || window.webkitAudioContext)(); const src = this.actx.createMediaElementSource(el); this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 256; src.connect(this.analyser); this.analyser.connect(this.actx.destination); this.fft = new Uint8Array(this.analyser.frequencyBinCount); if (this.actx.state === 'suspended') this.actx.resume().catch(() => { }); }
-      catch (e) { this.analyser = null; }
-      this.srcEl = el;
-    }
-    if (el && this.analyser) { this.analyser.getByteFrequencyData(this.fft); let s = 0; for (let i = 2; i < 40; i++) s += this.fft[i]; return Math.min(1, s / 38 / 140); }
-    if (!el) this.srcEl = null;
-    const m = SAM.core.mode; if (m === 'speaking') { const t = performance.now() / 1000; return .35 + .35 * Math.abs(Math.sin(t * 9.1)) * Math.abs(Math.sin(t * 2.3 + 1)); }
-    return 0;
-  },
+  /* lip-sync level: the face controller owns the one audio analyser (shared with the robot face) */
+  speech() { return SAM.face ? SAM.face.lvl : 0; },
 
   frame(ts) {
     const core = SAM.core, hud = SAM.hud, t = ts / 1000, dt = Math.min(.05, (ts - (this.lastTs || ts)) / 1000); this.lastTs = ts;
@@ -240,7 +244,7 @@ const gl = {
     const pu = this.points.material.uniforms; pu.uTime.value = t; pu.uSpin.value = this.spin; pu.uTilt.value = this.tilt; pu.uRadius.value = 300 + 95 * show; pu.uDim.value += (((hud && hud.S.focus) || (hud && hud.S.drawer) ? .3 : 1) - pu.uDim.value) * .08; pu.uShow.value = show; pu.uMode.value = mode; pu.uA.value = A; pu.uB.value = B; pu.uPR.value = this.renderer.getPixelRatio(); pu.uMusic.value = music;
     /* orb follows the avatar anchor (hud exposes the wander offsets) */
     const wd = hud && hud.WD || { ox: 0, oy: 0, os: 1 };
-    const talk = this.speech(); this.speechLevel += (talk - this.speechLevel) * (talk > this.speechLevel ? .5 : .15);
+    this.speechLevel = this.speech();
     const energy = m === 'listening' ? .55 + mic * .5 : m === 'speaking' ? .6 + this.speechLevel * .6 : m === 'thinking' ? .7 : m === 'alert' ? 1 : .45 + music * .5;
     this.energy += (energy - this.energy) * .08;
     const sc = (wd.os || 1) * (1 + this.speechLevel * .12 + music * .06);
@@ -253,7 +257,7 @@ const gl = {
     const vrmOn = av === 'vrm' && !!this.vrm; this.orb.visible = av === 'orb' || (av === 'vrm' && !vrmOn);
     if (vrmOn) this.updateVrm(dt, t);
     pu.uCenter.value.z += ((vrmOn ? -520 : 0) - pu.uCenter.value.z) * .08;                      // the particle field moves behind the bust
-    this.halo.position.copy(this.orb.position); if (vrmOn) { this.halo.position.set(0, -60, -220); } const hs = 330 * sc * (vrmOn ? 2.2 : 1) * (1 + this.speechLevel * .25 + music * .3); this.halo.scale.set(hs, hs, 1); this.halo.material.color = red ? new THREE.Color(1, .24, .43) : (mode === 1 ? B : A); this.halo.material.opacity = (vrmOn ? .22 : .35) + .35 * this.energy;
+    this.halo.position.copy(this.orb.position); if (vrmOn) { this.halo.position.set(0, -40, -260); } const hs = 330 * sc * (vrmOn ? 2.2 : 1) * (1 + this.speechLevel * .25 + music * .3); this.halo.scale.set(hs, hs, 1); this.halo.material.color = red ? new THREE.Color(1, .24, .43) : (mode === 1 ? B : A); this.halo.material.opacity = (vrmOn ? .22 : .35) + .35 * this.energy;
     const nu = this.nebula.material.uniforms; nu.uTime.value = t; nu.uA.value = A; nu.uB.value = B; nu.uRed.value += (red - nu.uRed.value) * .06; nu.uEnergy.value += (this.energy - nu.uEnergy.value) * .05; nu.uStir.value = m === 'alert' ? .6 : m === 'thinking' ? .35 : .15 + music * .3;
     this.glitch = Math.max(0, this.glitch - dt * 1.5); nu.uGlitch.value = this.glitch;
     if (this.bloom) this.bloom.strength = .45 + .4 * this.energy + .35 * music;

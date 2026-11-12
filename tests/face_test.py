@@ -59,7 +59,14 @@ def main():
     for phrase in ("robot face", "avatar mode", "anime", "hide your face", "use|wear|load|pick) the avatar", "look|be|act|feel) (happy", "face style|face look|robot style) (soft|visor|band"):
         check(phrase in hud, f"voice phrase · {phrase}")
     check('id="optAvatar"' in hud and 'id="optFaceStyle"' in hud and 'id="optVrm"' in hud, "drawer selects: avatar, face style, vrm file")
-    check("SAM.face = face" in face and all(k in face for k in ("set(emotion, hold)", "mode(m)", "level(v)", "look(x, y", "tick(dt)", "guess(text)", "speech()")), "SAM.face controller api")
+    check("SAM.face = face" in face and all(k in face for k in ("set(emotion, hold)", "mode(m)", "level(v, ms)", "look(x, y", "tick(dt)", "guess(text)", "speech()")), "SAM.face controller api")
+    check("opts.hold" in hud and "emotion: e, hold: 8000" in hud, "say() honours a route's emotion and hold (look happy / sad / ...)")
+    check("faceOn()" in hud and "!face" in hud, "orb wander is clamped and upright while a face is on")
+    check("clippingPlanes" in gl and "fadePlane" in gl and "rimKey" in gl and "disable(true)" in gl, "VRM bust clipped with a fade, rim follows the theme, kept across quality changes")
+    check("backgroundFx: 'off'" in face and "forceUntil" in face and "sources: new WeakMap()" in face, "robot panel keeps the theme colours; forced level; one analyser per audio element")
+    check(os.path.isfile(os.path.join(ROOT, ".gitignore")) and "tests/face-shots/" in read(".gitignore"), "tests/face-shots/ is gitignored")
+    check('excludes=["*.vrm"]' in read("samurai.spec") and '("app", "app")' in read("samurai.spec"), "spec ships app/ once with the model, the forge sources without it")
+    check('startswith("/avatars/")' in read("samurai_launcher.py"), "UI server serves bundled avatars for the overlay")
     check("createRobotFace" in face and "import('pinu-bot')" in face, "robot face created from the vendored pinu-bot")
     check("emotion: out.emotion" in hud and '"emotion"' in brain and "EMOTIONS.includes(o.emotion)" in brain, "emotion in the brain's JSON contract and parse path")
     check(".stage.bot" in css and ".stage.vrm" in css and ".stage.face" not in css, "stage classes renamed to bot / vrm")
@@ -72,6 +79,7 @@ def main():
     one = next((a for a in d.get("avatars", []) if a["file"] == "VRM1_Constraint_Twist_Sample.vrm"), {})
     check(one.get("url") == "/avatars/VRM1_Constraint_Twist_Sample.vrm" and one.get("name"), "url is relative to the UI origin, name is pretty")
     check(("GET", "/avatars") in addons.Handler.ROUTES, "route registered in the handler")
+    check(addons.avatar_dirs()[-1] == addons.AVATARS_DIR and d.get("dir") == addons.avatar_dirs()[0], "avatar folders: bundled app/avatars (plus the forge overlay when active)")
 
     print("syntax")
     node = shutil.which("node")

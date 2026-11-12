@@ -7,7 +7,7 @@ import os
 datas, binaries, hiddenimports = [("app", "app"), ("servers", "servers"), ("plugins", "plugins"), ("tests/mock_llm.py", "tests"),
                                   ("config.example.json", "."), ("requirements.txt", "."), ("VERSION", ".")], [], []
 # the source tree, so the packaged build can hand it to the forge (control panel -> PREPARE SOURCES): copied to data/src on request
-datas += [("servers", "src/servers"), ("app", "src/app"), ("tests", "src/tests"), ("plugins", "src/plugins"), ("requirements.txt", "src"),
+datas += [("servers", "src/servers"), ("tests", "src/tests"), ("plugins", "src/plugins"), ("requirements.txt", "src"),
           ("samurai_launcher.py", "src"), ("install.py", "src"), ("VERSION", "src"), ("config.example.json", "src"), ("samurai.spec", "src")]
 if os.path.isdir("installer"):
     datas += [("installer", "src/installer")]
@@ -30,4 +30,5 @@ a = Analysis(["samurai_launcher.py"], pathex=["servers", "tests"], binaries=bina
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="SAMURAI", debug=False, bootloader_ignore_signals=False, strip=False, upx=False,
           console=True, icon=ICON)
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="SAMURAI")
+# the forge sources get app/ without the 11 MB sample avatar (the UI server serves the bundled app/avatars for the overlay)
+coll = COLLECT(exe, a.binaries, a.datas, Tree("app", prefix="src/app", excludes=["*.vrm"]), strip=False, upx=False, name="SAMURAI")

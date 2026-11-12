@@ -24,8 +24,8 @@
     EMOTIONS, STYLES, DEFAULT_VRM, VRM_EXPR,
     emotion: 'neutral', intensity: 1, holdMs: 0, holdFrom: 0, shown: 'neutral', shownIntensity: 1, hudMode: 'idle', speaking: false,
     lvl: 0, lookX: 0, lookY: 0, blinkV: 0, blinkT: -1, nextBlink: 3, blinkNow: false, glanceId: null, glanceX: 0, glanceY: 0, glanceUntil: 0,
-    vis: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 }, eff: '', avatars: [DEFAULT_VRM],
-    bot: null, botLoading: false, botKey: '', botTheme: '', botPr: 0, analyser: null, actx: null, srcEl: null, fft: null, lastTs: 0,
+    vis: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 }, eff: '', avatars: [DEFAULT_VRM], forceLvl: 0, forceUntil: 0,
+    bot: null, botLoading: false, botKey: '', botTheme: '', botPr: 0, analyser: null, actx: null, srcEl: null, srcNode: null, sources: new WeakMap(), fft: null, lastTs: 0, warned: {},
 
     /* ---- the public controls ---- */
     set(emotion, hold) { if (!EMOTIONS.includes(emotion)) return false; this.emotion = emotion; this.intensity = 1; this.holdMs = hold || 0; this.holdFrom = 0; return true; },
@@ -42,7 +42,9 @@
     },
     rest() { const mood = (SAM.brain && SAM.brain.cfg && SAM.brain.cfg.mood) || 'balanced'; return REST[mood] || REST.balanced; },
     mode(m) { this.hudMode = m; },
-    level(v) { this.lvl = clamp(v || 0, 0, 1); },
+    /* an outside level (a test, a voice engine with its own meter) overrides the analyser for ms (250 ms by default, so a per-frame caller keeps it alive) */
+    level(v, ms) { this.forceLvl = clamp(v || 0, 0, 1); this.forceUntil = performance.now() / 1000 + (ms || 250) / 1000; },
+    warn(msg) { if (this.warned[msg]) return; this.warned[msg] = 1; SAM.hud && SAM.hud.log && SAM.hud.log('warn', 'face · ' + msg); },
     look(x, y, ms) { this.glanceX = clamp(x, -1, 1); this.glanceY = clamp(y, -1, 1); this.glanceUntil = performance.now() / 1000 + (ms || 1500) / 1000; this.glanceId = null; },
     glance(id) { this.glanceId = id || null; },
     /* which avatar is really on screen: the VRM needs the 3D core, so without it the robot face stands in */
@@ -61,14 +63,19 @@
 
     /* ---- lip-sync level: one analyser on whatever audio element the voice module is playing (shared with the 3D core) ---- */
     speech() {
-      const v = SAM.voice, el = v && v.audio;
-      if (el && el !== this.srcEl) {
-        try { if (!this.actx) this.actx = new (window.AudioContext || window.webkitAudioContext)(); const src = this.actx.createMediaElementSource(el); this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 256; src.connect(this.analyser); this.analyser.connect(this.actx.destination); this.fft = new Uint8Array(this.analyser.frequencyBinCount); if (this.actx.state === 'suspended') this.actx.resume().catch(() => { }); }
-        catch (e) { this.analyser = null; }
+      const v = SAM.voice, el = v && v.audio, want = (SAM.gl && SAM.gl.on) || this.eff !== 'orb';       // the orb with the 2D core never needs the audio graph
+      if (el && el !== this.srcEl && want) {
+        try {
+          if (!this.actx) { this.actx = new (window.AudioContext || window.webkitAudioContext)(); this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 256; this.fft = new Uint8Array(this.analyser.frequencyBinCount); }
+          if (this.srcNode) this.srcNode.disconnect(this.analyser);                                     // the previous clip leaves the analyser (it stays routed to the speakers)
+          let src = this.sources.get(el); if (!src) { src = this.actx.createMediaElementSource(el); src.connect(this.actx.destination); this.sources.set(el, src); }
+          src.connect(this.analyser); this.srcNode = src; if (this.actx.state === 'suspended') this.actx.resume().catch(() => { });
+        } catch (e) { this.srcNode = null; this.warn('audio analyser unavailable · ' + String(e.message || e).slice(0, 50)); }
         this.srcEl = el;
       }
-      if (el && this.analyser) { this.analyser.getByteFrequencyData(this.fft); let s = 0; for (let i = 2; i < 40; i++) s += this.fft[i]; return Math.min(1, s / 38 / 140); }
-      if (!el) this.srcEl = null;
+      if (el && el === this.srcEl && this.srcNode && this.analyser) { this.analyser.getByteFrequencyData(this.fft); let s = 0; for (let i = 2; i < 40; i++) s += this.fft[i]; return Math.min(1, s / 38 / 140); }
+      if (!el) { if (this.srcNode) { try { this.srcNode.disconnect(this.analyser); } catch (e) { } this.srcNode = null; } this.srcEl = null; }
+      /* no measurable audio (browser voice, blocked autoplay): a spoken cadence stands in while the voice says it is speaking */
       if ((v && v.speaking) || SAM.core.mode === 'speaking') { const t = performance.now() / 1000; return .35 + .35 * Math.abs(Math.sin(t * 9.1)) * Math.abs(Math.sin(t * 2.3 + 1)); }
       return 0;
     },
@@ -77,7 +84,7 @@
     tick(dt) {
       const hud = SAM.hud, S = hud.S, now = performance.now() / 1000, m = S.mode; this.hudMode = m;
       this.speaking = !!((SAM.voice && SAM.voice.speaking) || m === 'speaking');
-      const raw = SAM.gl && SAM.gl.on ? SAM.gl.speechLevel : this.speech(); this.lvl += (raw - this.lvl) * (raw > this.lvl ? .5 : .15);
+      const raw = this.forceUntil > now ? this.forceLvl : this.speech(); this.lvl += (raw - this.lvl) * (raw > this.lvl ? .5 : .15);   // one level for both faces and the 3D orb
       /* the reply's emotion stays while it speaks and decays back to the resting bias ~6 s after speech ends */
       const [restE, restI] = this.rest();
       if (this.speaking) this.holdFrom = now; else if (!this.holdFrom) this.holdFrom = now;
@@ -88,8 +95,8 @@
       this.shown = shown; this.shownIntensity = inten;
       /* blink: random 2-6 s, a 220 ms close-open curve */
       this.blinkNow = false;
-      if (this.blinkT < 0 && now > this.nextBlink) { this.blinkT = 0; this.nextBlink = now + 2 + Math.random() * 4; this.blinkNow = true; }
-      if (this.blinkT >= 0) { this.blinkT += dt; const k = this.blinkT / .22; this.blinkV = k < .5 ? k * 2 : k < 1 ? 2 - k * 2 : 0; if (k >= 1) { this.blinkT = -1; this.blinkV = 0; } }
+      if (this.blinkT < 0 && now > this.nextBlink) { this.blinkT = now; this.nextBlink = now + 2 + Math.random() * 4; this.blinkNow = true; }
+      if (this.blinkT >= 0) { const k = (now - this.blinkT) / .22; this.blinkV = k < .5 ? k * 2 : k < 1 ? 2 - k * 2 : 0; if (k >= 1) { this.blinkT = -1; this.blinkV = 0; } }
       /* gaze: the orb's own glance (mouse chase, idle drift) in -1..1, a glance at a widget when one opens, up-left while thinking */
       const WD = hud.WD; let tx = clamp((WD.gx || 0) / 9, -1, 1), ty = clamp((WD.gy || 0) / 6, -1, 1);
       if (this.glanceId) { const slot = document.querySelector(`.slot[data-id=${this.glanceId}]`); if (slot && slot.style.left) { const sx = parseFloat(slot.style.left) + 136 - 960 - (WD.ox || 0), sy = parseFloat(slot.style.top) + 125 - 470 - (WD.oy || 0); this.glanceX = clamp(sx / 700, -1, 1); this.glanceY = clamp(sy / 400, -1, 1); this.glanceUntil = now + 1.6; } this.glanceId = null; }
@@ -115,10 +122,10 @@
     ensureBot() {
       if (this.bot || this.botLoading) return; this.botLoading = true;
       import('pinu-bot').then(mod => {
-        this.botLoading = false; if (this.eff !== 'bot') return;
+        this.botLoading = false; if (this.eff !== 'bot') return; this.mod = mod;
         const st = STYLES[SAM.hud.S.faceStyle] || STYLES.soft;
         this.botPr = this.pixelRatio(); this.botTheme = '';
-        this.bot = mod.createRobotFace($('botFace'), { character: 'pinu', faceTheme: 'companion', theme: this.theme(), style: st.style, backgroundFx: 'emotion', transparentBackground: false, pixelRatio: this.botPr, parts: st.parts });
+        this.bot = mod.createRobotFace($('botFace'), { character: 'pinu', faceTheme: 'companion', theme: this.theme(), style: this.botStyle(st), backgroundFx: 'off', transparentBackground: false, pixelRatio: this.botPr, parts: st.parts });
         this.bot.lookAt(0, 0);
       }).catch(e => { this.botLoading = false; SAM.hud.log('warn', 'robot face failed to load · ' + String(e.message || e).slice(0, 60)); });
     },
@@ -129,7 +136,9 @@
       return { background: hex(mix(A, [4, 8, 12], .93)), panel: hex(mix(A, [6, 12, 18], .9)), panelEdge: hex(mix(A, [10, 20, 30], .72)), foreground: hex(mix(A, [255, 255, 255], .3)), glow: `rgba(${mix(A, [255, 255, 255], .2).join(',')},.65)`, accent: hex(mix(A, [255, 255, 255], .75)), ghost: `rgba(${mix(A, B, .5).join(',')},.16)` };
     },
     retheme() { this.botTheme = ''; },
-    style(name) { if (!STYLES[name]) return false; SAM.hud.S.faceStyle = name; if (this.bot) { const st = STYLES[name]; this.bot.setStyle(st.style); this.bot.setParts(st.parts); } return true; },
+    style(name) { if (!STYLES[name]) return false; SAM.hud.S.faceStyle = name; if (this.bot) { const st = STYLES[name]; this.bot.setStyle(this.botStyle(st)); this.bot.setParts(st.parts); } return true; },
+    /* pinu's preset with a taller mouth, so the lip-sync reads from across the room */
+    botStyle(st) { const base = (this.mod && this.mod.BUILTIN_STYLES && this.mod.BUILTIN_STYLES[st.style]) || null; return base ? Object.assign({}, base, { mouthHeight: Math.max(base.mouthHeight || 0, .21), mouthWidth: Math.max(base.mouthWidth || 0, .36) }) : st.style; },
     drawBot(m, shown, inten, L) {
       const f = this.bot; if (!f) return;
       if (!f.canvas.clientWidth) { if (f.running) f.stop(); return; } else if (!f.running) f.start();   // never size-sync a hidden canvas (pinu would grow it every frame)
@@ -143,7 +152,7 @@
     },
   };
   SAM.face = face;
-  const loop = ts => { const dt = Math.min(.05, (ts - (face.lastTs || ts)) / 1000); face.lastTs = ts; try { face.tick(dt); } catch (e) { } requestAnimationFrame(loop); };
+  const loop = ts => { const dt = Math.min(.05, (ts - (face.lastTs || ts)) / 1000); face.lastTs = ts; try { face.tick(dt); } catch (e) { face.warn('tick · ' + String(e.message || e).slice(0, 70)); } requestAnimationFrame(loop); };
   const start = () => { if (!SAM.hud || !SAM.hud.S) return setTimeout(start, 50); face.listAvatars(); requestAnimationFrame(loop); };
   start();
 })(window.SAM);
