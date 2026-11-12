@@ -87,7 +87,7 @@ def get_config(h, q, b):
 
 def post_config(h, q, b):
     cfg = load_config()
-    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan", "connect", "ui", "services", "spotify", "calendar", "findmy", "presence"):
+    for key in ("user", "location", "widgets", "agent", "autostart", "actions", "browser", "voice", "lan", "connect", "ui", "services", "spotify", "calendar", "findmy", "presence", "senses", "home2", "market"):
         if key in b:
             if isinstance(b[key], dict) and isinstance(cfg.get(key), dict):
                 for k2, v2 in b[key].items():

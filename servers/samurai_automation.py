@@ -41,10 +41,11 @@ def _save(path, obj):
 
 
 # ----------------------------------------------------------------------------- events
-def push_event(kind, text, source="system"):
+def push_event(kind, text, source="system", room=""):
+    """room: when set, only the HUD registered as that room speaks the event (see /rooms in samurai_market.py)."""
     with LOCK:
         ev = _load(EVENTS_PATH, [])
-        ev.append({"t": time.time(), "kind": kind, "text": text[:400], "source": source})
+        ev.append({"t": time.time(), "kind": kind, "text": text[:400], "source": source, "room": room})
         _save(EVENTS_PATH, ev[-200:])
 
 

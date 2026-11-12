@@ -34,7 +34,7 @@ window.SAM = window.SAM || {};
     W, NODE, fmt, esc,
     data: {
       tel: { cpu: 0, mem: 0, gpu: null, up: 0, down: 0, conns: 0, net: Array(40).fill(0), live: false },
-      weather: null, agenda: [], agendaLive: false, inbox: [], inboxLive: false, tasks: [], home: { lights: true, ac: true, lock: true, blinds: false, plug: false, fan: true }, homeLive: false,
+      weather: null, agenda: [], agendaLive: false, inbox: [], inboxLive: false, tasks: [], home: { lights: true, ac: true, lock: true, blinds: false, plug: false, fan: true }, homeLive: false, home2: [], lyrics: { i: -1, lines: [], plain: '' },
       music: { tracks: [{ i: -1, title: 'Night Drive', artist: 'Kessler Array', len: 221, sample: true }], now: { i: -1, playing: false }, pos: 0, live: false, queryTitle: '', stations: [], episodes: [], stream: null },
       video: { files: [], live: false, now: null, cinema: false },
       web: { url: '', title: '', live: false },
@@ -144,7 +144,8 @@ window.SAM = window.SAM || {};
           const m = d.music, tr = m.tracks[Math.max(0, m.now.i)] || m.tracks[0] || { title: '—', artist: '—', len: 0 };
           this.tag(id, m.now.playing ? 'PLAYING' : 'PAUSED', 'v');
           const len = (this.audio && isFinite(this.audio.duration) && this.audio.duration) || tr.len || 0, pos = this.audio ? this.audio.currentTime : m.pos;
-          b.innerHTML = `<div class="mus"><div class="art" id="art">${tr.art ? `<img src="${tr.art}" alt="">` : 'album<br>art'}</div><div><div class="ti">${esc(m.queryTitle || tr.title)}</div><div class="ar">${esc(tr.artist || '')}</div><div class="mx">${m.live ? `LIBRARY · ${Math.max(0, m.now.i) + 1} / ${m.tracks.length}` : 'SAY "PLAY …" · YOUTUBE'}</div></div></div>
+          const artSrc = tr.art || (m.live && m.now.i >= 0 ? `${ADDONS}/art?i=${m.now.i}${TQ}` : '');
+          b.innerHTML = `<div class="mus"><div class="art" id="art">${artSrc ? `<img src="${artSrc}" alt="" onerror="this.remove()">` : ''}<span>album<br>art</span></div><div><div class="ti">${esc(m.queryTitle || tr.title)}</div><div class="ar">${esc(tr.artist || '')}</div><div class="mx">${m.live ? `LIBRARY · ${Math.max(0, m.now.i) + 1} / ${m.tracks.length}` : 'SAY "PLAY …" · YOUTUBE'}</div><div class="lyr" id="lyrLine">${esc(this.lyricLine())}</div></div></div>
             <div class="mbar"><i style="width:${len ? Math.min(100, pos / len * 100) : 0}%"></i></div><div class="mtimes"><span>${fmt(pos)}</span><span>${fmt(len)}</span></div>
             <div class="mctl"><div id="musPrev">◀◀</div><div class="pl" id="musToggle">${m.now.playing ? '❚❚' : '▶'}</div><div id="musNext">▶▶</div></div>`;
           $('musPrev').addEventListener('click', e => { e.stopPropagation(); this.music('prev'); });
@@ -211,8 +212,10 @@ window.SAM = window.SAM || {};
           const h = d.home; this.tag(id, `${Object.values(h).filter(Boolean).length} ON`);
           const tiles = [['lights', 'LIGHTS', 'ON', 'OFF'], ['ac', 'AC', '22°', 'OFF'], ['lock', 'DOOR', 'LOCKED', 'OPEN'], ['blinds', 'BLINDS', 'DOWN', 'UP'], ['plug', 'PLUG', 'ON', 'OFF'], ['fan', 'FAN', 'LOW', 'OFF']];
           b.innerHTML = `<div class="tiles">${tiles.map(([k, n, on, off]) => `<div class="tile${h[k] ? ' on' : ''}" data-dev="${k}"><div class="n">${n}</div><div class="v">${h[k] ? on : off}</div></div>`).join('')}</div>
-            <div class="foot">${d.homeLive ? 'HOME ASSISTANT LINKED' : 'SAY "LIGHTS OFF" · "LOCK THE DOOR"'}</div>`;
-          b.querySelectorAll('.tile').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); this.setHome(el.dataset.dev, !h[el.dataset.dev]); }));
+            ${d.home2.length ? `<div class="tiles dev">${d.home2.slice(0, 6).map(x => `<div class="tile${x.on ? ' on' : ''}" data-h2="${esc(x.name)}" data-on="${x.on ? 1 : 0}"><div class="n">${esc(x.name.slice(0, 14).toUpperCase())}</div><div class="v">${x.on === null ? x.backend.toUpperCase() : x.on ? 'ON' : 'OFF'}</div></div>`).join('')}</div>` : ''}
+            <div class="foot">${d.homeLive ? 'HOME ASSISTANT LINKED' : d.home2.length ? `${d.home2.length} DEVICES · HUE / GOVEE / KASA` : 'SAY "LIGHTS OFF" · "LIST MY DEVICES"'}</div>`;
+          b.querySelectorAll('.tile[data-dev]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); this.setHome(el.dataset.dev, !h[el.dataset.dev]); }));
+          b.querySelectorAll('.tile[data-h2]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); const on = el.dataset.on !== '1'; POST(ADDONS + '/home2', { device: el.dataset.h2, on }).then(() => { const x = d.home2.find(y => y.name === el.dataset.h2); if (x) x.on = on; this.render('home'); }).catch(() => { }); }));
           break;
         }
         case 'map': {
@@ -280,7 +283,7 @@ window.SAM = window.SAM || {};
         if (kind === 'tasks') { const r = await J(ADDONS + '/tasks'); d.tasks = r.tasks || []; this.render('task'); }
         if (kind === 'agenda') { const r = await J(ADDONS + '/agenda'); d.agenda = r.events || []; d.agendaLive = !!r.live; this.render('cal'); }
         if (kind === 'inbox') { const r = await J(ADDONS + '/inbox'); d.inbox = r.mail || []; d.inboxLive = !!r.live; this.render('msg'); }
-        if (kind === 'home') { const r = await J(ADDONS + '/home'); d.home = r.state || d.home; d.homeLive = !!r.live; this.render('home'); }
+        if (kind === 'home') { const r = await J(ADDONS + '/home'); d.home = r.state || d.home; d.homeLive = !!r.live; try { const h2 = await J(ADDONS + '/home2/devices'); d.home2 = h2.devices || []; } catch (e) { } this.render('home'); }
         if (kind === 'music') { const r = await J(ADDONS + '/music'); d.music.tracks = r.tracks || d.music.tracks; d.music.live = !!r.live; if (!this.audio) d.music.now = r.now || d.music.now; this.render('mus'); }
         if (kind === 'gallery') { const r = await J(ADDONS + '/gallery'); d.gallery = r.images || []; this.render('pix'); }
         if (kind === 'position') { d.position = await J(ADDONS + '/position'); this.render('map'); }
@@ -331,6 +334,13 @@ window.SAM = window.SAM || {};
     timerStart(sec) { const t = this.data.timer; t.left = t.total = sec; t.running = true; this.render('tmr'); },
     timerToggle() { const t = this.data.timer; if (t.left === 0) t.left = t.total; t.running = !t.running; this.render('tmr'); },
     timerReset() { const t = this.data.timer; t.running = false; t.left = t.total; this.render('tmr'); },
+    /* lyrics (C5): LRC line for the current position, loaded once per track from /lyrics */
+    lyricLine() { const L = this.data.lyrics, m = this.data.music; if (!m.live || L.i !== m.now.i || !L.lines.length) return L.plain && L.i === m.now.i ? L.plain.split('\n')[0].slice(0, 80) : ''; const t = this.audio ? this.audio.currentTime : 0; let cur = ''; for (const [at, txt] of L.lines) { if (at <= t) cur = txt; else break; } return cur; },
+    async lyricsLoad(i) {
+      const L = this.data.lyrics; if (L.i === i) return; L.i = i; L.lines = []; L.plain = '';
+      try { const d = await J(`${ADDONS}/lyrics?i=${i}`); L.plain = d.plain || ''; L.lines = (d.lrc || '').split('\n').map(l => { const mm = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/); return mm ? [+mm[1] * 60 + +mm[2], mm[3].trim()] : null; }).filter(Boolean); } catch (e) { }
+      if (L.i === i) this.render('mus');
+    },
     music(cmd, arg) {
       const m = this.data.music;
       if (m.live) {
@@ -506,6 +516,7 @@ window.SAM = window.SAM || {};
       if (this._actx && this._actx.state === 'suspended') this._actx.resume().catch(() => { });
       const src = `${ADDONS}/music/file?i=${i}${TQ}`; if (!this.audio.src.endsWith(src)) this.audio.src = src;
       this.audio.play().catch(() => this.log('warn', 'audio playback blocked (click the page once)'));
+      this.lyricsLoad(i); if (!this._lyrTick) this._lyrTick = setInterval(() => { const el = $('lyrLine'); if (el) { const t = this.lyricLine(); if (el.textContent !== t) el.textContent = t; } }, 500);
       const tr = m.tracks[i]; this.pushTty(`music · ${tr ? tr.title : i}`, '#a07cff');
     },
   };

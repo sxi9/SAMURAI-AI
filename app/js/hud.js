@@ -22,12 +22,12 @@
     try {
       const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       Object.assign(brain.cfg, s.brain || {}); Object.assign(voice.cfg, s.voice || {});
-      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; S.avatar = s.ui.avatar || 'orb'; S.skin = s.ui.skin || 'glass'; S.font = s.ui.font || 'michroma'; S.micKill = !!s.ui.micKill; S.depth = s.ui.depth ?? true; applySkin(); if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
+      if (s.ui) { S.layout = s.ui.layout || 'focus'; Object.assign(S.pinned, s.ui.pinned || {}); S.parallax = s.ui.parallax ?? true; S.particles = s.ui.particles ?? true; S.idleMorph = s.ui.idleMorph ?? true; S.theme = s.ui.theme || 'arc'; S.custom = s.ui.custom || S.custom; S.gl = s.ui.gl || 'auto'; S.look = s.ui.look || 'none'; S.glUser = !!s.ui.glUser; S.bigtext = !!s.ui.bigtext; S.avatar = s.ui.avatar || 'orb'; S.skin = s.ui.skin || 'glass'; S.font = s.ui.font || 'michroma'; S.micKill = !!s.ui.micKill; S.depth = s.ui.depth ?? true; S.gestures = !!s.ui.gestures; S.room = s.ui.room || ''; S.quietMode = s.ui.quietMode ?? true; applySkin(); if (S.bigtext) document.documentElement.classList.add('bigtext'); S.presenceCam = s.ui.presenceCam || ''; S.governor = s.ui.governor ?? true; S.glQuality = s.ui.glQuality || 'medium'; S.fx = s.ui.fx ?? true; S.presence = !!s.ui.presence; S.proactive = !!s.ui.proactive; S.wander = s.ui.wander ?? true; }
       // migrate the v2 page's provider settings once
       if (!s.brain) { const old = JSON.parse(localStorage.getItem('samuraiLLM') || 'null'); if (old) { const map = { local: 'ollama', openai: 'openai', claude: 'claude', gemini: 'gemini', claudecode: 'claudecode', geminicli: 'geminicli' }; brain.cfg.provider = map[old.provider] || 'ollama'; Object.assign(brain.cfg.keys, old.keys || {}); for (const [k, v] of Object.entries(old.models || {})) if (v) brain.cfg.models[map[k] || k] = v; } }
     } catch (e) { }
   }
-  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, avatar: S.avatar, skin: S.skin, font: S.font, micKill: S.micKill, depth: S.depth, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ brain: brain.cfg, voice: voice.cfg, ui: { layout: S.layout, pinned: S.pinned, parallax: S.parallax, particles: S.particles, idleMorph: S.idleMorph, theme: S.theme, custom: S.custom, look: S.look, gl: S.gl, glUser: S.glUser, bigtext: S.bigtext, avatar: S.avatar, skin: S.skin, font: S.font, micKill: S.micKill, depth: S.depth, gestures: S.gestures, room: S.room, quietMode: S.quietMode, presenceCam: S.presenceCam, governor: S.governor, glQuality: S.glQuality, fx: S.fx, presence: S.presence, proactive: S.proactive, wander: S.wander } })); } catch (e) { } }
 
   /* ---------- mode / core ---------- */
   function setMode(m) {
@@ -229,6 +229,33 @@
     if (/^(show (me )?your face|face mode|3d face|put on a face|be a face)$/.test(q)) return { text: 'Face on.', effect: () => { S.avatar = 'face'; save(); applyLayout(); } };
     if (/^(orb mode|back to the orb|be an orb|hide your face)$/.test(q)) return { text: 'Back to the orb.', effect: () => { S.avatar = 'orb'; save(); applyLayout(); } };
     const skq = q.match(/^(glass|wireframe|paper) (skin|look|widgets|cards)$/); if (skq) return { text: `${skq[1]} skin.`, effect: () => { S.skin = skq[1]; save(); applySkin(); } };
+    /* ---- senses: notifications, activity, gestures, faces, rooms, downloads, price watch, devices, sync, plugins ---- */
+    if (/^(read|what are|any|show)( my)?( new)? notifications\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/notifications')).json(); const N = d.notifications || []; N.slice(-8).forEach(n => widgets.pushTty(`🔔 ${n.app}: ${n.title} ${n.text}`, '#a07cff')); return { focus: 'msg', text: N.length ? `${N.length} notification${N.length === 1 ? '' : 's'}. ${N.slice(-3).map(n => `${n.app}: ${n.title}${n.text ? ', ' + n.text : ''}`).join('. ').slice(0, 400)}` : (d.source === 'none' ? 'Notification reading is not available on this system.' : 'No new notifications.') }; } };
+    if (/^(clear|dismiss)( my| the)? notifications$/.test(q)) return { text: 'Cleared.', effect: () => fetch(ADDONS + '/notifications/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => { }) };
+    const rnot = q.match(/^(read|speak|announce) (my )?notifications (aloud )?(on|off)$/); if (rnot) return { text: `Notifications ${rnot[4] === 'on' ? 'will be read aloud' : 'stay silent'}.`, effect: () => fetch(ADDONS + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senses: { read_notifications: rnot[4] === 'on' } }) }).catch(() => { }) };
+    if (/^(what am i doing|which app am i in|what's open|what is open)\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/activity')).json(); return { focus: 'sys', text: d.app ? `You are in ${d.app}${d.title ? ', ' + d.title.slice(0, 60) : ''}. I read that as ${d.category}${d.quiet ? ', so I am keeping quiet' : ''}.` : 'I cannot see an active window right now.' }; } };
+    const qm = q.match(/^(quiet mode|do not disturb|don't disturb me|interrupt me) (on|off|again)$/); if (qm) { const on = qm[1] === 'interrupt me' ? qm[2] === 'off' : qm[2] === 'on'; return { text: on ? 'I will stay quiet during calls and games.' : 'I will speak up whenever something happens.', effect: () => { S.quietMode = on; save(); if (!on) releaseHeld(); } }; }
+    const gm = q.match(/^(hand )?gestures? (on|off)$/); if (gm) return { text: gm[2] === 'on' ? 'Watching your hands. Open palm pauses, fist mutes, thumbs up confirms, point to talk, swipe to skip.' : 'Gestures off.', effect: () => gesturesOn(gm[2] === 'on') };
+    const fe = q.match(/^(remember|enrol|enroll|learn) my face as (.{2,30})$/); if (fe) return { focus: 'cam', text: `Look at the camera for two seconds, ${fe[2]}.`, effect: async () => { try { const d = await SAM.faces.enroll(fe[2]); say(d && d.ok !== false ? `Got it. I will know you as ${fe[2]}.` : `I could not enrol a face: ${(d && d.error) || 'camera or face support missing'}.`); } catch (e) { say('Face enrolment needs the camera and the add-ons sidecar.'); } } };
+    if (/^(who am i|do you know me|who is this)\??$/.test(q)) return { run: async () => { try { const d = await SAM.faces.who(); return { focus: 'cam', text: d && d.name ? `You are ${d.name}. ${Math.round((d.confidence || 0) * 100)} percent sure.` : d && d.known === false && d.available === false ? 'Face recognition is not installed. Add opencv-contrib-python.' : 'I do not recognise this face yet. Say "remember my face as" and your name.' }; } catch (e) { return { text: 'The camera is not available.' }; } } };
+    if (/^forget my face$/.test(q)) return { run: async () => { const names = ((await (await fetch(ADDONS + '/faces')).json()).people || []); for (const n of names) await fetch(ADDONS + '/faces/forget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }) }); return { text: names.length ? `Forgotten ${names.join(', ')}.` : 'No faces stored.' }; } };
+    const rmn = q.match(/^(?:this is the|call this room|this room is|this is my) (.{2,24})$/); if (rmn) return { text: `This is the ${rmn[1]}.`, effect: () => setRoom(rmn[1]) };
+    if (/^(which rooms|list( the)? rooms|where are you)\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/rooms')).json(); const R = d.rooms || []; return { text: R.length ? `${R.length} room${R.length === 1 ? '' : 's'}: ${R.map(r => r.room + (r.online ? '' : ' (offline)')).join(', ')}. Active: ${d.active || 'none'}. This is ${S.room || 'an unnamed room'}.` : 'No rooms registered yet. Say "this is the kitchen" on each HUD.' }; } };
+    const ho = q.match(/^(?:hand off to|hand over to|move to|go to|follow me to) the (.{2,24})$/); if (ho) return { run: async () => { try { const d = await POSTJ(ADDONS + '/rooms/handoff', { to: ho[1] }); return { text: `Handing off to the ${d.active}.` }; } catch (e) { return { text: String(e.message || e).replace(/^Error: /, '') }; } } };
+    const dl = q.match(/^download (https?:\/\/\S+)$/); if (dl) return { run: async () => { try { const d = await POSTJ(ADDONS + '/download', { url: dl[1] }); return { focus: 'web', text: `Downloading ${d.name || 'it'} to the SAMURAI downloads folder. I will tell you when it is done.` }; } catch (e) { return { text: `I could not start that download: ${e.message}` }; } } };
+    if (/^(my )?downloads\??$/.test(q) || /^(how are|show)( my)? downloads( going)?\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/downloads')).json(); const L = d.downloads || []; L.forEach(x => widgets.pushTty(`⬇ ${x.name} · ${Math.round((x.progress || 0) * 100)}% · ${x.state}`, '#a07cff')); return { focus: 'tty', text: L.length ? `${L.length} download${L.length === 1 ? '' : 's'}. ${L.slice(-3).map(x => `${x.name} ${x.state === 'done' ? 'finished' : Math.round((x.progress || 0) * 100) + ' percent'}`).join(', ')}.` : 'No downloads.' }; } };
+    if (/^(my )?torrents\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/torrents')).json(); const T = d.torrents || []; T.forEach(t => widgets.pushTty(`⇅ ${t.name} · ${Math.round((t.progress || 0) * 100)}%`, '#a07cff')); return { focus: 'tty', text: !d.configured ? 'Set the qBittorrent web address under market in the config first.' : T.length ? `${T.length} torrent${T.length === 1 ? '' : 's'}. ${T.slice(0, 3).map(t => `${t.name} ${Math.round((t.progress || 0) * 100)} percent`).join(', ')}.` : 'No torrents.' }; } };
+    const pw = q.match(/^(?:watch the price of|price watch|track the price of|watch) (https?:\/\/\S+)$/); if (pw) return { run: async () => { try { const d = await POSTJ(ADDONS + '/watch', { url: pw[1] }); return { focus: 'web', text: d.price != null ? `Watching it. It is ${d.currency || ''}${d.price} today. I will tell you when it drops.` : 'Watching it. I could not read a price yet, I will try again in a few hours.' }; } catch (e) { return { text: `I could not add that watch: ${e.message}` }; } } };
+    if (/^(my )?price watch(es)?\??$/.test(q) || /^what am i watching\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/watch')).json(); const W = d.watches || []; W.forEach(w => widgets.pushTty(`💸 ${w.label || w.url} · ${w.currency || ''}${w.price ?? '?'}`, '#a07cff')); return { focus: 'tty', text: W.length ? `${W.length} watch${W.length === 1 ? '' : 'es'}. ${W.slice(0, 3).map(w => `${w.label || 'one item'} at ${w.currency || ''}${w.price ?? 'unknown'}`).join(', ')}.` : 'No price watches. Say "watch the price of" and a link.' }; } };
+    if (/^(list|show|what are)( my)? (smart )?devices\??$/.test(q) || /^(home|my) devices\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/home2/devices')).json(); const D = d.devices || []; D.forEach(x => widgets.pushTty(`⌂ ${x.name} · ${x.backend} · ${x.on === null ? '?' : x.on ? 'on' : 'off'}`, '#a07cff')); widgets.data.home2 = D; widgets.render('home'); return { focus: 'home', text: D.length ? `${D.length} device${D.length === 1 ? '' : 's'}: ${D.slice(0, 6).map(x => x.name).join(', ')}.` : `No Hue, Govee or Kasa devices found. ${d.note || ''}`.trim() }; } };
+    const dv = q.match(/^(?:turn|switch) (on|off) (?:the |my )?(.{2,40})$/); if (dv && !/light|lamp|lock|fan|blind|plug|\bac\b|air con|wifi|wi-fi|bluetooth|vpn|mic|camera|screen|monitor|pc|computer/.test(dv[2])) return { run: async () => { try { const d = await POSTJ(ADDONS + '/home2', { device: dv[2], on: dv[1] === 'on' }); return { focus: 'home', text: `${d.device || dv[2]} ${dv[1]}.` }; } catch (e) { return { text: String(e.message).replace(/^Error: /, '') }; } } };
+    const sc2 = q.match(/^(?:scene|set the scene to|activate scene) (.{2,30})$/); if (sc2) return { run: async () => { try { await POSTJ(ADDONS + '/home2/scene', { scene: sc2[1] }); return { focus: 'home', text: `Scene ${sc2[1]}.` }; } catch (e) { return { text: String(e.message).replace(/^Error: /, '') }; } } };
+    const sy = q.match(/^sync (?:my )?settings (?:to|with) (.{2,120})$/); if (sy) return { run: async () => { try { const d = await POSTJ(ADDONS + '/sync', { dir: sy[1] }); return { text: `Settings synced with ${d.dir}. ${d.pushed || 0} pushed, ${d.pulled || 0} pulled.` }; } catch (e) { return { text: `Sync failed: ${e.message}` }; } } };
+    if (/^sync (?:my )?settings( now)?$/.test(q)) return { run: async () => { try { const d = await POSTJ(ADDONS + '/sync', {}); return { text: d.dir ? `Synced with ${d.dir}. ${d.pushed || 0} pushed, ${d.pulled || 0} pulled.` : 'Say "sync my settings to" and a folder first.' }; } catch (e) { return { text: `Sync failed: ${e.message}` }; } } };
+    if (/^(plugin (store|market|marketplace)|what plugins (are there|can i install)|list plugins)\??$/.test(q)) return { run: async () => { const d = await (await fetch(ADDONS + '/plugins/market')).json(); const P = d.plugins || []; P.forEach(p => widgets.pushTty(`🧩 ${p.name} ${p.version}${p.installed ? ' · installed' : ''} · ${p.description}`, '#a07cff')); return { focus: 'tty', text: P.length ? `${P.length} plugins in the store: ${P.map(p => p.name + (p.installed ? ' (installed)' : '')).join(', ')}. Say "install plugin" and a name.` : 'The store is empty.' }; } };
+    const pi = q.match(/^install (?:the )?plugin (.{2,60})$/); if (pi) return { run: async () => { try { const m = await (await fetch(ADDONS + '/plugins/market')).json(); const hit = (m.plugins || []).find(p => p.name.toLowerCase() === pi[1].toLowerCase() || p.name.toLowerCase().replace(/_/g, ' ') === pi[1].toLowerCase()); const d = await POSTJ(ADDONS + '/plugins/install', { url: hit ? hit.url : pi[1] }); return { text: `Installed ${d.name || pi[1]}${d.tools && d.tools.length ? ' with ' + d.tools.join(', ') : ''}.` }; } catch (e) { return { text: `Install failed: ${String(e.message).replace(/^Error: /, '')}` }; } } };
+    const pr = q.match(/^(?:remove|uninstall) (?:the )?plugin (.{2,60})$/); if (pr) return { run: async () => { try { await POSTJ(ADDONS + '/plugins/remove', { name: pr[1].replace(/ /g, '_') }); return { text: `Removed ${pr[1]}.` }; } catch (e) { return { text: String(e.message).replace(/^Error: /, '') }; } } };
+    if (/^(show|what are the|sing the) lyrics\??$/.test(q) || /^lyrics$/.test(q)) return { focus: 'mus', run: async () => { const m = widgets.data.music; if (!m.live || m.now.i < 0) return { focus: 'mus', text: 'Play something from the library first.' }; const d = await (await fetch(ADDONS + '/lyrics?i=' + m.now.i)).json(); const txt = d.plain || (d.lrc ? d.lrc.replace(/\[[^\]]*\]/g, ' ') : ''); return { focus: 'mus', text: txt ? txt.replace(/\s+/g, ' ').trim().slice(0, 500) : 'No lyrics found for this track.' }; } };
     if (/^(mute the mic|mic off|kill the mic|privacy mode( on)?|stop listening for good)$/.test(q)) return { text: 'Microphone off. Nothing leaves this PC until you flip the switch.', effect: () => micKill(true) };
     if (/^(mic on|unmute the mic|privacy mode off|listen again)$/.test(q)) return { text: 'Microphone back.', effect: () => { micKill(false); } };
     const po = q.match(/^(?:pop out|float|detach|pin out) (?:the )?(.+?)(?: widget)?$/); if (po) { const w = W.find(x => x.id === po[1] || x.title.toLowerCase() === po[1] || x.name.toLowerCase().includes(po[1])); if (w) return { popOut: w.id }; }
@@ -418,6 +445,7 @@
       else if (r && r.readFile) { const d = await (await fetch(ADDONS + '/read?path=' + encodeURIComponent(r.readFile))).json(); r = d.ok ? { focus: 'tty', text: String(d.text || '').replace(/\s+/g, ' ').slice(0, 700) } : { text: `I could not read ${r.readFile}.` }; }
       else if (r && r.games) { const d = await (await fetch(ADDONS + '/games')).json(); const G = d.games || []; G.slice(0, 12).forEach(g => widgets.pushTty(`game · ${g.name}`, '#a07cff')); r = { focus: 'tty', text: G.length ? `${G.length} games installed. ${G.slice(0, 3).map(g => g.name).join(', ')}${G.length > 3 ? ' and more' : ''}.` : (d.steam ? 'No Steam games found.' : 'Steam is not installed here.') }; }
       else if (r && r.cleanup) { const d = await (await fetch(ADDONS + '/cleanup')).json(); const mb = Math.round((d.total || 0) / 1048576); (d.items || []).forEach(i => widgets.pushTty(`cleanup · ${i.kind} ${Math.round(i.bytes / 1048576)} MB`, '#a07cff')); r = { focus: 'sys', text: mb ? `About ${mb} megabytes can go. Say "confirm" to delete temp files older than a day.` : 'Nothing worth cleaning.', actions: mb ? [{ type: 'cleanup', arg: 'temp' }] : [] }; }
+      else if (r && r.run) { r = (await r.run()) || { text: 'Done.' }; }
       else if (r && r.proactive) { r = await proactiveCheck(); if (!r) { setMode(voice.micOn ? 'listening' : 'idle'); return; } }
       else if (!r) {
         if (brain.online) {
@@ -546,6 +574,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   }
   /* proactive check-in: the brain looks at the live data and speaks only if something deserves attention */
   async function proactiveCheck() {
+    if (S.quiet && S.quietMode) { widgets.pushTty(`proactive check · skipped (${S.quietWhy})`, '#6a8ea3'); return null; }
     if (!brain.online) return null;
     try {
       const out = await brain.ask(`Proactive check-in. Look at the LIVE DATA. If something deserves ${brain.user.name}'s attention right now (high load, low battery, disk nearly full, an imminent meeting, a flagged mail, an open security alert), say it in one or two sentences. If nothing stands out reply with exactly the word NOTHING.`, widgets.snapshot());
@@ -692,7 +721,10 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       const d = await (await fetch(`${ADDONS}/events?since=${eventsSince}`)).json(); eventsSince = d.now || eventsSince;
       for (const e of d.events || []) {
         if (S.mode === 'thinking') continue;
+        if (e.room && S.room && e.room !== S.room) continue;                       // meant for another room
+        if (e.kind !== 'alert' && S.quiet && S.quietMode) { widgets.pushTty(`(quiet · ${S.quietWhy}) ${e.text}`, '#6a8ea3'); S.heldEvents.push(e); continue; }
         if (e.kind === 'command') { widgets.pushTty(`⏰ ${e.source}: ${e.text}`, '#a07cff'); await submit(e.text); }
+        else if (e.kind === 'say') { const tag = { notification: '🔔', pricewatch: '💸', download: '⬇', rooms: '⌂' }[e.source] || '•'; widgets.pushTty(`${tag} ${e.text}`, '#a07cff'); say(e.text, e.source === 'pricewatch' ? 'web' : null); }
         else { widgets.pushTty(`${e.kind === 'alert' ? '⚠' : '⏰'} ${e.text}`, e.kind === 'alert' ? '#ff3d6e' : '#a07cff'); say(e.text, e.kind === 'alert' ? 'sys' : null); }
       }
     } catch (err) { }
@@ -816,6 +848,9 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       <div class="row"><span>MIC KILL SWITCH (PRIVACY · NO AUDIO LEAVES THE PC)</span>${sw('micKill', S.micKill)}</div>
       <div class="note">Focus shows six widgets; the other six wait in the ring. Full shows all twelve.</div>
       <div class="row"><span>PROACTIVE CHECK-INS (EVERY 30 MIN)</span>${sw('proactive', !!S.proactive)}</div>
+      <div class="row"><span>QUIET DURING CALLS AND GAMES</span>${sw('quietMode', !!S.quietMode)}</div>
+      <div class="row"><span>HAND GESTURES (CAMERA)</span>${sw('gestures', !!S.gestures)}</div>
+      <div class="row"><span>THIS ROOM</span><input type="text" id="optRoom" value="${esc(S.room || '')}" placeholder="KITCHEN · OFFICE" spellcheck="false" style="width:160px"></div>
       <h4>AUTO-TUNE · THIS MACHINE</h4>
       <div class="note" id="tuneNote">${S.tune ? `${esc(S.tune.profile.cpu.name || 'CPU')} · ${S.tune.profile.ram_gb} GB · ${esc((S.tune.profile.gpus || []).map(g => g.name).join(', ') || 'no GPU')}<br>${S.tune.why.map(esc).join('<br>')}${S.gpuWarning ? `<br><b style="color:var(--red)">⚠ ${esc(S.gpuWarning)}</b>` : ''}` : 'Open the control panel and click AUTO-TUNE to size the 3D core, voices and startup profile to this PC.'}</div>
       <div class="row"><span>GOVERNOR (LOWER 3D ON BATTERY · HEAT · LOW MEMORY)</span>${sw('governor', S.governor)}</div>
@@ -858,6 +893,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     $('optVoice').onchange = e => { v.neuralVoice = e.target.value; const ent = (voiceList || []).find(x => x.id === v.neuralVoice); if (ent && ent.engine) v.tts = ent.engine; save(); };
     $('optTtsEngine').onchange = e => { v.tts = e.target.value; save(); };
     $('optCam').onchange = e => { S.presenceCam = e.target.value; save(); if (S.presence && SAM.fx) { SAM.fx.presence(false); SAM.fx.presence(true); } };
+    $('optRoom') && ($('optRoom').onchange = e => setRoom(e.target.value));
     $('optStt2').onchange = e => { v.sttEngine = e.target.value; save(); if (voice.micOn) { voice.stop(); setTimeout(() => voice.start(), 300); } };
     $('optCompanion').onchange = e => { v.companion = e.target.value; save(); };
     $('optRate').oninput = e => { v.rate = +e.target.value; $('rateVal').textContent = v.rate.toFixed(1); save(); };
@@ -878,7 +914,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       else if (k === 'particles') { S.particles = on; core.particles = on && !(SAM.gl && SAM.gl.on); } else if (k === 'idleMorph') S.idleMorph = on; else if (k === 'wander') S.wander = on;
       else if (k === 'fx') { S.fx = on; SAM.fx && SAM.fx.setEnabled(on); } else if (k === 'presence') { S.presence = on; SAM.fx && SAM.fx.presence(on); }
       else if (k === 'governor') S.governor = on; else if (k === 'bigtext') { S.bigtext = on; document.documentElement.classList.toggle('bigtext', on); }
-      else if (k === 'depth') { S.depth = on; applySkin(); } else if (k === 'micKill') micKill(on);
+      else if (k === 'depth') { S.depth = on; applySkin(); } else if (k === 'micKill') micKill(on); else if (k === 'gestures') gesturesOn(on); else if (k === 'quietMode') { S.quietMode = on; if (!on) releaseHeld(); }
       else if (k === 'proactive') { S.proactive = on; fetch(ADDONS + '/schedules').then(r => r.json()).then(async d => { const ex = (d.schedules || []).find(x => x.command === 'proactive check'); if (on && !ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', schedule: { name: 'proactive check every 30 min', when: { type: 'interval', minutes: 30 }, command: 'proactive check' } }) }); if (!on && ex) await fetch(ADDONS + '/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', id: ex.id }) }); }).catch(() => { }); }
       save();
     });
@@ -936,6 +972,40 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     fetch(SAM.H + ':9300/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'mic_mute', arg: on ? 'on' : 'off' }) }).catch(() => { });
     log(on ? 'warn' : 'ok', on ? 'mic kill switch ON · no audio leaves this PC' : 'mic kill switch off');
   }
+  async function POSTJ(url, body) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const d = await r.json().catch(() => ({})); if (!r.ok || d.ok === false) throw new Error(d.error || ('HTTP ' + r.status)); return d; }
+  /* ---------- activity awareness: quiet during calls and games, hold proactive speech until you are back ---------- */
+  S.quiet = false; S.quietWhy = ''; S.heldEvents = [];
+  function releaseHeld() { const held = S.heldEvents.splice(0); if (held.length) { widgets.pushTty(`${held.length} held event(s) while you were busy`, '#a07cff'); say(`While you were busy: ${held.slice(-3).map(e => e.text).join('. ').slice(0, 300)}`); } }
+  async function pollActivity() {
+    try { const d = await (await fetch(ADDONS + '/activity')).json(); const quiet = !!(d.quiet || d.fullscreen); const why = d.quiet ? d.category : d.fullscreen ? 'full screen' : '';
+      if (quiet !== S.quiet) { S.quiet = quiet; S.quietWhy = why; document.documentElement.classList.toggle('quiet', quiet); widgets.pushTty(quiet ? `quiet · ${why} (${d.app || 'app'})` : 'back · speaking up again', '#6a8ea3'); if (!quiet) releaseHeld(); }
+    } catch (e) { }
+  }
+  setInterval(pollActivity, 10000); T(pollActivity, 4000);
+  /* ---------- rooms: several HUDs on the LAN, one brain ---------- */
+  function setRoom(name) { S.room = String(name || '').toLowerCase().replace(/[^a-z0-9 _-]/g, '').trim().slice(0, 32); save(); registerRoom(); }
+  function registerRoom() { if (!S.room) return; fetch(ADDONS + '/rooms/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room: S.room, kind: SAM.inApp ? 'app' : location.search.includes('kiosk') ? 'kiosk' : 'pc' }) }).catch(() => { }); }
+  setInterval(registerRoom, 60000); T(registerRoom, 2500);
+  /* ---------- hand gestures (hud-gestures.js) ---------- */
+  let lastGesture = 0;
+  function gesturesOn(on) { S.gestures = on; save(); try { on ? SAM.gestures.start() : SAM.gestures.stop(); } catch (e) { log('warn', 'gestures need the camera and the vendored MediaPipe files'); } document.documentElement.classList.toggle('gestures', on); }
+  window.addEventListener('samurai-gesture', ev => {
+    const g = ev.detail && ev.detail.name, now = Date.now(); if (!g || now - lastGesture < 900) return; lastGesture = now;
+    widgets.pushTty(`✋ ${g}`, '#a07cff'); try { fx.flash && fx.flash(); } catch (e) { }
+    const v = widgets.data.video, playingVid = v && v.now;
+    if (g === 'open_palm') { if (playingVid) widgets.video('toggle'); else widgets.music(widgets.data.music.now.playing ? 'pause' : 'play'); }
+    else if (g === 'fist') runAction({ type: 'volume_mute', arg: '' });
+    else if (g === 'thumbs_up') { if (S.pendingConfirm || /confirm/i.test(S.lastReply || '')) submit('confirm'); else say('Noted.'); }
+    else if (g === 'index_up') { if (!voice.micOn) voice.start(); setMode('listening'); }
+    else if (g === 'swipe_left') { playingVid ? widgets.video('next') : widgets.music('next'); }
+    else if (g === 'swipe_right') { playingVid ? widgets.video('prev') : widgets.music('prev'); }
+  });
+  if (S.gestures) T(() => gesturesOn(true), 6000);
+  /* ---------- faces (hud-faces.js): greet enrolled people once an hour ---------- */
+  const greeted = {};
+  window.addEventListener('samurai-face', ev => { const n = ev.detail && ev.detail.name; if (!n) return; const now = Date.now(); if (greeted[n] && now - greeted[n] < 3600000) return; greeted[n] = now; widgets.pushTty(`👤 ${n} · ${Math.round((ev.detail.confidence || 0) * 100)}%`, '#a07cff'); if (!(S.quiet && S.quietMode)) say(`Welcome back, ${n}.`); });
+  /* mic privacy light follows the system mute state reported by the action server */
+  fetch(SAM.H + ':9300/mic').then(r => r.json()).then(d => { if (d && d.muted === true && !S.micKill) log('warn', 'system microphone is muted'); }).catch(() => { });
   const _vstart = voice.start.bind(voice); voice.start = (...a) => { if (S.micKill) { log('warn', 'mic is killed · say nothing, flip the switch in settings'); return Promise.resolve(false); } return _vstart(...a); };
   setInterval(() => { document.documentElement.classList.toggle('mic-live', !!voice.micOn && !S.micKill && (voice.level || 0) > .02); document.documentElement.classList.toggle('mic-open', !!voice.micOn && !S.micKill); }, 250);
   /* ---------- particles form the widget's icon for a moment before it opens ---------- */

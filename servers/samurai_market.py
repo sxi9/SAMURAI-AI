@@ -22,7 +22,7 @@ from samurai_common import DATA, ROOT, PORTS, load_config
 try:
     from samurai_automation import push_event
 except Exception:                                       # pragma: no cover
-    def push_event(kind, text, source="system"):
+    def push_event(kind, text, source="system", room=""):
         pass
 
 LOCK = threading.Lock()
@@ -377,6 +377,7 @@ def post_rooms_handoff(h, q, b):
         raise ValueError(f"no room called {to!r}; known: {', '.join(rooms['rooms']) or 'none'}")
     rooms["active"] = to; _save(ROOMS_PATH, rooms)
     push_event("say", f"Handing off to the {to}.", source="rooms")
+    push_event("say", "Hello, I am with you here now.", source="rooms", room=to)
     return {"ok": True, "active": to, "did": f"active room is now {to}"}
 
 
