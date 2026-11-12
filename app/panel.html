@@ -104,15 +104,15 @@ a{color:var(--cyan)}
   </div>
   <div class="card">
     <h2>BACKUP · UPDATE · SUPPORT</h2>
-    <div class="row"><a class="b" href="/backup">DOWNLOAD BACKUP</a><button class="b v" id="restoreBtn">RESTORE FROM BACKUP</button><input type="file" id="restoreFile" accept=".zip" style="display:none"><a class="b" href="/logs/bundle">LOG BUNDLE</a><button class="b" id="updateBtn">CHECK FOR UPDATES</button></div>
+    <div class="row"><a class="b" href="/backup">DOWNLOAD BACKUP</a><button class="b v" id="restoreBtn">RESTORE FROM BACKUP</button><input type="file" id="restoreFile" accept=".zip" style="display:none"><a class="b" href="/logs/bundle">LOG BUNDLE</a><button class="b" id="updateBtn">CHECK FOR UPDATES</button><button class="b v" id="updateInstall">UPDATE + INSTALL</button></div>
     <div class="status" id="updateMsg"></div>
   </div>
   <div class="card wide">
     <h2>FORGE · SAMURAI REBUILDS ITSELF</h2>
-    <div class="row"><input type="text" id="forgeTask" placeholder="describe the change: add a pomodoro widget with a streak · make the alert red flash shorter · add a voice command for …" style="flex:1"><button class="b big v" id="forgeRun">FORGE</button></div>
+    <div class="row"><input type="text" id="forgeTask" placeholder="describe the change: add a pomodoro widget with a streak · make the alert red flash shorter · add a voice command for …" style="flex:1"><button class="b big v" id="forgeRun">FORGE</button><button class="b" id="forgeSources" title="packaged build: copy the bundled sources to data/src so the forge can work on them">PREPARE SOURCES</button></div>
     <div class="row"><span class="status" id="forgeStatus">…</span><span style="margin-left:auto"></span><button class="b" id="forgeApply">APPLY + RESTART</button><button class="b r" id="forgeDiscard">DISCARD</button></div>
     <pre id="forgeLog" style="max-height:220px">no forge run yet</pre>
-    <div class="muted">Needs the source install (git checkout) and Claude Code signed in. The forge edits the code, you review the summary, then apply. Nothing is pushed anywhere.</div>
+    <div class="muted">Needs git and Claude Code signed in on this PC. From the packaged exe click PREPARE SOURCES first: the sources go to data/src and the rebuilt code runs from there after a restart. The forge edits the code, you review the summary, then apply. Nothing is pushed anywhere.</div>
   </div>
   <div class="card wide">
     <h2>CONFIG · YOU AND YOUR WIDGETS</h2>
@@ -239,6 +239,12 @@ $('saveKeys').onclick = async () => {
 async function loadEngines() { try { const d = await J('http://localhost:9200/engines'); $('engines').textContent = 'engines: ' + ['edge', 'kokoro', 'elevenlabs', 'openai', 'cartesia', 'azure'].map(e => `${e} ${d[e] ? '✓' : '–'}`).join(' · '); } catch (e) { } }
 $('restoreBtn').onclick = () => $('restoreFile').click();
 $('restoreFile').onchange = async () => { const f = $('restoreFile').files[0]; if (!f) return; const r = await fetch('/restore', { method: 'POST', body: await f.arrayBuffer() }).then(r => r.json()); $('updateMsg').textContent = r.ok ? `restored ${r.restored} file(s) — ${r.note}` : r.error; };
+$('updateInstall').onclick = async () => {
+  if (!confirm('Download and install the latest release now? SAMURAI closes and relaunches itself (packaged build) or pulls and restarts (source install). Your config and data stay.')) return;
+  const d = await POST('/update/install', {}); $('updateMsg').textContent = d.ok ? d.did : d.error;
+  const t = setInterval(async () => { try { const s = await J('/update/status'); $('updateMsg').textContent = s.error ? 'update failed: ' + s.error : s.downloading ? `downloading ${Math.round(s.progress * 100)}%` : s.staged ? 'installed / staged: ' + s.staged : $('updateMsg').textContent; if (s.error || s.staged) clearInterval(t); } catch (e) { $('updateMsg').textContent = 'SAMURAI is restarting with the update...'; clearInterval(t); } }, 1500);
+};
+$('forgeSources').onclick = () => POST('/forge/sources', {}).then(d => { $('forgeStatus').textContent = d.ok ? d.did : d.error; loadForge(); });
 $('updateBtn').onclick = async () => { $('updateMsg').textContent = 'checking…'; const d = await J('/update'); $('updateMsg').innerHTML = d.ok ? (d.newer ? `v${d.latest} is available (you run v${d.current}): <a href="${d.url}" target="_blank">download</a>` : `up to date (v${d.current})`) : `check failed: ${d.error}`; };
 $('whisper').onclick = () => POST('/panel/voice', { what: 'whisper' }).then(refresh);
 loadAuth(); setInterval(loadAuth, 4000); loadEngines();

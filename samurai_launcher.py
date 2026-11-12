@@ -11,18 +11,34 @@ From source it works the same:  python samurai_launcher.py
 import os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SERVERS = os.path.join(getattr(sys, "_MEIPASS", HERE), "servers")
+BUNDLE = getattr(sys, "_MEIPASS", HERE)
+# overlay: when the forge has prepared and rebuilt the sources next to the exe (data/src), run from there so the rebuild is live
+_root = os.environ.get("SAMURAI_ROOT") or (os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else HERE)
+OVERLAY = os.path.join(_root, "data", "src")
+USE_OVERLAY = getattr(sys, "frozen", False) and os.path.exists(os.path.join(OVERLAY, "servers", "samurai_common.py"))
+if os.environ.get("SAMURAI_FORCE_OVERLAY") == "1" and os.path.isdir(os.path.join(OVERLAY, "servers")):
+    USE_OVERLAY = True
+SERVERS = os.path.join(OVERLAY if USE_OVERLAY else BUNDLE, "servers")
 sys.path.insert(0, SERVERS)
-sys.path.insert(0, os.path.join(getattr(sys, "_MEIPASS", HERE), "tests"))
+sys.path.insert(0, os.path.join(OVERLAY if USE_OVERLAY else BUNDLE, "tests"))
+
+
+def app_dir():
+    """The HUD files: the overlay's app/ when a forge rebuild is in place, else the bundled app/."""
+    from samurai_common import APP
+    ov = os.path.join(OVERLAY, "app")
+    return ov if USE_OVERLAY and os.path.exists(os.path.join(ov, "jarvis-interface.html")) else APP
 
 
 def run_ui():
-    import http.server, functools
-    from samurai_common import APP, PORTS, bind_host, maybe_wrap_tls, tls_enabled
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=APP)
+    import http.server, functools, mimetypes
+    from samurai_common import PORTS, bind_host, maybe_wrap_tls, tls_enabled
+    mimetypes.add_type("application/manifest+json", ".webmanifest")    # companion PWA manifest (the dev `python -m http.server` serves it as octet-stream; Chrome still accepts it on http://localhost)
+    mimetypes.add_type("application/javascript", ".js")
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=app_dir())
     handler.log_message = lambda *a: None
     host = "0.0.0.0" if bind_host() != "localhost" else "127.0.0.1"
-    print(f"[SAMURAI] UI server on {'https' if tls_enabled() else 'http'}://localhost:{PORTS['ui']}/jarvis-interface.html")
+    print(f"[SAMURAI] UI server on {'https' if tls_enabled() else 'http'}://localhost:{PORTS['ui']}/jarvis-interface.html" + (f"  (overlay {app_dir()})" if USE_OVERLAY else ""))
     maybe_wrap_tls(http.server.ThreadingHTTPServer((host, PORTS["ui"]), handler)).serve_forever()
 
 

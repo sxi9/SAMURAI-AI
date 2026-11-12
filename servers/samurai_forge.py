@@ -12,6 +12,9 @@ import json, os, shutil, subprocess, sys, threading, time
 
 from samurai_common import ROOT, LOGS, FROZEN, venv_python
 
+SRC = os.path.join(ROOT, "data", "src")                    # packaged build: the sources the forge works on (prepared from the panel)
+WORK = SRC if FROZEN else ROOT                             # where git and Claude Code run
+
 STATE = {"running": False, "task": "", "started": 0, "finished": 0, "log": "", "before": None, "last": None, "proc": None}
 LOCK = threading.Lock()
 RULES = ("You are editing SAMURAI, a Jarvis-style assistant: Python sidecars in servers/ (stdlib http.server, see servers/samurai_common.py "
@@ -25,15 +28,15 @@ RULES = ("You are editing SAMURAI, a Jarvis-style assistant: Python sidecars in 
 
 def git(*args, timeout=30):
     try:
-        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=timeout).stdout.strip()
+        return subprocess.run(["git", *args], cwd=WORK, capture_output=True, text=True, timeout=timeout).stdout.strip()
     except Exception as e:
         return f"git error: {e}"
 
 
 def available():
-    if FROZEN:
-        return False, "the packaged exe cannot rebuild itself: install from source (see docs/INSTALL.md) to use the forge"
-    if not os.path.isdir(os.path.join(ROOT, ".git")):
+    if FROZEN and not os.path.isdir(os.path.join(SRC, ".git")):
+        return False, "sources not prepared: control panel -> FORGE -> PREPARE SOURCES (needs git installed); the rebuilt code runs from data/src on the next restart"
+    if not FROZEN and not os.path.isdir(os.path.join(ROOT, ".git")):
         return False, "not a git checkout: clone the repository to use the forge"
     if not shutil.which("claude"):
         return False, "Claude Code CLI not installed (npm i -g @anthropic-ai/claude-code) or not signed in"
@@ -59,7 +62,7 @@ def run_forge(task):
     env = dict(os.environ); env.pop("CLAUDECODE", None)
     try:
         with open(log_path, "w", encoding="utf-8") as lf:
-            p = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, shell=os.name == "nt")
+            p = subprocess.Popen(cmd, cwd=WORK, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, shell=os.name == "nt")
             STATE["proc"] = p
             for line in p.stdout:
                 lf.write(line); lf.flush(); STATE["log"] += line
@@ -93,7 +96,7 @@ def get_log(h, q, b):
 
 
 def check_file(path):
-    full = os.path.join(ROOT, path)
+    full = os.path.join(WORK, path)
     if not os.path.exists(full):
         return True, "removed"
     if path.endswith(".js"):
@@ -135,7 +138,7 @@ def post_apply(h, q, b):
 
 def post_discard(h, q, b):
     files = changed_files()
-    git("checkout", "--", *[f for f in files if os.path.exists(os.path.join(ROOT, f))]) if files else None
+    git("checkout", "--", *[f for f in files if os.path.exists(os.path.join(WORK, f))]) if files else None
     git("clean", "-fdq", "--", "app", "servers", "plugins", "tests", "docs")
     STATE["last"] = None
     return {"ok": True, "did": f"discarded {len(files)} file(s)"}
@@ -154,5 +157,27 @@ def restart_services():
         STATE["log"] += f"\nrestart failed: {e}\n"
 
 
+def post_sources(h, q, b):
+    """Packaged build only: copy the bundled source tree to data/src and start a git history there, so the forge can work on it."""
+    if not FROZEN:
+        return {"ok": False, "error": "already a source install: the forge works on this checkout"}
+    bundle = os.path.join(getattr(sys, "_MEIPASS", ROOT), "src")
+    if not os.path.isdir(os.path.join(bundle, "servers")):
+        raise ValueError("this build has no bundled sources")
+    if not shutil.which("git"):
+        raise ValueError("git is not installed: https://git-scm.com/download/win, then try again")
+    fresh = not os.path.isdir(os.path.join(SRC, ".git"))
+    os.makedirs(SRC, exist_ok=True)
+    for name in os.listdir(bundle):
+        src_p, dst_p = os.path.join(bundle, name), os.path.join(SRC, name)
+        if os.path.isdir(src_p):
+            shutil.copytree(src_p, dst_p, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src_p, dst_p)
+    if fresh:
+        git("init", "-q"); git("add", "-A"); git("-c", "user.email=samurai@local", "-c", "user.name=SAMURAI", "commit", "-q", "-m", "forge baseline from the packaged build")
+    return {"ok": True, "path": SRC, "git": os.path.isdir(os.path.join(SRC, ".git")), "did": ("sources prepared" if fresh else "sources refreshed") + " - the forge works on data/src; rebuilt code runs from there after a restart"}
+
+
 ROUTES = {("GET", "/forge/status"): get_status, ("POST", "/forge"): post_forge, ("GET", "/forge/log"): get_log,
-          ("POST", "/forge/apply"): post_apply, ("POST", "/forge/discard"): post_discard}
+          ("POST", "/forge/apply"): post_apply, ("POST", "/forge/discard"): post_discard, ("POST", "/forge/sources"): post_sources}
