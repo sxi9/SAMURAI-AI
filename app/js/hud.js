@@ -159,7 +159,10 @@
     setMode('speaking'); setReply('');
     let i = 0, typingDone = false, audioDone = false, settled = false;
     const finish = () => { if (settled || !(typingDone && audioDone) || gen !== S.speakGen) return; settled = true; setReply(text); T(() => { if (gen === S.speakGen && S.mode === 'speaking') setMode(voice.micOn ? 'listening' : 'idle'); opts.after && opts.after(); }, opts.quick ? 400 : 2400); };
-    const startTyping = () => { if (i) return; S.typing = setInterval(() => { i++; setReply(text.slice(0, i)); if (i >= text.length) { clearInterval(S.typing); typingDone = true; finish(); } }, 22); };
+    const startTyping = () => {                                            // generation-safe: a late audio start from an older reply can never type over a newer one
+      if (i || gen !== S.speakGen) return; clearInterval(S.typing);
+      const iv = setInterval(() => { if (gen !== S.speakGen) { clearInterval(iv); return; } i++; setReply(text.slice(0, i)); if (i >= text.length) { clearInterval(iv); typingDone = true; setReply(text); finish(); } }, 22); S.typing = iv;
+    };
     T(startTyping, 350);                                     // start typing even if audio is slow
     voice.speak(text, { onstart: startTyping, onend: () => { audioDone = true; finish(); } });
     return new Promise(r => { const chk = setInterval(() => { if (settled || gen !== S.speakGen) { clearInterval(chk); r(); } }, 100); });
