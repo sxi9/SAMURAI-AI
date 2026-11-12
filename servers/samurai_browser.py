@@ -1,6 +1,8 @@
 """SAMURAI Browser Agent — a real browser the brain can drive, step by step.  Port 9600.
 
-POST /browser {"cmd": "open|read|links|click|type|find|back|screenshot|close", "arg": "..."}
+POST /browser {"cmd": "open|read|links|click|type|find|back|screenshot|close|headed|findmy", "arg": "..."}
+  headed      arg = on|off                    show the browser window (sign in to Google etc.), persisted in config browser.headless
+  findmy      arg = locate|ring|status        Google Find My Device through the signed-in profile -> {needs_login, devices, last_seen, address, rang}
   open        arg = url                       -> {"title"}
   read                                        -> {"title", "url", "text"}  (readable page text, trimmed)
   links                                       -> {"links": [{"text", "href"}]}
@@ -12,15 +14,18 @@ GET  /browser/status
 
 Needs:  pip install playwright && python -m playwright install chromium
 config.json "browser": {"headless": false}  shows the window on your PC so you can watch it work.
+The browser keeps a PERSISTENT profile in data/browser-profile (config browser.profile_dir): sign in once, it stays signed in.
 Run: python samurai_browser.py
 """
 import os, urllib.parse, re, sys, threading, time
 from http.server import HTTPServer   # single-threaded on purpose: Playwright's sync API is bound to one thread
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from samurai_common import maybe_wrap_tls, bind_host, JSONHandler, PORTS, DATA, load_config
+from samurai_common import maybe_wrap_tls, bind_host, JSONHandler, PORTS, DATA, load_config, save_config
 
 PORT = PORTS.get("browser", 9600)
+if "--port" in sys.argv:
+    PORT = int(sys.argv[sys.argv.index("--port") + 1])
 SHOTS = os.path.join(DATA, "browser")
 LOCK = threading.Lock()
 _b = {"pw": None, "browser": None, "page": None, "started": 0}
@@ -38,18 +43,95 @@ def page():
     exe = os.environ.get("SAMURAI_CHROMIUM") or (None if not os.path.exists("/opt/pw-browsers/chromium") else "/opt/pw-browsers/chromium")
     if _b["pw"] is None:
         _b["pw"] = sync_playwright().start()
-    kw = {"headless": headless}
+    kw = {"headless": headless, "viewport": {"width": 1280, "height": 800}, "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SAMURAI/1.0"}
     if exe:
         kw["executable_path"] = exe
+    profile = profile_dir()
+    os.makedirs(profile, exist_ok=True)
     try:
-        _b["browser"] = _b["pw"].chromium.launch(**kw)
+        ctx = _b["pw"].chromium.launch_persistent_context(profile, **kw)     # persistent: sign-ins (Google etc.) survive restarts
     except Exception as e:
         raise ValueError(f"chromium failed to start ({str(e)[:80]}) — run: python -m playwright install chromium")
-    ctx = _b["browser"].new_context(viewport={"width": 1280, "height": 800}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) SAMURAI/1.0")
-    _b["page"] = ctx.new_page()
+    _b["browser"] = ctx
+    _b["page"] = ctx.pages[0] if ctx.pages else ctx.new_page()
     _b["page"].set_default_timeout(15000)
     _b["started"] = time.time()
     return _b["page"]
+
+
+def profile_dir():
+    d = load_config().get("browser", {}).get("profile_dir") or ""
+    return os.path.expanduser(d) if d else os.path.join(DATA, "browser-profile")
+
+
+def close_browser():
+    try:
+        _b["browser"] and _b["browser"].close()
+    except Exception:
+        pass
+    _b.update(browser=None, page=None)
+
+
+FMD_URL = "https://www.google.com/android/find"
+
+
+def findmy(action):
+    """Google Find My Device in the signed-in profile. Every step is best effort: Google's DOM changes, so nothing here raises on a missing element."""
+    action = (action or "status").lower()
+    out = {"ok": True, "action": action, "needs_login": False, "devices": [], "last_seen": "", "address": "", "rang": False, "detail": ""}
+    pg = page()
+    try:
+        pg.goto(FMD_URL, wait_until="domcontentloaded", timeout=30000)
+    except Exception as e:
+        out.update(error=f"could not open Find My Device: {str(e)[:80]}", title="", url=pg.url)
+        return out
+    try:
+        pg.wait_for_load_state("networkidle", timeout=20000)
+    except Exception:
+        pass
+    out["url"], out["title"] = pg.url, pg.title()
+    signed_out = "accounts.google.com" in pg.url or "signin" in pg.url.lower() or "/find/about" in pg.url
+    if not signed_out:
+        try:                                             # the marketing page shows a "Sign in" link instead of the device list
+            signed_out = pg.get_by_role("link", name=re.compile(r"^sign in$", re.I)).first.is_visible(timeout=1500)
+        except Exception:
+            signed_out = False
+    if signed_out:
+        out.update(needs_login=True, detail="sign in to Google in the browser window (control panel → BROWSER → SHOW WINDOW), then try again")
+        return out
+    try:
+        txt = pg.evaluate("() => document.body.innerText") or ""
+    except Exception:
+        txt = ""
+    lines = [l.strip() for l in txt.splitlines() if l.strip()]
+    for i, l in enumerate(lines):
+        if re.search(r"last seen|last known|last online|\bago\b", l, re.I) and not out["last_seen"]:
+            out["last_seen"] = l[:160]
+        if re.search(r"\b\d{1,5} [A-Z][\w .'-]+ (Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Blvd|Drive|Dr|Way|Nagar|Layout|Marg)\b", l) and not out["address"]:
+            out["address"] = l[:160]
+    try:                                                 # device names: list items / buttons that look like a device chooser
+        names = pg.evaluate("""() => { const out = []; const seen = new Set();
+            for (const el of document.querySelectorAll('[role=listitem], [role=option], [role=button], li, h2, h3')) { const t = (el.innerText || '').trim().split('\n')[0];
+              if (t && t.length < 40 && /phone|pixel|galaxy|oneplus|xiaomi|redmi|realme|oppo|vivo|motorola|nothing|watch|tablet|tab |buds|android/i.test(t) && !seen.has(t)) { seen.add(t); out.push(t); } }
+            return out.slice(0, 8); }""") or []
+        out["devices"] = names
+    except Exception:
+        pass
+    if action == "ring":
+        try:
+            btn = pg.get_by_role("button", name=re.compile(r"play sound|ring", re.I)).first
+            btn.wait_for(state="visible", timeout=10000)
+            btn.click(timeout=5000)
+            out.update(rang=True, detail="asked Google to ring the device for 5 minutes")
+            try:
+                pg.wait_for_timeout(1500)
+            except Exception:
+                pass
+        except Exception as e:
+            out.update(rang=False, detail=f"no 'Play sound' button found: {str(e)[:60]}")
+    if not out["devices"] and not out["needs_login"] and not out.get("error"):
+        out["detail"] = out["detail"] or "page opened but no device list found (Google may show a consent screen first — open the browser window)"
+    return out
 
 
 def readable_text(pg, limit=8000):
@@ -63,12 +145,21 @@ def readable_text(pg, limit=8000):
 def do(cmd, arg):
     arg = (arg or "").strip()
     if cmd == "close":
-        try:
-            _b["browser"] and _b["browser"].close()
-        except Exception:
-            pass
-        _b.update(browser=None, page=None)
+        close_browser()
         return {"ok": True, "did": "browser closed"}
+    if cmd == "headed":
+        on = str(arg).lower() in ("on", "1", "true", "show", "yes")
+        cfg = load_config(); cfg.setdefault("browser", {})["headless"] = not on; save_config(cfg)
+        close_browser()
+        try:
+            page()
+        except ValueError as e:
+            return {"ok": False, "error": str(e), "headless": not on}
+        return {"ok": True, "did": "browser window " + ("shown" if on else "hidden"), "headless": not on}
+    if cmd == "findmy":
+        res = findmy(arg)
+        res["did"] = res.get("detail") or ("Find My Device: " + ", ".join(res["devices"]) if res["devices"] else "Find My Device opened")
+        return res
     pg = page()
     if cmd == "open":
         if not arg:
@@ -202,7 +293,8 @@ def get_status(h, q, b):
         ready = True
     except ImportError:
         ready = False
-    return {"ok": True, "playwright": ready, "open": bool(_b["page"] and not _b["page"].is_closed()), "url": _b["page"].url if _b["page"] and not _b["page"].is_closed() else None}
+    return {"ok": True, "playwright": ready, "open": bool(_b["page"] and not _b["page"].is_closed()), "url": _b["page"].url if _b["page"] and not _b["page"].is_closed() else None,
+            "headless": bool(load_config().get("browser", {}).get("headless", True)), "profile": profile_dir()}
 
 
 def get_file(h, q, b):

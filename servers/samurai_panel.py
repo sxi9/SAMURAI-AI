@@ -523,6 +523,37 @@ def get_remote_reply(h, q, b):
     return {"ok": True, "reply": rep}
 
 
+# broadcast to every companion page (find my phone: ring; say): kept 120 s, pages poll /remote/events
+BCAST = {"events": [], "pages": {}, "lock": threading.Lock()}
+
+
+def post_remote_broadcast(h, q, b):
+    """{kind: ring|say, text} -> every companion page that polls /remote/events gets it. Returns how many pages polled in the last 30 s."""
+    kind = (b.get("kind") or "say")[:20]
+    with BCAST["lock"]:
+        BCAST["events"].append({"t": time.time(), "kind": kind, "text": (b.get("text") or "")[:500]})
+        BCAST["events"][:] = [e for e in BCAST["events"] if time.time() - e["t"] < 120]
+        pages = sum(1 for t in BCAST["pages"].values() if time.time() - t < 30)
+    return {"ok": True, "pages": pages}
+
+
+def get_remote_events(h, q, b):
+    """Polled by companion pages every few seconds: ?since=<unix ts> -> {events:[{t, kind, text}], now, pages}. ?peek=1 does not count as a page."""
+    since = float(q.get("since", 0) or 0)
+    with BCAST["lock"]:
+        if q.get("peek") != "1":
+            key = (h.client_address[0] if h.client_address else "?") + "|" + (h.headers.get("User-Agent") or "")[:40]
+            BCAST["pages"][key] = time.time()
+            for k in [k for k, t in BCAST["pages"].items() if time.time() - t > 300]:
+                BCAST["pages"].pop(k, None)
+        events = [e for e in BCAST["events"] if e["t"] > since and time.time() - e["t"] < 120]
+        pages = sum(1 for t in BCAST["pages"].values() if time.time() - t < 30)
+    return {"ok": True, "events": events, "now": time.time(), "pages": pages}
+
+
+RELAY_ROUTES = {("POST", "/remote/broadcast"): post_remote_broadcast, ("GET", "/remote/events"): get_remote_events}
+
+
 # ----------------------------------------------------------------------------- claude / gemini login
 AUTH = {"proc": None, "tool": "", "log": "", "url": ""}
 
@@ -745,7 +776,7 @@ class Handler(JSONHandler):
               ("POST", "/panel/voice"): post_voice_extras, ("POST", "/panel/lan"): post_lan,
               ("GET", "/phone"): get_phone, ("GET", "/phone/cert"): get_phone_cert,
               ("POST", "/remote/command"): post_remote_command, ("GET", "/remote/next"): get_remote_next,
-              ("POST", "/remote/reply"): post_remote_reply, ("GET", "/remote/reply"): get_remote_reply,
+              ("POST", "/remote/reply"): post_remote_reply, ("GET", "/remote/reply"): get_remote_reply, **RELAY_ROUTES,
               ("GET", "/auth/status"): get_auth_status, ("POST", "/auth/login"): post_auth_login, ("POST", "/auth/logout"): post_auth_logout,
               **tune.ROUTES, **forge.ROUTES,
               ("POST", "/auth/input"): post_auth_input,
