@@ -134,3 +134,7 @@ The first checks every route and the origin lock. The second synthesises a phras
 ## Files
 
 **Installing, step by step with screenshots: [docs/INSTALL.md](docs/INSTALL.md)** (Windows exe, source on any OS, the chromeless app window, phone pairing, updating, troubleshooting). `README.txt` has the plain-text version of this guide. `docs/CHECKLIST.md` tracks what was built and `docs/ROADMAP.md` lists everything that could still be added, numbered. `app/legacy-interface.html` is the previous interface. `samurai_dashboard.py` is the older tkinter dashboard for Windows; the browser control panel replaces it.
+
+## How this was built
+
+The whole project was built in one Claude Code session over two days. The complete chat is in [docs/SESSION.md](docs/SESSION.md), with the [context summaries](docs/session/context-summaries.md) (the shortest read of every decision), the [tool log](docs/session/tool-log.md) (every command, read, edit and agent launch) and the [background agent reports](docs/session/agent-reports.md). Stage-by-stage progress is in [docs/CHECKLIST.md](docs/CHECKLIST.md) and the 90-item plan in [docs/ROADMAP.md](docs/ROADMAP.md).
