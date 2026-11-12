@@ -79,7 +79,7 @@
     /* ---- hologram materialise when a card becomes visible ---- */
     observeCards() {
       const seen = new WeakMap();
-      const ob = new MutationObserver(ms => { for (const m of ms) { const fly = m.target, vis = fly.style.visibility !== 'hidden' && fly.style.opacity !== '0'; if (vis && seen.get(fly) === false && this.on) { const card = fly.querySelector('.card'); card.classList.remove('holo'); void card.offsetWidth; card.classList.add('holo'); } seen.set(fly, vis); } });
+      const ob = new MutationObserver(ms => { for (const m of ms) { const fly = m.target, vis = fly.style.visibility !== 'hidden' && fly.style.opacity !== '0'; if (vis && seen.get(fly) === false && this.on) { const card = fly.querySelector('.card'); card.classList.remove('mat'); void card.offsetWidth; card.classList.add('mat'); } seen.set(fly, vis); } });
       document.querySelectorAll('.fly').forEach(f => { seen.set(f, f.style.visibility !== 'hidden'); ob.observe(f, { attributes: true, attributeFilter: ['style'] }); });
       this.cardObserver = ob;
     },

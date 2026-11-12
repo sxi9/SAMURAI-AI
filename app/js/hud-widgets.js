@@ -319,7 +319,14 @@ window.SAM = window.SAM || {};
       this.render('vid'); this.onVideo && this.onVideo(v.now); return true;
     },
     /* ---------- browser widget: the agent's real page, streamed as JPEG frames while the widget is open ---------- */
-    async browse(url) { this.data.web.live = true; this.render('web'); this.webRefresh(true); try { const r = await POST(BROWSER + '/browser', { cmd: 'open', arg: url }); this.data.web.title = r.title || ''; this.data.web.url = r.url || url; } catch (e) { this.data.web.live = false; } this.render('web'); this.webRefresh(true); },
+    async browse(url) {
+      this.data.web.live = true; this.data.web.url = url; this.render('web'); this.webRefresh(true);
+      try { const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 40000);          // the first open launches Chromium, give it time
+        const r = await (await fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'open', arg: url }), signal: ctl.signal })).json(); clearTimeout(to);
+        this.data.web.title = r.title || ''; this.data.web.url = r.url || url; this.data.web.live = !!r.ok; }
+      catch (e) { this.data.web.live = false; this.data.web.title = 'browser agent did not answer'; }
+      this.render('web'); this.webRefresh(true);
+    },
     async webRefresh(force) {
       const img = $('webImg'); if (!img) return; const open = force || (this.onWebVisible && this.onWebVisible()); if (!open) return;
       try { const r = await fetch(BROWSER + '/browser/view', { cache: 'no-store' }); if (!r.ok) throw 0; const blob = await r.blob(); const t = decodeURIComponent(r.headers.get('X-Title') || ''), u = decodeURIComponent(r.headers.get('X-Url') || '');

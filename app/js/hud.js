@@ -74,9 +74,15 @@
         return;
       }
       slot.classList.remove('docked'); fly.classList.remove('focus', 'dim'); slot.style.left = w.x + 'px'; slot.style.top = w.y + 'px';
+      if (w.big && !focused) { slot.classList.remove('big'); slot.style.width = slot.style.height = ''; }
       const cx = w.x + 136, cy = w.y + 125, [nx, ny] = NODE(w.node); let st;
       if (!S.assembled) st = `transform:perspective(1400px) translate(${960 - cx}px,${470 - cy}px) rotateY(0deg) scale(.1);opacity:0;visibility:hidden;transition:none`;
-      else if (focused) { const cine = w.id === 'vid' && widgets.data.video.cinema, sc = cine ? 3.9 : w.big ? 3.1 : 2.2; st = `z-index:60;transform:perspective(1400px) translate(${960 - cx}px,${(cine ? 540 : 482) - cy}px) rotateY(0deg) scale(${sc});opacity:1;visibility:visible`; }
+      else if (focused && w.big) {                                   // video / browser: a real-size panel, no upscaling, so frames stay crisp
+        const cine = w.id === 'vid' && widgets.data.video.cinema, pw = cine ? 1700 : 1320, ph = cine ? 956 : 780;
+        slot.classList.add('big'); slot.style.width = pw + 'px'; slot.style.height = ph + 'px'; slot.style.left = (960 - pw / 2) + 'px'; slot.style.top = ((cine ? 540 : 500) - ph / 2) + 'px';
+        st = `z-index:60;transform:none;opacity:1;visibility:visible`;
+      }
+      else if (focused) { st = `z-index:60;transform:perspective(1400px) translate(${960 - cx}px,${482 - cy}px) rotateY(0deg) scale(2.2);opacity:1;visibility:visible`; }
       else if (docked) st = `transform:perspective(1400px) translate(${nx - cx}px,${ny - cy}px) rotateY(0deg) scale(.08);opacity:0;visibility:hidden`;
       else st = `transform:perspective(1400px) translate(0px,0px) rotateY(${w.side === 'L' ? 9 : -9}deg) scale(1);opacity:${S.focus ? .22 : 1};filter:${S.focus ? 'blur(1px)' : 'none'};visibility:visible;transition-delay:${S.stagger ? i * 70 : 0}ms`;
       fly.style.cssText = st;
@@ -242,7 +248,7 @@
     /* journal, focus sessions, files, read aloud, machines, radios, phone push, games, cleanup */
     const jn = q.match(/^(?:note|journal|log|write down|remember in my journal)(?: that| this)?[:,]? (.{2,})$/); if (jn) return { focus: 'task', text: 'Noted.', effect: () => fetch(ADDONS + '/journal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: jn[1] }) }).catch(() => { }) };
     if (/^(read|show|what's in|what is in|open) (my |the )?journal( today| for today)?$/.test(q)) return { journal: true };
-    const fs = q.match(/^(?:(?:start|started|begin|go)(?: a| the| my| of| off)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?(?: for)?(?: (\d+|[a-z]+(?: [a-z]+)?)(?: minutes?| min))?$/) || q.match(/^(?:(?:start|started|begin|go)(?: a| the| my)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?$/); if (fs) { const w = (fs[1] || '').split(' '), mins = +(fs[1] || 0) || (WORDS[w[0]] || 0) + (WORDS[w[1]] || 0) || 25; return { focus: 'tmr', text: `Focus session, ${mins} minutes. I will keep quiet.`, effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: mins, break: 5 }) }).catch(() => { }); widgets.timerStart(mins * 60); } }; }
+    const fs = q.match(/^(?:(?:start|started|begin|go)(?: a| the| my| of| off)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?(?: for)?(?: (\d+|[a-z]+(?: [a-z]+)?)(?: minutes?| min)?)?$/) || q.match(/^(?:(?:start|started|begin|go)(?: a| the| my)? )?(?:focus|pomodoro|deep work)(?: session| mode| timer)?$/); if (fs) { const w = (fs[1] || '').split(' '), mins = +(fs[1] || 0) || (WORDS[w[0]] || 0) + (WORDS[w[1]] || 0) || 25; return { focus: 'tmr', text: `Focus session, ${mins} minutes. I will keep quiet.`, effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minutes: mins, break: 5 }) }).catch(() => { }); widgets.timerStart(mins * 60); } }; }
     if (/^(stop|end|cancel) (the )?(focus|pomodoro)( session)?$/.test(q)) return { text: 'Focus session ended.', effect: () => { fetch(ADDONS + '/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => { }); widgets.timerReset(); } };
     const ff = q.match(/^(?:find|search|locate)(?: my| the)? files?(?: for| named| called| about)? (.{2,})$/) || q.match(/^where is (?:my |the )?file (.{2,})$/); if (ff) return { files: ff[1] };
     const ra = q.match(/^read(?: me)?(?: the)?(?: file| document)? (\S+\.(?:txt|md|pdf|docx|csv|log|rst))(?: aloud| out loud| to me)?$/); if (ra) return { readFile: ra[1] };

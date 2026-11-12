@@ -458,8 +458,12 @@ def get_yt_search(h, q, b):
         if vid in seen:
             continue
         seen.add(vid)
+        try:                                                     # skip videos whose owner blocks embedding
+            urllib.request.urlopen(urllib.request.Request("https://www.youtube.com/oembed?format=json&url=" + urllib.parse.quote("https://www.youtube.com/watch?v=" + vid, safe=""), headers={"User-Agent": "SAMURAI/1.0"}), timeout=6).read(64)
+        except Exception:
+            continue
         results.append({"id": vid, "title": title, "url": "https://www.youtube.com/watch?v=" + vid})
-        if len(results) >= 8:
+        if len(results) >= 6:
             break
     _yt_cache[query] = (time.time(), results)
     return {"ok": True, "results": results}
