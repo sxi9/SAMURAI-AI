@@ -268,7 +268,15 @@ def do(cmd, arg):
 
 def post_browser(h, q, b):
     with LOCK:
-        res = do(b.get("cmd", ""), b.get("arg", ""))
+        try:
+            res = do(b.get("cmd", ""), b.get("arg", ""))
+        except Exception as e:                                   # a closed context (crash, headed/headless switch): relaunch once and retry
+            if "has been closed" not in str(e):
+                raise
+            for k in ("page", "ctx", "context", "browser"):
+                if k in _b:
+                    _b[k] = None
+            res = do(b.get("cmd", ""), b.get("arg", ""))
     print(f"[SAMURAI-WEB] {b.get('cmd')} {str(b.get('arg', ''))[:50]} -> {res.get('did') or res.get('title') or 'ok'}")
     return res
 
