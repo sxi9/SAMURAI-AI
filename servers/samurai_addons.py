@@ -25,6 +25,8 @@ from samurai_common import (maybe_wrap_tls, bind_host, JSONHandler, PORTS, ROOT,
 import samurai_automation as auto
 import samurai_connect as connect
 import samurai_findmy as findmy
+import samurai_spotify as spotify
+import samurai_calendar as calendar
 
 PORT = PORTS["addons"]
 if "--port" in sys.argv:
@@ -704,6 +706,8 @@ class Handler(JSONHandler):
         **auto.ROUTES,
         **connect.ROUTES,
         **findmy.ROUTES,
+        **spotify.ROUTES,
+        **calendar.ROUTES,
     }
 
 

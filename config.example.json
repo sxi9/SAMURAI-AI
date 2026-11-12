@@ -23,5 +23,7 @@
     "ntfy_topic": "", "ntfy_server": "https://ntfy.sh", "pushover_user": "", "pushover_token": "",
     "machines": [], "vpn_name": "", "search_dirs": [], "stations": [], "podcasts": [],
     "telegram_token": "", "telegram_chats": [], "discord_webhook": "", "slack_webhook": "", "steam_dir": ""
-  }
+  },
+  "spotify": { "client_id": "" },
+  "calendar": { "target": "ics", "caldav_url": "", "caldav_user": "", "caldav_password": "" }
 }
