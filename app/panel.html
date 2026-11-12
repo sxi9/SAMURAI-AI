@@ -115,6 +115,14 @@ a{color:var(--cyan)}
     <div class="muted">Needs git and Claude Code signed in on this PC. From the packaged exe click PREPARE SOURCES first: the sources go to data/src and the rebuilt code runs from there after a restart. The forge edits the code, you review the summary, then apply. Nothing is pushed anywhere.</div>
   </div>
   <div class="card wide">
+    <h2>CLAUDE TOOLS · COST METER · MISSIONS</h2>
+    <div class="row"><span class="status" id="mcpStatus">…</span><span style="margin-left:auto"></span><button class="b v" id="mcpOn">GIVE CLAUDE CODE SAMURAI'S TOOLS</button><button class="b" id="mcpOff">REMOVE</button></div>
+    <div class="row"><span class="status" id="meterStatus">…</span><span style="margin-left:auto"></span><span>MONTHLY BUDGET $</span><input type="number" id="meterBudget" min="0" step="1" style="width:90px"><button class="b" id="meterSave">SAVE</button></div>
+    <div class="row"><input type="text" id="missionGoal" placeholder="a long task for Claude Code: research X and write a report in workspace/ · refactor the tests · build me a …" style="flex:1"><button class="b big v" id="missionRun">START MISSION</button><button class="b r" id="missionStop">STOP</button></div>
+    <pre id="missionLog" style="max-height:200px">no missions yet</pre>
+    <div class="muted">Tools: registers servers/samurai_mcp.py with Claude Code (claude mcp add) so a Claude session can run SAMURAI actions, drive the browser, search your documents, write the journal and calendar, and remember things. Meter: every brain reply is counted per provider; a spoken warning at 80 % of the budget. Missions: Claude Code works for hours in workspace/ with a NOTES.md scratchpad and SAMURAI says when it is done.</div>
+  </div>
+  <div class="card wide">
     <h2>CONFIG · YOU AND YOUR WIDGETS</h2>
     <div class="grid" style="gap:8px 18px">
       <div><label>NAME</label><input id="c_name"><label>NODE LABEL</label><input id="c_node"><label>CITY LABEL</label><input id="c_label"><label>LATITUDE</label><input id="c_lat" type="number" step="0.0001"><label>LONGITUDE</label><input id="c_lon" type="number" step="0.0001"></div>
@@ -151,6 +159,20 @@ $('forgeRun').onclick = () => POST('/forge', { task: $('forgeTask').value }).the
 $('forgeApply').onclick = () => POST('/forge/apply', {}).then(d => { $('forgeStatus').textContent = d.ok ? d.did : d.error + (d.files ? ' ' + JSON.stringify(d.files) : ''); loadForge(); });
 $('forgeDiscard').onclick = () => POST('/forge/discard', {}).then(d => { $('forgeStatus').textContent = d.did || d.error; loadForge(); });
 setInterval(loadForge, 4000); loadForge();
+const AG = location.protocol + '//' + location.hostname + ':9400', AD = location.protocol + '//' + location.hostname + ':9500';
+const JX = u => fetch(u, { headers: { Origin: location.origin } }).then(r => r.json());
+const PX = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json());
+async function loadBrains() {
+  try { const m = await JX(AG + '/agent/mcp'); $('mcpStatus').textContent = m.registered ? `registered with Claude Code · ${(m.tools || []).length} tools` : m.exists === false ? 'servers/samurai_mcp.py missing' : 'not registered'; } catch (e) { $('mcpStatus').textContent = 'agent service offline (starts on demand)'; }
+  try { const u = await JX(AD + '/meter'); $('meterStatus').textContent = `this month $${(u.total_usd || 0).toFixed(3)} · ${u.calls || 0} calls · ${Object.keys(u.by_provider || {}).join(', ') || 'no provider yet'}${u.warning ? ' · ⚠ ' + u.spoken : ''}`; if (document.activeElement !== $('meterBudget')) $('meterBudget').value = u.budget_usd || 0; } catch (e) { $('meterStatus').textContent = 'add-ons offline'; }
+  try { const d = await JX(AG + '/mission'); const M = d.missions || []; $('missionLog').textContent = M.length ? M.slice(-6).map(m => `${m.running ? '● RUNNING' : m.code === 0 ? '✓ done' : '✗ ' + (m.code ?? '')} ${m.id}  ${m.goal.slice(0, 90)}\n   ${(m.summary || '').slice(0, 200)}`).join('\n') : 'no missions yet'; } catch (e) { }
+}
+$('mcpOn').onclick = () => PX(AG + '/agent/mcp', { on: true }).then(d => { $('mcpStatus').textContent = d.ok ? 'registered · ' + (d.did || '') : d.error; loadBrains(); });
+$('mcpOff').onclick = () => PX(AG + '/agent/mcp', { on: false }).then(d => { $('mcpStatus').textContent = d.ok ? 'removed' : d.error; loadBrains(); });
+$('meterSave').onclick = () => PX(AD + '/config', { meter: { monthly_budget_usd: +$('meterBudget').value || 0 } }).then(() => loadBrains());
+$('missionRun').onclick = () => PX(AG + '/mission', { goal: $('missionGoal').value }).then(d => { $('missionLog').textContent = d.ok ? 'started ' + d.id : d.error; loadBrains(); });
+$('missionStop').onclick = () => PX(AG + '/mission/stop', {}).then(d => { $('missionLog').textContent = d.ok ? 'stopped' : d.error; loadBrains(); });
+setInterval(loadBrains, 8000); loadBrains();
 async function loadTune(apply) {
   $('tuneProfile').innerHTML = '<span class="muted">detecting…</span>';
   try {

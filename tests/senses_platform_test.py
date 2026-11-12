@@ -56,8 +56,8 @@ def main():
     market.WATCH_PATH = os.path.join(tmp, "pricewatch.json"); market.ROOMS_PATH = os.path.join(tmp, "rooms.json"); market.SYNC_PATH = os.path.join(tmp, "sync.json"); market.DATA = tmp
     senses.FACES_DIR = os.path.join(tmp, "faces")
     pushed = []
-    market.push_event = lambda kind, text, source="system": pushed.append((kind, text, source))
-    senses.push_event = lambda kind, text, source="system": pushed.append((kind, text, source))
+    market.push_event = lambda kind, text, source="system", room="": pushed.append((kind, text, source))
+    senses.push_event = lambda kind, text, source="system", room="": pushed.append((kind, text, source))
     dl_dir = os.path.join(tmp, "downloads")
     real_load = common.load_config
     market.load_config = lambda: {**real_load(), "market": {"download_dir": dl_dir}, "senses": {"quiet_apps": ["obs"], "read_notifications": True}}

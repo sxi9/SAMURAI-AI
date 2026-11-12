@@ -524,3 +524,5 @@ html.mickill .pills .m i{background:#444;box-shadow:none}html.mickill .pills .m{
 .tiles.dev{margin-top:8px;border-top:1px solid rgba(var(--cyan-rgb),.14);padding-top:8px}
 html.quiet #micBtn::after{content:'QUIET';position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:#ffb84d}
 html.gestures #micBtn::before{content:'✋';position:absolute;right:-18px;top:-6px;font-size:11px;opacity:.7}
+html.meeting #micBtn::after{content:'MEETING';position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:#ffb84d}
+html.realtime #micBtn{box-shadow:0 0 18px rgba(var(--violet-rgb),.8)}
