@@ -99,7 +99,7 @@ def load_config():
         return dict(DEFAULT_CONFIG)
 
 
-SECRET_FIELDS = (("widgets", "inbox", "imap_password"), ("widgets", "home", "hass_token"),
+SECRET_FIELDS = (("widgets", "inbox", "imap_password"), ("widgets", "home", "hass_token"), ("calendar", "caldav_password"),
                  ("voice", "keys", "elevenlabs"), ("voice", "keys", "openai"), ("voice", "keys", "cartesia"), ("voice", "keys", "azure"))
 
 

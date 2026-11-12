@@ -13,7 +13,7 @@ window.SAM = window.SAM || {};
     { id: 'wx', side: 'R', x: 1320, y: 100, node: 0, code: 'WX', name: 'WEATHER', title: 'WEATHER' },
     { id: 'mus', side: 'R', x: 1608, y: 100, node: 1, code: 'MUS', name: 'MUSIC', title: 'MUSIC' },
     { id: 'home', side: 'R', x: 1320, y: 366, node: 2, code: 'HOME', name: 'SMART HOME', title: 'HOME' },
-    { id: 'map', side: 'R', x: 1608, y: 366, node: 3, code: 'MAP', name: 'POSITION', title: 'POSITION' },
+    { id: 'map', side: 'R', x: 1608, y: 366, node: 3, code: 'MAP', name: 'POSITION · MAP', title: 'POSITION', big: true },
     { id: 'cam', side: 'R', x: 1320, y: 632, node: 4, code: 'CAM', name: 'CAMERA FEED', title: 'FEED 01' },
     { id: 'pix', side: 'R', x: 1608, y: 632, node: 5, code: 'PIX', name: 'HOLO GALLERY', title: 'HOLO GALLERY' },
     { id: 'vid', side: 'R', x: 1320, y: 366, node: 12, code: 'VID', name: 'VIDEO (YOUTUBE · LOCAL · STREAMS)', title: 'VIDEO', big: true, pin: false },
@@ -40,6 +40,8 @@ window.SAM = window.SAM || {};
       web: { url: '', title: '', live: false },
       screen: { live: false, monitor: 0, monitors: [], size: '', text: '' },
       mem: { stars: [], links: [], query: '', loaded: 0 },
+      spotify: { linked: false, checked: 0, track: null, device: '', playing: false, devices: [] },
+      map: { here: null, phone: null, target: null },
       custom: [],
       gallery: [], position: null, security: null, ticker: null,
       timer: { left: 300, total: 300, running: false }, tty: [{ t: 'samurai boot · ok', c: '#2ee6ff' }], camErr: false,
@@ -61,6 +63,7 @@ window.SAM = window.SAM || {};
       GET(ADDONS + '/video').then(r => { this.data.video.files = r.files || []; this.data.video.live = !!r.live; this.render('vid'); }).catch(() => { });
       setInterval(() => this.webRefresh(false), 700);
       setInterval(() => this.screenRefresh(false), 1000);
+      this.spotifyPoll(); setInterval(() => { if (this.data.spotify.linked) this.spotifyPoll(); }, 5000);
       setInterval(() => document.querySelectorAll('.cw iframe').forEach(fr => this.pushSnapshot(fr)), 5000);
       window.addEventListener('message', e => { const m = e.data || {}; if (!m.samurai) return; if (m.samurai === 'say' && this.onSay) this.onSay(String(m.text).slice(0, 400)); if (m.samurai === 'focus' && this.onFocus) this.onFocus(m.id); if (m.samurai === 'action' && this.onAction) this.onAction(String(m.type), String(m.arg || '')); });
       this.loadCustom();
@@ -129,6 +132,15 @@ window.SAM = window.SAM || {};
           break;
         }
         case 'mus': {
+          const sp = d.spotify;
+          if (sp.linked && sp.track && !d.music.now.playing && !d.music.stream) {
+            const t = sp.track; this.tag(id, sp.playing ? 'SPOTIFY' : 'SPOTIFY · PAUSED', 'v');
+            b.innerHTML = `<div class="mus"><div class="art">${t.album_art ? `<img src="${esc(t.album_art)}" alt="">` : 'spotify'}</div><div><div class="ti">${esc(t.title)}</div><div class="ar">${esc(t.artist)}</div><div class="mx">${esc((sp.device || 'SPOTIFY').toUpperCase())}</div></div></div>
+              <div class="mbar"><i style="width:${t.duration ? Math.min(100, t.progress / t.duration * 100) : 0}%"></i></div><div class="mtimes"><span>${fmt((t.progress || 0) / 1000)}</span><span>${fmt((t.duration || 0) / 1000)}</span></div>
+              <div class="mctl"><div id="musPrev">◀◀</div><div class="pl" id="musToggle">${sp.playing ? '❚❚' : '▶'}</div><div id="musNext">▶▶</div></div>`;
+            $('musPrev').addEventListener('click', e => { e.stopPropagation(); this.spotify('prev'); }); $('musNext').addEventListener('click', e => { e.stopPropagation(); this.spotify('next'); }); $('musToggle').addEventListener('click', e => { e.stopPropagation(); this.spotify(sp.playing ? 'pause' : 'play'); });
+            break;
+          }
           const m = d.music, tr = m.tracks[Math.max(0, m.now.i)] || m.tracks[0] || { title: '—', artist: '—', len: 0 };
           this.tag(id, m.now.playing ? 'PLAYING' : 'PAUSED', 'v');
           const len = (this.audio && isFinite(this.audio.duration) && this.audio.duration) || tr.len || 0, pos = this.audio ? this.audio.currentTime : m.pos;
@@ -207,7 +219,7 @@ window.SAM = window.SAM || {};
           const p = d.position; this.tag(id, p && p.lat ? 'FIXED' : 'GPS —');
           const near = (p && p.nearby || []).slice(0, 2);
           const pts = near.map((n, i) => { const a = ((n.bearing || (i ? 225 : 40)) - 90) * Math.PI / 180, r = Math.min(68, 20 + Math.log2(1 + (n.km || 1)) * 12), x = Math.cos(a) * r, y = Math.sin(a) * r; return `<div class="pt" style="left:calc(50% + ${x - 3}px);top:calc(50% + ${y - 3}px)"></div><div class="pl" style="left:calc(50% + ${x + (x < 0 ? -78 : 8)}px);top:calc(50% + ${y - 8}px)">${esc(n.name)} ${n.km} km</div>`; }).join('');
-          b.innerHTML = `<div class="radar"><div class="r r1"></div><div class="r r2"></div><div class="r r3"></div><div class="hx"></div><div class="vx"></div><div class="sweep"></div><div class="me"></div>${pts}</div>
+          const keep = b.querySelector('.mapbig'); b.innerHTML = `<div class="mapbig"><div class="mapinfo" id="mapInfo">${this.data.map.target ? esc(this.data.map.target.label) : (p && p.label) || 'YOUR POSITION'}</div><div id="mapL"></div></div><div class="radar"><div class="r r1"></div><div class="r r2"></div><div class="r r3"></div><div class="hx"></div><div class="vx"></div><div class="sweep"></div><div class="me"></div>${pts}</div>
             <div class="coords"><span>${p && p.lat ? `${Math.abs(p.lat).toFixed(4)}° ${p.lat >= 0 ? 'N' : 'S'} · ${Math.abs(p.lon).toFixed(4)}° ${p.lon >= 0 ? 'E' : 'W'}` : 'SET LOCATION IN SETTINGS'}</span><span>${esc(p && p.node || this.nodeLabel)}</span></div>`;
           break;
         }
@@ -372,6 +384,31 @@ window.SAM = window.SAM || {};
         const tt = $('webTitle'); if (tt) tt.textContent = this.data.web.title || this.data.web.url || '—'; $('webEmpty') && $('webEmpty').classList.toggle('hidden', !!this.data.web.live); this.tag('web', this.data.web.live ? '<i></i>LIVE' : 'AGENT IDLE', this.data.web.live ? 'r' : '');
       } catch (e) { }
     },
+    /* ---------- map: Leaflet + OpenStreetMap tiles in the focused POSITION panel; you, your phone, a searched place ---------- */
+    async mapShow(target) {
+      if (!window.L) return false; const el = $('mapL'); if (!el) return false;
+      if (!this._map || this._map._container !== el) {
+        L.Icon.Default.imagePath = 'vendor/leaflet/images/';
+        this._map = L.map(el, { zoomControl: false, attributionControl: true }); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(this._map);
+        this._markers = L.layerGroup().addTo(this._map); this._map.setView([this.data.position && this.data.position.lat || 0, this.data.position && this.data.position.lon || 0], 12);
+        el.addEventListener('click', e => e.stopPropagation()); el.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
+      }
+      const m = this.data.map; try { const h = await GET(ADDONS + '/map/here'); if (h.ok) { m.here = { lat: h.lat, lon: h.lon, label: h.label }; m.phone = h.phone || null; } } catch (e) { }
+      this._markers.clearLayers();
+      const dot = (lat, lon, color, label) => L.circleMarker([lat, lon], { radius: 9, color, weight: 2, fillColor: color, fillOpacity: .5 }).bindTooltip(label, { permanent: true, direction: 'top', className: 'maptip' }).addTo(this._markers);
+      if (m.here) dot(m.here.lat, m.here.lon, '#2ee6ff', m.here.label || 'YOU');
+      if (m.phone) dot(m.phone.lat, m.phone.lon, '#ffb84d', 'PHONE · ' + (m.phone.device || ''));
+      if (target) { m.target = target; dot(target.lat, target.lon, '#a07cff', target.label.split(',')[0]); }
+      const focus = target || m.phone || m.here; setTimeout(() => { this._map.invalidateSize(); if (focus) this._map.flyTo([focus.lat, focus.lon], target ? 14 : 13, { duration: 1.2 }); }, 80);
+      $('mapInfo') && ($('mapInfo').textContent = target ? target.label : (m.here && m.here.label) || 'YOUR POSITION'); return true;
+    },
+    async mapFind(q) { try { const r = await GET(ADDONS + '/map/geocode?q=' + encodeURIComponent(q)); if (r.ok && r.results && r.results.length) return r.results[0]; } catch (e) { } return null; },
+    /* ---------- Spotify: when linked, the MUSIC widget shows it and the controls drive it ---------- */
+    async spotifyPoll() {
+      const s = this.data.spotify; if (s.checked && !s.linked && Date.now() - s.checked < 60000) return;
+      try { const r = await GET(ADDONS + '/spotify/status'); s.checked = Date.now(); s.linked = !!r.linked; if (r.linked) { s.track = r.track; s.device = r.device || ''; s.playing = !!r.playing; s.devices = r.devices || []; if (r.track) { this.data.music.queryTitle = ''; } this.render('mus'); } } catch (e) { }
+    },
+    async spotify(cmd, arg) { try { const r = await POST(ADDONS + '/spotify', { cmd, arg: arg || '' }); setTimeout(() => this.spotifyPoll(), 800); return r; } catch (e) { return { ok: false, error: 'Spotify is not reachable.' }; } },
     /* ---------- memory constellation: facts, journal, tasks and conversation topics as stars, linked by shared words ---------- */
     async memLoad(force) {
       const m = this.data.mem; if (m.loaded && !force) return; m.loaded = Date.now();

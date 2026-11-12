@@ -32,6 +32,7 @@ window.SAM = window.SAM || {};
 - home_set {arg: "device on|off"} devices: lights, ac, lock, blinds, plug, fan
 - timer_start {arg: minutes}, timer_stop, task_add {arg: text}, task_done {arg: text}
 - video_play {arg: search words or title} (YouTube or the local library, shown in the HUD), video_pause, video_close, cinema, radio_play {arg: station or genre}, podcast_play {arg: show}, journal_add {arg: text}, focus_start {arg: minutes}
+- spotify {arg: 'play <words>' | pause | next | prev | 'volume N' | 'shuffle on'} (only when Spotify is linked), calendar_add {arg: 'title | when | minutes'}, map_show {arg: place}
 - find_phone {arg: ring|locate} (rings the user's phone through the companion page, push and Google Find My Device; shows the map), screen_read (OCR of the user's screen, spoken), screen_describe (vision), widget_create {arg: what the widget should show} (you design it), forge {arg: feature request in one sentence} (rebuilds SAMURAI's own code, user must apply)
 - push_phone {arg: text}, telegram_send {arg: text}, wake_machine {arg: name}, wifi {arg: on|off}, bluetooth {arg: on|off}, vpn {arg: on|off}, launch_game {arg: name}, cleanup (asks first), ssh_run {arg: 'machine: command'} (asks first)
 - remember {arg: fact to store}, forget {arg: fact}

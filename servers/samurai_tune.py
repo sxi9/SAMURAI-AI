@@ -202,7 +202,7 @@ def status():
     cfg = load_config()
     return {"ok": True, "profile": p, "recommendation": rec, "why": why, "warnings": warn, "browser": _browser, "applied": cfg.get("tune", {}).get("applied_at", 0), "current": {
         "gl": cfg.get("ui", {}).get("gl"), "gl_quality": cfg.get("ui", {}).get("gl_quality"), "whisper_model": cfg.get("voice", {}).get("whisper_model"),
-        "services_profile": cfg.get("services", {}).get("profile", "full"), "half_duplex": cfg.get("voice", {}).get("half_duplex"), "presence_camera": cfg.get("widgets", {}).get("presence_camera", "")}}
+        "services_profile": cfg.get("services", {}).get("profile", "full"), "half_duplex": cfg.get("voice", {}).get("half_duplex"), "presence_camera": cfg.get("presence", {}).get("camera", "")}}
 
 
 def apply(overrides=None):
@@ -211,7 +211,7 @@ def apply(overrides=None):
     cfg.setdefault("ui", {}).update({"gl": rec["gl"], "gl_quality": rec["gl_quality"], "fx": rec["fx"], "governor": rec["governor"]})
     cfg.setdefault("voice", {}).update({"whisper_model": rec["whisper_model"], "half_duplex": rec["half_duplex"]})
     cfg.setdefault("services", {})["profile"] = rec["services_profile"]
-    cfg.setdefault("widgets", {})["presence_camera"] = rec["presence_camera"]
+    cfg.setdefault("presence", {})["camera"] = rec["presence_camera"]
     cfg.setdefault("lan", {})["preferred_ip"] = rec["lan_ip"]
     cfg["tune"] = {"applied_at": int(time.time()), "profile": {"cpu": p["cpu"]["name"], "ram_gb": p["ram_gb"], "gpus": [g["name"] for g in p["gpus"]], "os": p["os"]}, "recommendation": rec}
     save_config(cfg)

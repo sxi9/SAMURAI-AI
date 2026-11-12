@@ -91,7 +91,7 @@
     document.querySelectorAll('.sbtn.lay').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout));
     document.querySelectorAll('.drawer .sbtn.lay').forEach(b => b.classList.toggle('on', b.dataset.l === S.layout));
   }
-  function setFocus(id) { S.focus = S.focus === id && id !== null ? null : id; if (S.focus && S.flow) document.querySelector(`.slot[data-id=${S.focus}]`).classList.remove('docked'); applyLayout(); }
+  function setFocus(id) { S.focus = S.focus === id && id !== null ? null : id; if (S.focus === 'map') setTimeout(() => widgets.mapShow(), 200); if (S.focus && S.flow) document.querySelector(`.slot[data-id=${S.focus}]`).classList.remove('docked'); applyLayout(); }
   function onResize() {
     const vw = innerWidth, vh = innerHeight, scale = Math.min(vw / 1920, vh / 1080), flow = scale < .75;
     S.vw = vw; S.vh = vh; S.scale = scale; S.flow = flow; S.cols = vw < 600 ? 1 : vw < 1000 ? 2 : 3; S.k = Math.max(.35, Math.min(.75, (vw - 24) / 760));
@@ -247,6 +247,22 @@
     if (/^(ring|call|ping|buzz|make .* ring|play (a )?sound on) (my )?(phone|mobile|cell|android)$|^ring it$/.test(q)) return { findPhone: 'ring' };
     if (/^(stop|silence|quiet) (the )?(ring|ringing|alarm|phone)$/.test(q)) return { text: 'Quiet.', effect: () => stopRing() };
     if (/^(sign in to google|google sign in|show (the )?browser window|open (the )?browser window)$/.test(q)) return { text: 'Opening the browser window. Sign in to Google there, then say "find my phone" again.', effect: () => fetch(BROWSER + '/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'headed', arg: 'on' }) }).catch(() => { }) };
+    /* map: where is X, show the map */
+    if (/^(show|open) (me )?(the )?map$|^map$|^where am i\??$/.test(q)) return { focus: 'map', text: 'Here you are.', effect: () => setTimeout(() => widgets.mapShow(), 150) };
+    const wh = q.match(/^(?:where is|where's|show me|map of|find on the map|navigate to|locate) (?!my phone)(.{2,60})$/); if (wh && !/phone|mobile/.test(wh[1])) return { mapFind: wh[1] };
+    /* spotify */
+    if (/^(link|connect|log ?in to|sign in to) spotify$/.test(q)) return { spotifyLink: true };
+    const spq = q.match(/^(?:play|put on|start) (.+?) on spotify$/) || q.match(/^spotify(?: play)? (.+)$/); if (spq && !/^(pause|next|previous|prev|volume|shuffle|repeat|status)/.test(spq[1])) return { spotify: ['play', spq[1]] };
+    if (/^(pause|stop) spotify$/.test(q)) return { spotify: ['pause', ''] };
+    if (/^(resume|play) spotify$/.test(q)) return { spotify: ['play', ''] };
+    const sv = q.match(/^spotify volume (\d+)$/); if (sv) return { spotify: ['volume', sv[1]] };
+    const ss = q.match(/^shuffle (on|off)$/); if (ss) return { spotify: ['shuffle', ss[1]] };
+    const sr = q.match(/^repeat (this song|this track|one|off|all|on)$/); if (sr) return { spotify: ['repeat', /song|track|one/.test(sr[1]) ? 'track' : sr[1]] };
+    const st = q.match(/^play on (?:the |my )?(.+?)(?: speaker| device)?$/); if (st && widgets.data.spotify.linked) return { spotify: ['transfer', st[1]] };
+    /* calendar */
+    const ca = q.match(/^(?:add|put|schedule|book|create)(?: an? )?(?:event |meeting |appointment |reminder )?(.+?) (?:to|on|in) my calendar(?: (?:for|on|at) (.+))?$/) || q.match(/^(?:schedule|book) (.+?) (?:for|on|at) ((?:today|tonight|tomorrow|next |on |in |at |monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d).+)$/);
+    if (ca) { let title = ca[1].trim(), when = (ca[2] || '').trim(), dur = 60; const dm = (when + ' ' + title).match(/for (\d+) ?(minutes?|min|hours?|h)\b/); if (dm) { dur = /hour|h\b/.test(dm[2]) ? +dm[1] * 60 : +dm[1]; when = when.replace(dm[0], '').trim(); title = title.replace(dm[0], '').trim(); } if (!when) { const tm = title.match(/^(.*?)\s+((?:today|tonight|tomorrow|next |monday|tuesday|wednesday|thursday|friday|saturday|sunday|at \d|on \d|in \d).*)$/); if (tm) { title = tm[1]; when = tm[2]; } } return { calendarAdd: { title, when: when || 'tomorrow 9am', dur } }; }
+    if (/^(what('s| is) next on my calendar|next (event|meeting|appointment)|what do i have next|upcoming events)$/.test(q)) return { calendarNext: true };
     /* memory constellation */
     const mq = q.match(/^(?:show|open) (?:my |the )?(?:memory|memories|constellation|what you remember)(?: (?:about|for|of) (.+))?$/) || q.match(/^(?:what do you remember about|memory search) (.+)$/);
     if (mq) return { focus: 'mem', text: mq[1] ? `Memory, filtered on ${mq[1]}.` : 'Your memory, as stars.', effect: () => { widgets.data.mem.query = (mq[1] || '').toLowerCase(); widgets.memLoad(true); } };
@@ -364,6 +380,11 @@
       else if (r && r.vision) { r = await visionAnswer(r.vision, r.question); }
       else if (r && r.plan) { r = await planRun(r.plan); }
       else if (r && r.findPhone) { r = await findPhone(r.findPhone); }
+      else if (r && r.mapFind) { const t = await widgets.mapFind(r.mapFind); r = t ? { focus: 'map', text: `${t.label.split(',').slice(0, 2).join(',')}.`, effect: () => setTimeout(() => widgets.mapShow(t), 150) } : { text: `I could not find ${r.mapFind} on the map.` }; }
+      else if (r && r.spotifyLink) { const d = await (await fetch(ADDONS + '/spotify/auth')).json(); r = d.ok ? { text: 'Opening Spotify to link your account. Approve it there, then say "play something on spotify".', effect: () => window.open(d.url, '_blank') } : { text: d.error || 'Set your Spotify client id in the control panel first.' }; }
+      else if (r && r.spotify) { const d = await widgets.spotify(r.spotify[0], r.spotify[1]); r = { focus: 'mus', text: d.ok ? (d.did || 'Done.') : d.error }; }
+      else if (r && r.calendarAdd) { const c = r.calendarAdd; const d = await (await fetch(ADDONS + '/calendar/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: c.title, start: c.when, duration_min: c.dur }) })).json(); r = d.ok ? { focus: 'cal', text: `${d.event.title}, ${d.event.when}. Added.`, effect: () => widgets.pollAddons && widgets.pollAddons('agenda') } : { text: d.error || 'I could not add that.' }; }
+      else if (r && r.calendarNext) { const d = await (await fetch(ADDONS + '/calendar/next?n=3')).json(); const L = d.events || []; r = { focus: 'cal', text: L.length ? L.map(e => `${e.title} ${e.when}`).join('. ') + '.' : 'Nothing coming up.' }; }
       else if (r && r.screenRead) { r = await screenRead(); }
       else if (r && r.widgetCreate) { r = await widgetCreate(r.widgetCreate); }
       else if (r && r.widgetDelete) { const w = widgets.data.custom.find(x => x.name.toLowerCase().includes(r.widgetDelete.toLowerCase())); if (!w) r = { text: `No widget called ${r.widgetDelete}.` }; else { await fetch(ADDONS + '/widgets_custom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: w.id }) }); r = { text: `Widget ${w.name} removed. It disappears after the next reload.`, effect: () => { const el = document.querySelector(`.node[data-id=cw_${w.id}]`); el && el.remove(); document.querySelector(`.slot[data-id=cw_${w.id}]`)?.remove(); const i = W.findIndex(x => x.id === 'cw_' + w.id); if (i >= 0) W.splice(i, 1); widgets.data.custom = widgets.data.custom.filter(x => x.id !== w.id); widgets.relayoutNodes(); } }; } }
@@ -612,6 +633,9 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
         case 'look_at_screen': { const r2 = await visionAnswer('screen', arg || 'Describe what is on the screen.'); return r2.text; }
         case 'look_at_camera': { const r2 = await visionAnswer('camera', arg || 'Describe what the camera sees.'); return r2.text; }
         case 'desktop_task': { T(() => desktopTask(arg), 1500); return null; }
+        case 'spotify': { const w = arg.split(/\s+/); const cmd = ['pause', 'next', 'prev', 'volume', 'shuffle', 'repeat'].includes(w[0]) ? w[0] : 'play'; const d = await widgets.spotify(cmd, cmd === 'play' ? arg.replace(/^play\s+/, '') : w.slice(1).join(' ')); say(d.ok ? d.did || 'Done.' : d.error, 'mus'); return null; }
+        case 'calendar_add': { const [title, when, dur] = arg.split('|').map(s => s.trim()); const d = await (await fetch(ADDONS + '/calendar/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, start: when || 'tomorrow 9am', duration_min: parseInt(dur) || 60 }) })).json(); say(d.ok ? `${d.event.title}, ${d.event.when}. Added.` : d.error, 'cal'); return null; }
+        case 'map_show': { const t = arg ? await widgets.mapFind(arg) : null; setFocus('map'); setTimeout(() => widgets.mapShow(t), 150); return null; }
         case 'find_phone': { const d = await findPhone(/ring|sound/.test(arg) ? 'ring' : 'locate'); say(d.text, d.focus); d.effect && d.effect(); return null; }
         case 'screen_read': { const d = await screenRead(); say(d.text, 'scr'); return null; }
         case 'screen_describe': { const d = await visionAnswer('screen', 'Describe what is on the screen and anything notable.'); say(d.text, 'scr'); return null; }
@@ -698,7 +722,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
   voice.onLevel = l => { core.micLevel = l; };
   voice.onWake = () => { widgets.pushTty('wake word detected', '#2ee6ff'); voice.stopSpeaking('wake'); setMode('listening'); };
   voice.onMicState = on => { if (!on && S.mode === 'listening') setMode('idle'); if (on && S.mode === 'idle') setMode('listening'); $('pillMic').textContent = on ? 'MIC · OPEN' : 'MIC · ARMED'; };
-  widgets.onSay = t => say(t); widgets.onMemVisible = () => S.focus === 'mem'; widgets.onFocus = id => setFocus(id); widgets.onScreenVisible = () => S.focus === 'scr'; widgets.onCustomLoaded = () => applyLayout();
+  widgets.onSay = t => say(t); widgets.onMemVisible = () => S.focus === 'mem'; widgets.onMapBig = () => S.focus === 'map'; widgets.onFocus = id => setFocus(id); widgets.onScreenVisible = () => S.focus === 'scr'; widgets.onCustomLoaded = () => applyLayout();
     window.addEventListener('samurai-hotkey', () => { if (!voice.micOn) voice.start(); setMode('listening'); });
     widgets.onVideo = now => { if (now) { if (S.focus !== 'vid') setFocus('vid'); else applyLayout(); } else if (S.focus === 'vid') setFocus(null); }; widgets.onWebVisible = () => S.focus === 'web';
   widgets.onTimerDone = () => { say("Timer's up.", 'tmr'); };

@@ -491,3 +491,12 @@ html.bigtext .reply{font-size:26px}html.bigtext .field input{font-size:19px}html
 /* ---- memory constellation ---- */
 .memc .wview{cursor:default}.memc canvas{position:absolute;inset:0;width:100%;height:100%}
 .memtip{position:absolute;display:none;max-width:320px;background:rgba(5,6,13,.95);border:1px solid rgba(var(--cyan-rgb),.45);padding:8px 10px;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ice);pointer-events:none;z-index:5}
+
+/* ---- map panel (Leaflet) ---- */
+.mapbig{display:none;position:absolute;inset:0;flex-direction:column}
+.slot.big .mapbig{display:flex}.slot.big .radar,.slot.big .coords{display:none}
+.mapinfo{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--ice);padding:0 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mapL{flex:1;min-height:0;border:1px solid rgba(var(--cyan-rgb),.3);background:#05070f}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) saturate(.55) brightness(.85) contrast(1.05)}
+.leaflet-container{background:#05070f;font-family:var(--mono)}.leaflet-control-attribution{background:rgba(5,6,13,.7)!important;color:var(--muted)!important;font-size:9px}.leaflet-control-attribution a{color:var(--cyan)!important}
+.maptip{background:rgba(5,6,13,.9)!important;border:1px solid rgba(var(--cyan-rgb),.5)!important;color:var(--ice)!important;font-family:var(--mono)!important;font-size:10px!important;letter-spacing:.12em;box-shadow:none!important}.maptip::before{display:none}
