@@ -77,7 +77,7 @@ Effort: S = under a day, M = a few days, L = a week or more. "GPU" means it need
 - [x] F1 (L) Volumetric orb in Three.js: glass sphere with refraction, inner plasma shader, fresnel rim, 50,000-particle point cloud, 3D shape morphs with depth of field, slow orbiting camera
 - [x] F2 (M) Reactive nebula background: GPU noise or fluid shader that stirs when listening, brightens when speaking, turns red and turbulent on alert
 - [x] F3 (S) Voice visualiser: real spectrum of the reply audio as rings around the orb; lip-sync via the audio analyser
-- [x] F4 (L) 3D head option: Live2D or VRM avatar with eye tracking toward the mouse or your face, blinking, mood expressions · (pinu-bot robot face + three-vrm VRM avatars with expressions, lip-sync visemes, gaze and blinks; custom VRM files in app/avatars; one shared face controller takes emotions from the brain's reply; Live2D still open)
+- [x] F4 (L) 3D head option: Live2D or VRM avatar with eye tracking toward the mouse or your face, blinking, mood expressions · (three-vrm VRM avatars with expressions, lip-sync visemes, gaze and blinks; custom VRM files in app/avatars; one shared face controller takes emotions from the brain's reply; Live2D still open)
 - [x] F5 (M) Hologram materialise: widgets assemble from scanlines and particles, dissolve when docked
 - [x] F6 (M) Shape-to-widget morphs: the particles form a cloud before weather opens, a heartbeat line before system, a note before music
 - [x] F7 (S) Energy arcs between the orb and the widget it is driving; a flash when an action runs

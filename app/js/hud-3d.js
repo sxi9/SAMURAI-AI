@@ -224,7 +224,7 @@ const gl = {
     V.vrm.update(dt);
   },
 
-  /* lip-sync level: the face controller owns the one audio analyser (shared with the robot face) */
+  /* lip-sync level: the face controller owns the one audio analyser */
   speech() { return SAM.face ? SAM.face.lvl : 0; },
 
   frame(ts) {
@@ -253,7 +253,7 @@ const gl = {
     const sc = (wd.os || 1) * (1 + this.speechLevel * .12 + music * .06);
     this.orb.position.set(wd.ox || 0, -(wd.oy || 0), 40); this.orb.scale.set(sc, sc, sc);
     const ou = this.orb.material.uniforms; ou.uTime.value = t; ou.uA.value = A; ou.uB.value = B; ou.uRed.value = red; ou.uTalk.value = this.speechLevel; ou.uEnergy.value = this.energy;
-    /* avatar: the orb, the robot face (DOM layer, orb hidden) or the VRM avatar (loaded on demand, orb hidden once it is in) */
+    /* avatar: the orb, or the VRM avatar (loaded on demand, orb hidden once it is in) */
     const av = SAM.face ? SAM.face.effective() : 'orb';
     if (av === 'vrm') { if (!this.vrm && !this.vrmLoading && this.vrmFailed !== SAM.face.vrmUrl()) this.loadVrm(); else if (this.vrm && this.vrm.url !== SAM.face.vrmUrl()) this.disposeVrm(); }
     else if (this.vrm || this.vrmLoading) { this.disposeVrm(); this.vrmLoading = ''; }

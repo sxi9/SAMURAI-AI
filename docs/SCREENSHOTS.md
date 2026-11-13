@@ -39,9 +39,8 @@ Every image was captured from the real build by `docs/screenshots/shots.js` agai
 
 | | |
 |---|---|
-| **22 Robot face** · "show your face": pinu-bot display face, blinks, gaze, lip-sync, emotions from the reply ![22](screenshots/22-robot-face.png) | **22b Robot face emotions** · "look happy", "look angry", "face style visor" ![22b](screenshots/22b-robot-face-emotions.png) |
-| **23 VRM avatar** · "avatar mode": three-vrm with the bundled pixiv model, or any VRM you drop in app/avatars ![23](screenshots/23-vrm-avatar.png) | **23b VRM expressions** · same commands, visemes while speaking ![23b](screenshots/23b-vrm-emotions.png) |
-| **24 Avatar settings** · orb, robot face or VRM; face style; VRM file ![24](screenshots/24-avatar-settings.png) | |
+| **23 VRM avatar** · "show your face" / "avatar mode": three-vrm with the bundled pixiv model, or any VRM you drop in app/avatars ![23](screenshots/23-vrm-avatar.png) | **23b VRM expressions** · "look happy", "look angry"; visemes while speaking ![23b](screenshots/23b-vrm-emotions.png) |
+| **24 Avatar settings** · orb or VRM avatar; VRM file ![24](screenshots/24-avatar-settings.png) | |
 
 ## Phone and control panel
 

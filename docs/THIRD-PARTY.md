@@ -7,7 +7,6 @@ Each folder keeps its own LICENSE file.
 |---|---|---|---|
 | three.js (core, postprocessing, shaders, GLTFLoader, BufferGeometryUtils, SkeletonUtils) | r187 | MIT | `app/vendor/three/` |
 | @pixiv/three-vrm (VRM 0.x / 1.0 loader, MToon, expressions, look-at, spring bones) | 3.5.5 | MIT, (c) 2019-2026 pixiv Inc. | `app/vendor/three-vrm/` |
-| pinu-bot (parametric canvas robot face with emotions, by Paul Berry) | 0.3.0 | MIT | `app/vendor/pinu-bot/` |
 | Leaflet | see folder | BSD-2-Clause | `app/vendor/leaflet/` |
 | MediaPipe tasks (hands) | see folder | Apache-2.0 | `app/vendor/mediapipe/` |
 
