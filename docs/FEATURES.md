@@ -1,5 +1,9 @@
 # SAMURAI — feature list
 
+## Changes in 1.6.2
+- Gemini: several API keys in one field, separated by commas. When a key is refused or rate-limited, the next key is used.
+- Terminal widget: keeps the last 60 lines, wraps long lines instead of cutting them, and scrolls to the newest line.
+
 ## Changes in 1.6.1
 - Fixed: the command bar, MIC, TX and CFG buttons could not be clicked with the mouse while the 3D core was on. They work now.
 - The orb is the default avatar again. The robot face was removed.
