@@ -93,6 +93,8 @@ option{background:#0b1022;color:var(--ice)}
 
 /* ---------- core ---------- */
 .gl{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none}
+/* the stage itself carries the class 'gl' while the 3D core runs; it must still take the mouse (only the canvas layers are click-through) */
+.stage.gl{pointer-events:auto}
 .stage.gl .orb{background:radial-gradient(circle at 40% 35%,rgba(255,255,255,.05),rgba(0,0,0,0) 60%);box-shadow:none}
 .stage.gl .orb .tint{opacity:.5}
 .stage.gl #core{opacity:.85}
