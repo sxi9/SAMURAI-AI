@@ -1,5 +1,11 @@
 # SAMURAI — feature list
 
+## Changes in 1.6.1
+- Fixed: the command bar, MIC, TX and CFG buttons could not be clicked with the mouse while the 3D core was on. They work now.
+- The orb is the default avatar again. The robot face was removed.
+- VRM avatar: "show your face" or "avatar mode" puts the VRM character in the orb's place; "orb mode" brings the orb back. Pick any .vrm file in the settings drawer (AVATAR → VRM AVATAR).
+- The VRM hair hangs naturally, and emotions ("look happy", "look sad") show on the avatar.
+
 Jarvis-style assistant for your own PC. Offline voice, any AI brain, full PC control, a cinematic HUD, and a control panel that keeps it all running. Windows build: `SAMURAI-windows-x64.zip` below. Unzip, run `SAMURAI.exe`, the HUD opens.
 
 ## Talk to it
