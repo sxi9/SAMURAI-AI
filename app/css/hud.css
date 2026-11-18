@@ -196,8 +196,8 @@ option{background:#0b1022;color:var(--ice)}
 .mail .fr span:first-child{font-size:12px;font-weight:600;color:var(--ice);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mail .fr span:last-child{font-family:var(--mono);font-size:9px;color:var(--muted)}
 .mail .su{font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tty{background:rgba(2,4,10,.72);border:1px solid rgba(var(--cyan-rgb),.1);padding:8px 10px;height:176px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;font-family:var(--mono);font-size:10px;line-height:1.7;letter-spacing:.04em}
-.tty div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tty{background:rgba(2,4,10,.72);border:1px solid rgba(var(--cyan-rgb),.1);padding:8px 10px;height:176px;box-sizing:border-box;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;justify-content:flex-start;font-family:var(--mono);font-size:10px;line-height:1.7;letter-spacing:.04em}
+.tty div{white-space:normal;overflow-wrap:anywhere;line-height:1.35}   /* long lines wrap instead of being cut with an ellipsis */
 .tty .pr{color:var(--cyan)}
 .tty .pr i{display:inline-block;width:7px;height:11px;background:var(--cyan);vertical-align:-1px;animation:smCaret 1s steps(1) infinite}
 .tmr{display:flex;gap:16px;align-items:center}

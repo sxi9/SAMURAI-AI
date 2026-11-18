@@ -111,7 +111,8 @@ window.SAM = window.SAM || {};
         }
         case 'tty': {
           this.tag(id, ':9300');
-          b.innerHTML = `<div class="tty">${d.tty.slice(-8).map(l => `<div style="color:${l.c}">${esc(l.t)}</div>`).join('')}<div class="pr">samurai@${esc(this.nodeLabel.toLowerCase())}:~$ <i></i></div></div>`;
+          b.innerHTML = `<div class="tty">${d.tty.slice(-60).map(l => `<div style="color:${l.c}">${esc(l.t)}</div>`).join('')}<div class="pr">samurai@${esc(this.nodeLabel.toLowerCase())}:~$ <i></i></div></div>`;
+          { const tt = b.querySelector('.tty'); if (tt) tt.scrollTop = tt.scrollHeight; }   // always show the newest line; older lines scroll up
           break;
         }
         case 'tmr': {
@@ -259,7 +260,7 @@ window.SAM = window.SAM || {};
       const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(46,230,255,.3)'); g.addColorStop(1, 'rgba(160,124,255,0)');
       x.shadowBlur = 0; x.fillStyle = g; x.fill();
     },
-    pushTty(text, c = '#a9cfe0') { this.data.tty = [...this.data.tty.slice(-7), { t: text, c }]; this.render('tty'); },
+    pushTty(text, c = '#a9cfe0') { this.data.tty = [...this.data.tty.slice(-59), { t: text, c }]; this.render('tty'); },
 
     /* ---------- live data ---------- */
     async pollTel() {

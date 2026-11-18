@@ -12,7 +12,7 @@ window.SAM = window.SAM || {};
     geminicli:   { label: 'GEMINI CLI — HEADLESS (NO KEY)',  kind: 'agent', agent: 'gemini', nokey: true, note: 'Uses the Gemini CLI signed in with your Google account: npm i -g @google/gemini-cli → gemini → sign in → AGENT service :9400.' },
     openai:      { label: 'OPENAI — GPT',          kind: 'openai',    url: 'https://api.openai.com/v1',    model: 'gpt-4o-mini', json: true, models: true, note: 'Key from platform.openai.com/api-keys' },
     claude:      { label: 'ANTHROPIC — CLAUDE',    kind: 'anthropic', url: 'https://api.anthropic.com/v1', model: 'claude-sonnet-5-5', models: true, note: 'Key from console.anthropic.com · e.g. claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5' },
-    gemini:      { label: 'GOOGLE — GEMINI',       kind: 'gemini',    url: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.0-flash', free: true, models: true, note: 'Free key from aistudio.google.com/apikey · e.g. gemini-2.0-flash, gemini-2.5-pro' },
+    gemini:      { label: 'GOOGLE — GEMINI',       kind: 'gemini',    url: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.0-flash', free: true, models: true, note: 'Free key from aistudio.google.com/apikey · several keys: separate them with commas, the next key is used when one is rate-limited · e.g. gemini-2.0-flash, gemini-2.5-pro' },
     openrouter:  { label: 'OPENROUTER — ANY MODEL', kind: 'openai',   url: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini', models: true, note: 'Key from openrouter.ai/keys · one key, hundreds of models (some free, suffix :free)' },
     groq:        { label: 'GROQ — FAST',           kind: 'openai',    url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', json: true, free: true, models: true, note: 'Free key from console.groq.com' },
     mistral:     { label: 'MISTRAL',               kind: 'openai',    url: 'https://api.mistral.ai/v1',    model: 'mistral-small-latest', json: true, models: true, note: 'Key from console.mistral.ai' },
@@ -73,6 +73,8 @@ window.SAM = window.SAM || {};
     online: false, agentStatus: null, sessions: {}, history: [], facts: [], user: { name: 'Boss', node: 'LOCAL-01', label: '' },
     rr: 0, onLog: null, localModels: [], modelLists: {},
     log(c, m) { this.onLog && this.onLog(c, m); },
+    /* several keys in one field (commas, spaces or new lines): used in order, the next one is tried when a key is rate-limited or refused */
+    keysOf(p) { return String((p && p.key) || '').split(/[\s,;]+/).map(k => k.trim()).filter(Boolean); },
     P(id) { const p = PROVIDERS[id] || PROVIDERS.custom; return { ...p, id, url: (this.cfg.urls[id] || p.url || '').replace(/\/$/, ''), model: this.cfg.models[id] ?? p.model, key: this.cfg.keys[id] || '' }; },
     configured(id) { const p = this.P(id); return p.kind === 'agent' ? !!(this.agentStatus && this.agentStatus[p.agent] && this.agentStatus[p.agent].found) : (p.nokey || !!p.key); },
 
@@ -144,12 +146,18 @@ window.SAM = window.SAM || {};
       if (p.kind === 'gemini') {
         const contents = msgs.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
         const body = JSON.stringify({ contents, systemInstruction: { parts: [{ text: sys }] }, generationConfig: { maxOutputTokens: 800, responseMimeType: 'application/json' } });
-        const r = await fetch(`${p.url}/models/${encodeURIComponent(p.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(p.key)}`, { method: 'POST', headers: hdr, signal, body });
-        if (!r.ok) await fail(r);
         const text = d => { const c = d.candidates && d.candidates[0]; return (c && c.content && c.content.parts || []).map(x => x.text || '').join(''); };
-        if (!stream) { const d = await r.json(); if (d.error) throw new Error(d.error.message); if (!d.candidates) throw new Error(d.promptFeedback ? 'blocked' : 'no candidates'); return text(d); }
-        await readStream(r, line => { if (!line.startsWith('data:')) return; try { push(text(JSON.parse(line.slice(5)))); } catch (e) { } });
-        return raw;
+        const keys = this.keysOf(p), list = keys.length ? keys : [''];
+        let lastR = null, lastErr = null;
+        for (let i = 0; i < list.length; i++) {
+          const r = await fetch(`${p.url}/models/${encodeURIComponent(p.model)}:${stream ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(list[i])}`, { method: 'POST', headers: hdr, signal, body });
+          if (!r.ok) { lastR = r; if (i < list.length - 1 && [400, 401, 403, 429, 500, 503].includes(r.status)) { this.log('warn', `gemini key ${i + 1} of ${list.length} refused (${r.status}), trying the next`); continue; } await fail(r); }
+          if (!stream) { const d = await r.json(); if (d.error) { lastErr = new Error(d.error.message); if (i < list.length - 1) continue; throw lastErr; } if (!d.candidates) throw new Error(d.promptFeedback ? 'blocked' : 'no candidates'); return text(d); }
+          await readStream(r, line => { if (!line.startsWith('data:')) return; try { push(text(JSON.parse(line.slice(5)))); } catch (e) { } });
+          return raw;
+        }
+        if (lastR) await fail(lastR);
+        throw lastErr || new Error('no Gemini key worked');
       }
       if (p.kind === 'agent') {
         const mode = this.agentMode(q);
@@ -218,7 +226,7 @@ window.SAM = window.SAM || {};
             const d = await r.json(); if (d.error) throw new Error(d.error.message); const tb = (d.content || []).find(b => b.type === 'text'); return (tb && tb.text || '').trim();
           }
           if (p.kind === 'gemini') {
-            const r = await fetch(`${p.url}/models/${encodeURIComponent(p.model)}:generateContent?key=${encodeURIComponent(p.key)}`, { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: question }] }] }) });
+            const r = await fetch(`${p.url}/models/${encodeURIComponent(p.model)}:generateContent?key=${encodeURIComponent(this.keysOf(p)[0] || '')}`, { method: 'POST', headers: hdr, signal: ctl.signal, body: JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: question }] }] }) });
             const d = await r.json(); if (d.error) throw new Error(d.error.message); return ((d.candidates || [])[0]?.content?.parts || []).map(x => x.text || '').join('').trim();
           }
           if (p.kind === 'ollama') {                  // a local vision model: the configured one if it can see, else the first llava / moondream style model Ollama has (A8)
@@ -259,9 +267,9 @@ window.SAM = window.SAM || {};
           const r = await fetch(p.url + '/models?limit=100', { signal: timeout(4000), headers: { 'x-api-key': p.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
           this.online = true; if (r.ok) { const d = await r.json(); this.localModels = (d.data || []).map(m => m.id); this.modelLists[p.id + p.key] = this.localModels; }
         }
-        else if (p.kind === 'gemini' && p.key && !this.modelLists[p.id + p.key]) {
-          const r = await fetch(`${p.url}/models?key=${encodeURIComponent(p.key)}`, { signal: timeout(4000) });
-          this.online = true; if (r.ok) { const d = await r.json(); this.localModels = (d.models || []).map(m => m.name.replace(/^models\//, '')).filter(n => /gemini/.test(n)); this.modelLists[p.id + p.key] = this.localModels; }
+        else if (p.kind === 'gemini' && this.keysOf(p)[0] && !this.modelLists[p.id + this.keysOf(p)[0]]) {
+          const r = await fetch(`${p.url}/models?key=${encodeURIComponent(this.keysOf(p)[0])}`, { signal: timeout(4000) });
+          this.online = true; if (r.ok) { const d = await r.json(); this.localModels = (d.models || []).map(m => m.name.replace(/^models\//, '')).filter(n => /gemini/.test(n)); this.modelLists[p.id + this.keysOf(p)[0]] = this.localModels; }
         }
         else { this.online = p.nokey || (!!p.key && !!(p.model || p.kind !== 'azure')); this.localModels = this.modelLists[p.id + p.key] || []; }
       } catch (e) { this.online = p.kind !== 'ollama' && !p.nokey ? !!p.key : false; }

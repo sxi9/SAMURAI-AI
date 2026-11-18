@@ -826,7 +826,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       <h4>NEURAL CORE</h4>
       <select id="optProvider">${provOpts}</select>
       ${p.kind !== 'agent' ? `<input type="text" id="optUrl" value="${esc(p.url)}" placeholder="BASE URL" spellcheck="false" ${['anthropic', 'gemini'].includes(p.kind) ? 'style="display:none"' : ''}>` : ''}
-      ${p.kind !== 'agent' && !p.nokey ? `<input type="password" id="optKey" value="${esc(p.key)}" placeholder="API KEY" autocomplete="off">` : ''}
+      ${p.kind !== 'agent' && !p.nokey ? `<input type="password" id="optKey" value="${esc(p.key)}" placeholder="${p.kind === 'gemini' ? 'API KEYS · SEVERAL: SEPARATE WITH COMMAS' : 'API KEY'}" autocomplete="off">` : ''}
       ${localModels.length ? `<select id="optModelSel"><option value="">MODEL · ${localModels.length} FOUND</option>${localModels.map(m => `<option value="${esc(m)}"${m === p.model ? ' selected' : ''}>${esc(m)}</option>`).join('')}</select>` : ''}
       <input type="text" id="optModel" value="${esc(p.model || '')}" placeholder="${p.kind === 'agent' ? 'MODEL (OPTIONAL — CLI DEFAULT)' : 'MODEL'}" spellcheck="false">
       <div class="note">${p.note || ''}</div>
