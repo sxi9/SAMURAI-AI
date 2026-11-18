@@ -109,6 +109,33 @@ window.SAM = window.SAM || {};
     recent(n = 12) { return this.history.slice(-n).map(m => ({ role: m.role, content: m.content })); },
 
     /* ---------- one provider (streams when onDelta is given and the API supports it) ---------- */
+    /* a current Gemini model the key can use (flash first; lite, image, tts and embedding models are skipped) */
+    async geminiModel(p) {
+      const key = this.keysOf(p)[0] || ''; if (!key) return null;
+      try {
+        const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 6000);
+        const d = await (await fetch(`${p.url}/models?key=${encodeURIComponent(key)}`, { signal: ctl.signal })).json(); clearTimeout(to);
+        const names = (d.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, '')).filter(n => /^gemini/.test(n) && !/lite|image|tts|embed|live|exp/.test(n));
+        return names.find(n => /flash/.test(n)) || names[0] || null;
+      } catch (e) { return null; }
+    },
+    /* API tester: sends one tiny prompt to every configured provider, one after another, and reports each one numbered */
+    async testAll(onLine) {
+      const ids = Object.keys(PROVIDERS).filter(id => this.configured(id)), out = [];
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i], p = this.P(id), t0 = performance.now(), ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+        let line;
+        try {
+          const raw = await this.callProvider(id, 'Reply with the single word OK.', 'Reply in JSON: {"reply": "OK"}', ctl.signal);
+          const ok = !!raw && String(raw).trim().length > 0;
+          line = { n: i + 1, id, label: p.label, ok, ms: Math.round(performance.now() - t0), info: ok ? 'answered' : 'empty reply' };
+        } catch (e) {
+          line = { n: i + 1, id, label: p.label, ok: false, ms: Math.round(performance.now() - t0), info: String((e && e.message) || e).replace(/^Error: /, '').slice(0, 90) };
+        } finally { clearTimeout(to); }
+        out.push(line); onLine && onLine(line);
+      }
+      return { results: out, working: out.filter(x => x.ok).length, total: out.length };
+    },
     async callProvider(id, q, sys, signal, onDelta) {
       const p = this.P(id), msgs = [...this.recent(), { role: 'user', content: q }], stream = !!onDelta && this.cfg.stream;
       const hdr = { 'Content-Type': 'application/json' };
@@ -144,6 +171,7 @@ window.SAM = window.SAM || {};
         return raw;
       }
       if (p.kind === 'gemini') {
+        try {
         const contents = msgs.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
         const body = JSON.stringify({ contents, systemInstruction: { parts: [{ text: sys }] }, generationConfig: { maxOutputTokens: 800, responseMimeType: 'application/json' } });
         const text = d => { const c = d.candidates && d.candidates[0]; return (c && c.content && c.content.parts || []).map(x => x.text || '').join(''); };
@@ -158,6 +186,18 @@ window.SAM = window.SAM || {};
         }
         if (lastR) await fail(lastR);
         throw lastErr || new Error('no Gemini key worked');
+        } catch (e) {
+          /* the saved model was retired or renamed: find a current one on the key, remember it, and try again once */
+          const msg = String((e && e.message) || e);
+          if (!this._gRetry && /model/i.test(msg) && /not found|no longer|not supported|unavailable|does not exist|not available|deprecated|retired/i.test(msg)) {
+            const alt = await this.geminiModel(p);
+            if (alt && alt !== p.model) {
+              this.cfg.models[id] = alt; this.log('ok', `gemini · ${p.model} is not available, switched to ${alt}`);
+              this._gRetry = true; try { return await this.callProvider(id, q, sys, signal, onDelta); } finally { this._gRetry = false; }
+            }
+          }
+          throw e;
+        }
       }
       if (p.kind === 'agent') {
         const mode = this.agentMode(q);

@@ -205,6 +205,17 @@
   /* ---------- commands ---------- */
   const SHAPES = [[/\b(heart|love)\b/, 'heart', 'Heart, as requested.'], [/\b(cube|box)\b/, 'cube', 'Cube.'], [/\b(galaxy|spiral|stars|milky way)\b/, 'galaxy', 'One galaxy, three arms.'], [/\b(helix|dna)\b/, 'helix', 'Double helix.'], [/\b(knot|not|naught)\b/, 'knot', 'Torus knot.'], [/\b(ring|halo|torus|donut)\b/, 'ring', 'Ring.'], [/\b(wave|waves|ocean|ripple|sea)\b/, 'wave', 'Wave field.'], [/\b(sphere|cloud|particles|ball|normal)\b/, 'sphere', 'Back to the cloud.']];
   const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, ninety: 90 };
+  /* API tester: one numbered line per configured provider in the terminal, then a spoken summary */
+  async function runApiTest() {
+    if (runApiTest.busy) return { text: 'The API test is already running.' };
+    runApiTest.busy = true;
+    try {
+      widgets.pushTty('api test · checking every configured provider', '#ffb84d');
+      const d = await brain.testAll(l => widgets.pushTty(`${l.n}. ${l.ok ? '✓ WORKING' : '✗ FAILED'} · ${l.label} · ${l.ok ? l.ms + ' ms' : l.info}`, l.ok ? '#2ee6ff' : '#ff3d6e'));
+      if (!d.total) return { focus: 'tty', text: 'No provider has a key yet. Add one in CFG first.' };
+      return { focus: 'tty', text: `${d.working} of ${d.total} providers are working.` };
+    } finally { runApiTest.busy = false; }
+  }
   function quickRoute(q) {
     q = q.replace(/\bwire frame\b/g, 'wireframe').replace(/\bcount down\b/g, 'countdown').replace(/\bthe mike\b/g, 'the mic').replace(/\bplug in\b/g, 'plugin').replace(/\bhand off\b/g, 'hand off');   // recogniser spellings
     const has = (...k) => k.some(x => q.includes(x));
@@ -231,6 +242,8 @@
     if (/^(normal text|small(er)? text|text smaller|zoom out text)$/.test(q)) return { text: 'Normal text.', effect: () => { S.bigtext = false; document.documentElement.classList.remove('bigtext'); save(); } };
     if (/^(desk( mode| layout)?|holographic desk|holo desk|3d desk)$/.test(q)) return { text: 'Holographic desk.', effect: () => { S.layout = 'desk'; save(); applyLayout(); } };
     if (/^(wall( mode| layout)?|wallpaper( mode)?|projector mode|living wallpaper)$/.test(q)) return { text: 'Wall mode.', effect: () => { S.layout = 'wall'; save(); applyLayout(); } };
+    /* ---- API tester: "test my apis" checks every configured provider and reports each one numbered ---- */
+    if (/^(test (all |my )?(apis?|providers?|keys?|brains?)|api test|check (my )?(apis?|keys?))$/.test(q)) return { run: () => runApiTest() };
     /* ---- the VRM avatar (three-vrm) and its emotions ---- */
     if (/^(show (me )?your face|face mode|3d face|put on a face|be a face|avatar mode|anime (face|mode|avatar)|show (me )?the avatar|use the avatar|vrm (mode|avatar)|be the avatar)$/.test(q)) return { text: 'Avatar on.', effect: () => { S.avatar = 'vrm'; save(); applyLayout(); } };
     if (/^(orb mode|back to the orb|be an orb|hide your face|hide the avatar|no face)$/.test(q)) return { text: 'Back to the orb.', effect: () => { S.avatar = 'orb'; save(); applyLayout(); } };
@@ -474,7 +487,7 @@
           llmSnap = brain.cfg.sysAccess ? widgets.snapshot() : null;
           const sc = sayStream();
           try { const out = await brain.ask(q, llmSnap, text => sc.push(text)); r = { text: out.reply, focus: out.focus, actions: out.actions, shape: out.shape, emotion: out.emotion, provider: out.provider, stream: sc }; }
-          catch (e) { log('warn', `neural core · ${String(e.message).slice(0, 70)}`); if (sc.active()) { sc.end(); return; } r = offlineRoute(low); }
+          catch (e) { log('warn', `neural core · ${String(e.message).slice(0, 70)}`); if (sc.active()) { sc.end(); return; } const off = offlineRoute(low); r = off.text && off.text.startsWith('The neural core is offline') ? { text: `The neural core failed: ${String(e.message).replace(/^Error: /, '').slice(0, 140)}. Check the provider, key and model in CFG.` } : off; }
         } else r = offlineRoute(low);
       }
     } catch (e) { r = { text: 'Something went wrong on my side.' }; }
@@ -830,6 +843,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
       ${localModels.length ? `<select id="optModelSel"><option value="">MODEL · ${localModels.length} FOUND</option>${localModels.map(m => `<option value="${esc(m)}"${m === p.model ? ' selected' : ''}>${esc(m)}</option>`).join('')}</select>` : ''}
       <input type="text" id="optModel" value="${esc(p.model || '')}" placeholder="${p.kind === 'agent' ? 'MODEL (OPTIONAL — CLI DEFAULT)' : 'MODEL'}" spellcheck="false">
       <div class="note">${p.note || ''}</div>
+      <div class="sbtn" id="testApis" style="margin:6px 0">TEST ALL APIS</div>
       <div class="row"><span>SYSTEM ACCESS (READ)</span>${sw('sysAccess', b.sysAccess)}</div>
       <div class="row"><span>SYSTEM CONTROL (ACTIONS)</span>${sw('actions', b.actions)}</div>
       <div class="row"><span>REMEMBER CONVERSATIONS</span>${sw('memory', b.memory)}</div>
@@ -908,7 +922,7 @@ Rules for the html: dark transparent background, cyan #2ee6ff / violet #a07cff /
     $('drawerX').onclick = () => toggleDrawer(false);
     $('optProvider').onchange = e => { b.provider = e.target.value; save(); brain.ping().then(pill); renderDrawer(); };
     const bindText = (id, fn) => { const el = $(id); if (el) el.onchange = e => { fn(e.target.value.trim()); save(); brain.ping().then(pill); }; };
-    bindText('optUrl', v2 => { b.urls[b.provider] = v2.replace(/\/$/, ''); }); bindText('optKey', v2 => { b.keys[b.provider] = v2; }); bindText('optModel', v2 => { b.models[b.provider] = v2; });
+    bindText('optUrl', v2 => { b.urls[b.provider] = v2.replace(/\/$/, ''); }); bindText('optKey', v2 => { b.keys[b.provider] = v2; }); $('testApis') && ($('testApis').onclick = () => runApiTest()); bindText('optModel', v2 => { b.models[b.provider] = v2; });
     if ($('optModelSel')) $('optModelSel').onchange = e => { if (e.target.value) { b.models[b.provider] = e.target.value; $('optModel').value = e.target.value; save(); pill(); } };
     $('optStrategy').onchange = e => { b.pool.strategy = e.target.value; save(); };
     b.roles = b.roles || { chat: '', work: '', research: '', vision: '' };
