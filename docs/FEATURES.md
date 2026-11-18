@@ -1,5 +1,10 @@
 # SAMURAI — feature list
 
+## Changes in 1.6.3
+- Gemini: a retired or renamed model is replaced automatically with a current one on your key, and the new model is used from then on.
+- Errors: when the brain fails, the HUD shows the real reason (provider, key or model) instead of "the neural core is offline".
+- API tester: say "test my apis" or press TEST ALL APIS in CFG. Each configured provider is checked and listed as a numbered line, working or failed, with the response time or the reason.
+
 ## Changes in 1.6.2
 - Gemini: several API keys in one field, separated by commas. When a key is refused or rate-limited, the next key is used.
 - Terminal widget: keeps the last 60 lines, wraps long lines instead of cutting them, and scrolls to the newest line.
